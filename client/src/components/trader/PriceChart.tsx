@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ArrowDownRight, ArrowUpRight, ChevronDown } from "lucide-react";
 import type { PriceCandle, Side } from "@/lib/simulation";
+import type { CandleTimeframe } from "@/lib/candleTimer";
 
 type Props = {
   candles: PriceCandle[];
@@ -9,15 +10,17 @@ type Props = {
   stop: number;
   target: number;
   side: Side;
+  timeframe: CandleTimeframe;
+  onTimeframeChange: (timeframe: CandleTimeframe) => void;
   formatPrice: (value: number) => string;
 };
 
 const WIDTH = 760;
 const HEIGHT = 300;
 const PAD = { top: 18, right: 82, bottom: 30, left: 14 };
+const TIMEFRAMES: CandleTimeframe[] = ["15м", "1ч", "4ч"];
 
-export default function PriceChart({ candles, symbol, entry, stop, target, side, formatPrice }: Props) {
-  const [timeframe, setTimeframe] = useState("15м");
+export default function PriceChart({ candles, symbol, entry, stop, target, side, timeframe, onTimeframeChange, formatPrice }: Props) {
   const visibleCandles = useMemo(() => {
     const amount = timeframe === "15м" ? 40 : timeframe === "1ч" ? 52 : 64;
     return candles.slice(-amount);
@@ -61,12 +64,12 @@ export default function PriceChart({ candles, symbol, entry, stop, target, side,
       <div className="chart-toolbar">
         <div className="chart-symbol"><span className="symbol-dot" />{symbol}<span className="market-status">Демо-поток</span></div>
         <div className="timeframe-group" aria-label="Период графика">
-          {["15м", "1ч", "4ч"].map((item) => (
+          {TIMEFRAMES.map((item) => (
             <button
               key={item}
               type="button"
               className={timeframe === item ? "timeframe active" : "timeframe"}
-              onClick={() => setTimeframe(item)}
+              onClick={() => onTimeframeChange(item)}
             >
               {item}
             </button>

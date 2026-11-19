@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CANDLE_INTERVALS_MS,
   DEMO_CANDLE_INTERVAL_MS,
   formatCandleCountdown,
   getCandleTimeRemaining,
@@ -13,9 +14,18 @@ describe("educational candle timer", () => {
     expect(getCandleTimeRemaining(15 * 60 * 1000)).toBe(DEMO_CANDLE_INTERVAL_MS);
   });
 
+  it("uses the selected hourly or four-hour interval", () => {
+    expect(CANDLE_INTERVALS_MS["1ч"]).toBe(60 * 60 * 1000);
+    expect(CANDLE_INTERVALS_MS["4ч"]).toBe(4 * 60 * 60 * 1000);
+    expect(getCandleTimeRemaining(59 * 60 * 1000, CANDLE_INTERVALS_MS["1ч"])).toBe(60 * 1000);
+    expect(getCandleTimeRemaining(3 * 60 * 60 * 1000, CANDLE_INTERVALS_MS["4ч"])).toBe(60 * 60 * 1000);
+    expect(getCandleTimeRemaining(4 * 60 * 60 * 1000, CANDLE_INTERVALS_MS["4ч"])).toBe(4 * 60 * 60 * 1000);
+  });
+
   it("formats minutes and seconds with ceiling to the next visible second", () => {
     expect(formatCandleCountdown(DEMO_CANDLE_INTERVAL_MS)).toBe("15:00");
     expect(formatCandleCountdown(89_100)).toBe("01:30");
+    expect(formatCandleCountdown(3 * 60 * 60 * 1000)).toBe("03:00:00");
     expect(formatCandleCountdown(1)).toBe("00:01");
     expect(formatCandleCountdown(0)).toBe("00:00");
   });

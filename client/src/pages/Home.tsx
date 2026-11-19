@@ -31,6 +31,7 @@ import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
 import RiskPanel from "@/components/trader/RiskPanel";
 import CandleTimer from "@/components/trader/CandleTimer";
+import type { CandleTimeframe } from "@/lib/candleTimer";
 import { canAccessDemoJournalStorage, createDemoJournalRecord, MAX_DEMO_JOURNAL_RECORDS, readDemoJournal, writeDemoJournal, type DemoJournalRecord } from "@/lib/demoJournal";
 import { buildCandles, simulateScenarios, type Side } from "@/lib/simulation";
 
@@ -63,6 +64,7 @@ function formatPriceFor(market: Market, value: number) {
 
 export default function Home() {
   const [market, setMarket] = useState(MARKETS[0]);
+  const [timeframe, setTimeframe] = useState<CandleTimeframe>("15м");
   const [side, setSide] = useState<Side>("long");
   const [entry, setEntry] = useState(MARKETS[0].price);
   const [stop, setStop] = useState(MARKETS[0].price - 8.2);
@@ -256,7 +258,7 @@ export default function Home() {
 
           <div className="main-grid">
             <div className="chart-column">
-              <PriceChart candles={candles} symbol={market.symbol} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} />
+              <PriceChart candles={candles} symbol={market.symbol} entry={entry} stop={stop} target={target} side={side} timeframe={timeframe} onTimeframeChange={setTimeframe} formatPrice={priceFormatter} />
               <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} />
             </div>
             <aside className="analysis-column">
@@ -289,7 +291,7 @@ export default function Home() {
 
           <section className="bottom-info-grid">
             <div className="panel news-placeholder"><div className="bottom-info-icon amber"><Newspaper size={16} /></div><div><strong>Монитор новостей</strong><p>Внешняя новостная лента не подключена. Здесь можно подключить выбранный источник событий.</p></div><span className="module-chip offline">НЕТ ИСТОЧНИКА</span></div>
-            <CandleTimer />
+            <CandleTimer timeframe={timeframe} />
           </section>
           <footer className="page-footer"><span><span className="footer-brand">ST</span> Skill Trader · демо-прототип</span><span>Синтетические данные · без торговых рекомендаций</span><span className="footer-version">BUILD 0.1.0</span></footer>
         </div>
