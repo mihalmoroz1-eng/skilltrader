@@ -109,3 +109,80 @@ export function canAccessDemoJournalStorage(storage: JournalStorage | undefined 
     return false;
   }
 }
+
+
+export type DemoJournalSideFilter = "all" | DemoJournalSide;
+
+export function filterDemoJournal(
+  records: DemoJournalRecord[],
+  search: string,
+  side: DemoJournalSideFilter = "all",
+): DemoJournalRecord[] {
+  const query = search.trim().toLocaleLowerCase("ru-RU");
+  return records.filter((record) => {
+    const matchesSymbol = !query || record.symbol.toLocaleLowerCase("ru-RU").includes(query);
+    const matchesSide = side === "all" || record.side === side;
+    return matchesSymbol && matchesSide;
+  });
+}
+
+const CSV_HEADERS = [
+  "Дата и время",
+  "Инструмент",
+  "Направление",
+  "Вход",
+  "Стоп",
+  "Цель",
+  "Размер",
+  "Риск USD",
+  "Потенциал USD",
+  "Прибыль/риск",
+];
+
+function spreadsheetSafeText(value: string) {
+  return /^[\t\r\n ]*[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
+function csvCell(value: string | number) {
+  const text = typeof value === "number"
+    ? value.toLocaleString("ru-RU", { useGrouping: false, maximumFractionDigits: 8 })
+    : spreadsheetSafeText(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+export function createDemoJournalCsv(records: DemoJournalRecord[]): string {
+  const rows = records.map((record) => [
+    record.createdAt,
+    record.symbol,
+    record.side === "long" ? "Покупка" : "Продажа",
+    record.entry,
+    record.stop,
+    record.target,
+    record.size,
+    record.riskUsd,
+    record.potentialUsd,
+    record.riskReward,
+  ]);
+  return `\uFEFF${[CSV_HEADERS, ...rows].map((row) => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
+}
+
+export function downloadDemoJournalCsv(records: DemoJournalRecord[], now = new Date()): boolean {
+  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return false;
+  let objectUrl = "";
+  try {
+    const blob = new Blob([createDemoJournalCsv(records)], { type: "text/csv;charset=utf-8" });
+    objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = `skill-trader-journal-${now.toISOString().slice(0, 10)}.csv`;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    return true;
+  } catch {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    return false;
+  }
+}

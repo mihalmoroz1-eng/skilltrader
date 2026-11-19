@@ -493,3 +493,28 @@ h1 span { color: #a9b3be; font-weight: 430; }
   .journal-entry-card-foot { flex-wrap: wrap; padding-top: 8px; border-top: 1px solid #252d37; color: #9ba5b1; font-size: 8px; }
   .journal-entry-card-foot .journal-metric-reward { margin-top: 0; }
 }
+
+
+/* Journal search, direction filter and local CSV export */
+.journal-controls { display: grid; grid-template-columns: minmax(190px, 1fr) 160px auto; gap: 7px; margin-top: 12px; }
+.journal-search, .journal-side-filter { display: flex; min-width: 0; height: 34px; align-items: center; gap: 7px; padding: 0 9px; color: #8e9aa8; background: #0e131a; border: 1px solid #29323d; border-radius: 5px; }
+.journal-search:focus-within, .journal-side-filter:focus { border-color: rgba(117,168,255,.55); outline: none; }
+.journal-search svg { flex: 0 0 auto; color: #758291; }
+.journal-search input { width: 100%; min-width: 0; color: #dbe1de; background: transparent; border: 0; outline: none; font-size: 9px; }
+.journal-search input::placeholder { color: #687483; }
+.journal-side-filter { color: #c0c8c7; font-size: 9px; }
+.journal-side-filter option { color: #d7dfdc; background: #111720; }
+.journal-export-button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 6px; padding: 0 11px; color: var(--lime); background: rgba(165,242,76,.08); border: 1px solid rgba(165,242,76,.2); border-radius: 5px; font-size: 9px; font-weight: 650; white-space: nowrap; }
+.journal-export-button:hover:not(:disabled) { background: rgba(165,242,76,.15); }
+.journal-export-button:disabled { color: #697483; background: #141a22; border-color: #242d38; cursor: not-allowed; }
+.journal-results-row { display: flex; min-height: 22px; align-items: center; justify-content: space-between; gap: 8px; margin-top: 5px; color: #73808e; font-size: 8px; }
+.journal-export-message { color: var(--lime); }
+.journal-reset-button { margin-top: 3px; padding: 6px 9px; color: var(--blue); background: transparent; border: 1px solid rgba(117,168,255,.24); border-radius: 4px; font-size: 8px; }
+.journal-reset-button:hover { background: rgba(117,168,255,.08); }
+.journal-no-results { min-height: 96px; }
+@media (max-width: 700px) {
+  .journal-controls { grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .journal-search { grid-column: 1 / -1; }
+  .journal-side-filter, .journal-export-button { width: 100%; }
+  .journal-results-row { min-height: 19px; }
+}

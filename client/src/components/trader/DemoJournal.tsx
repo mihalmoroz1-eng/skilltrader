@@ -1,5 +1,7 @@
-import { ClipboardList, HardDrive, Trash2 } from "lucide-react";
-import type { DemoJournalRecord } from "@/lib/demoJournal";
+import { useMemo, useState } from "react";
+import { ClipboardList, Download, HardDrive, Search, Trash2 } from "lucide-react";
+import type { DemoJournalRecord, DemoJournalSideFilter } from "@/lib/demoJournal";
+import { downloadDemoJournalCsv, filterDemoJournal } from "@/lib/demoJournal";
 
 type Props = {
   entries: DemoJournalRecord[];
@@ -34,6 +36,17 @@ function EntryLevels({ entry, stop, target, symbol, formatPrice }: Pick<DemoJour
 }
 
 export default function DemoJournal({ entries, storageAvailable, formatPrice, formatMoney, onDelete }: Props) {
+  const [search, setSearch] = useState("");
+  const [sideFilter, setSideFilter] = useState<DemoJournalSideFilter>("all");
+  const [exportMessage, setExportMessage] = useState("");
+  const visibleEntries = useMemo(() => filterDemoJournal(entries, search, sideFilter), [entries, search, sideFilter]);
+
+  const exportCsv = () => {
+    const succeeded = downloadDemoJournalCsv(visibleEntries);
+    setExportMessage(succeeded ? `CSV выгружен: ${visibleEntries.length}` : "Скачивание CSV недоступно в этом браузере");
+    window.setTimeout(() => setExportMessage(""), 2500);
+  };
+
   return (
     <section className="panel journal-panel" id="demo-journal">
       <div className="panel-heading journal-heading">
@@ -48,7 +61,26 @@ export default function DemoJournal({ entries, storageAvailable, formatPrice, fo
           </span>
         </div>
       </div>
-      <p className="journal-description">Сохранённые сценарии не исполняются и не отправляются на сервер. Их можно удалить по одному.</p>
+      <p className="journal-description">Сценарии не исполняются и не отправляются на сервер. Поиск и экспорт работают локально.</p>
+
+      <div className="journal-controls">
+        <label className="journal-search">
+          <Search size={14} aria-hidden="true" />
+          <input type="search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Поиск по тикеру" aria-label="Поиск по тикеру" />
+        </label>
+        <select className="journal-side-filter" value={sideFilter} onChange={(event) => setSideFilter(event.currentTarget.value as DemoJournalSideFilter)} aria-label="Фильтр по направлению">
+          <option value="all">Все направления</option>
+          <option value="long">Покупка</option>
+          <option value="short">Продажа</option>
+        </select>
+        <button className="journal-export-button" onClick={exportCsv} disabled={!visibleEntries.length} title="Скачать CSV текущей выборки">
+          <Download size={14} /> Экспорт CSV
+        </button>
+      </div>
+      <div className="journal-results-row">
+        <span className="journal-results-count">Показано {visibleEntries.length} из {entries.length}</span>
+        {exportMessage && <span className="journal-export-message" role="status">{exportMessage}</span>}
+      </div>
 
       {!entries.length ? (
         <div className="journal-empty">
@@ -56,13 +88,19 @@ export default function DemoJournal({ entries, storageAvailable, formatPrice, fo
           <strong>Записей пока нет</strong>
           <span>Настройте сценарий выше и нажмите «Сохранить демо-запись».</span>
         </div>
+      ) : !visibleEntries.length ? (
+        <div className="journal-empty journal-no-results">
+          <strong>По фильтру ничего не найдено</strong>
+          <span>Измените запрос или сбросьте параметры отбора.</span>
+          <button className="journal-reset-button" onClick={() => { setSearch(""); setSideFilter("all"); }}>Сбросить фильтры</button>
+        </div>
       ) : (
         <>
           <div className="journal-table-wrap">
             <table className="journal-table">
               <thead><tr><th>Дата</th><th>Инструмент</th><th>Сторона</th><th>Уровни</th><th>Размер</th><th>Риск / потенциал</th><th><span className="sr-only">Действия</span></th></tr></thead>
               <tbody>
-                {entries.map((record) => (
+                {visibleEntries.map((record) => (
                   <tr key={record.id}>
                     <td><time dateTime={record.createdAt}>{formatDate(record.createdAt)}</time></td>
                     <td><strong className="journal-symbol">{record.symbol}</strong><small>Демо-сценарий</small></td>
@@ -77,7 +115,7 @@ export default function DemoJournal({ entries, storageAvailable, formatPrice, fo
             </table>
           </div>
           <div className="journal-card-list">
-            {entries.map((record) => (
+            {visibleEntries.map((record) => (
               <article className="journal-entry-card" key={record.id}>
                 <div className="journal-entry-card-head">
                   <div><strong className="journal-symbol">{record.symbol}</strong><time dateTime={record.createdAt}>{formatDate(record.createdAt)}</time></div>
