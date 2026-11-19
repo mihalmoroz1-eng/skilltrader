@@ -31,7 +31,9 @@ import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
 import RiskPanel from "@/components/trader/RiskPanel";
 import CandleTimer from "@/components/trader/CandleTimer";
+import AccountSettingsModal from "@/components/trader/AccountSettingsModal";
 import type { CandleTimeframe } from "@/lib/candleTimer";
+import { readDemoAccountSettings, writeDemoAccountSettings, type DemoAccountSettings } from "@/lib/demoAccountSettings";
 import { canAccessDemoJournalStorage, createDemoJournalRecord, MAX_DEMO_JOURNAL_RECORDS, readDemoJournal, writeDemoJournal, type DemoJournalRecord } from "@/lib/demoJournal";
 import { buildCandles, simulateScenarios, type Side } from "@/lib/simulation";
 
@@ -56,8 +58,6 @@ const FUTURE_MODULES = [
   { label: "Таймер входа", icon: Clock3 },
 ];
 
-const INITIAL_BALANCE = 500;
-
 function formatPriceFor(market: Market, value: number) {
   return value.toLocaleString("en-US", { minimumFractionDigits: market.decimals, maximumFractionDigits: market.decimals });
 }
@@ -65,6 +65,8 @@ function formatPriceFor(market: Market, value: number) {
 export default function Home() {
   const [market, setMarket] = useState(MARKETS[0]);
   const [timeframe, setTimeframe] = useState<CandleTimeframe>("15м");
+  const [accountSettings, setAccountSettings] = useState<DemoAccountSettings>(() => readDemoAccountSettings());
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [side, setSide] = useState<Side>("long");
   const [entry, setEntry] = useState(MARKETS[0].price);
   const [stop, setStop] = useState(MARKETS[0].price - 8.2);
@@ -134,6 +136,14 @@ export default function Home() {
     setDemoTrades(nextTrades);
     setJournalStorageAvailable(stored);
     setSavedMessage(stored ? "Демо-запись удалена" : "Не удалось изменить локальное хранилище");
+    window.setTimeout(() => setSavedMessage(""), 2500);
+  };
+
+  const saveAccountSettings = (settings: DemoAccountSettings) => {
+    const stored = writeDemoAccountSettings(settings);
+    setAccountSettings(settings);
+    setSettingsOpen(false);
+    setSavedMessage(stored ? "Настройки демо-счёта сохранены в браузере" : "Хранилище недоступно: настройки действуют до закрытия вкладки");
     window.setTimeout(() => setSavedMessage(""), 2500);
   };
 
@@ -214,7 +224,7 @@ export default function Home() {
           <section className="summary-strip" aria-label="Демо-статистика">
             <div className="summary-card balance-card">
               <div className="summary-icon balance-icon"><Wallet size={17} /></div>
-              <div className="summary-copy"><span>Демо-баланс</span><strong>$500.00</strong><small><span className="summary-positive">+0.0%</span> · стартовый капитал</small></div>
+              <div className="summary-copy"><span>Демо-баланс</span><strong>{moneyFormatter(accountSettings.balanceUsd)}</strong><small><span className="summary-positive">ДЕМО</span> · риск до {accountSettings.riskLimitPercent.toFixed(1)}%</small></div>
               <div className="mini-sparkline"><svg viewBox="0 0 100 36" aria-hidden="true"><path d="M2 29 C12 26 14 18 24 21 S38 30 46 18 S59 17 68 22 S81 9 98 7" /></svg></div>
             </div>
             <div className="summary-card"><div className="summary-icon trades-icon"><BarChart3 size={17} /></div><div className="summary-copy"><span>Демо-записи</span><strong>{demoTrades.length.toString().padStart(2, "0")}</strong><small>сохранено локально</small></div></div>
@@ -262,7 +272,7 @@ export default function Home() {
               <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} />
             </div>
             <aside className="analysis-column">
-              <RiskPanel entry={entry} stop={stop} target={target} side={side} size={size} balance={INITIAL_BALANCE} valid={validLevels} formatMoney={moneyFormatter} />
+              <RiskPanel entry={entry} stop={stop} target={target} side={side} size={size} balance={accountSettings.balanceUsd} maxRiskPercent={accountSettings.riskLimitPercent} valid={validLevels} formatMoney={moneyFormatter} />
               <section className="panel probability-panel" id="scenario-outcomes">
                 <div className="panel-heading probability-heading"><div><div className="eyebrow">РЕЗУЛЬТАТЫ МОДЕЛИ</div><h2>Вероятности исходов</h2></div><button className={`run-button ${isRunning ? "running" : ""}`} onClick={runSimulation} disabled={!validLevels || isRunning}><Play size={12} fill="currentColor" />{isRunning ? "Считаем" : "Пересчитать"}</button></div>
                 <div className="model-status"><span className="model-status-dot" /> {simulation.trials.toLocaleString("ru-RU")} прогонов · параметры текущего сценария</div>
@@ -276,7 +286,7 @@ export default function Home() {
                 <div className="module-status-row"><span className="module-status-icon amber"><Newspaper size={15} /></span><span><strong>Монитор новостей</strong><small>Источник не подключён</small></span><span className="module-chip offline">OFF</span></div>
                 <div className="module-status-row"><span className="module-status-icon blue"><Gauge size={15} /></span><span><strong>Таймер входа</strong><small>Учебный режим</small></span><span className="module-chip offline">ДЕМО</span></div>
                 <div className="module-status-row"><span className="module-status-icon coral"><Wallet size={15} /></span><span><strong>Исполнитель ордеров</strong><small>Реальные заявки выключены</small></span><span className="module-chip offline">OFF</span></div>
-                <div className="modules-footer"><span><span className="tiny-lock" />Без подключённых внешних сервисов</span><button onClick={() => setSavedMessage("Модули в этой версии работают автономно")}><Settings2 size={13} /> Настройки</button></div>
+                <div className="modules-footer"><span><span className="tiny-lock" />Без подключённых внешних сервисов</span><button aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}><Settings2 size={13} /> Настройки</button></div>
               </section>
             </aside>
           </div>
@@ -296,6 +306,7 @@ export default function Home() {
           <footer className="page-footer"><span><span className="footer-brand">ST</span> Skill Trader · демо-прототип</span><span>Синтетические данные · без торговых рекомендаций</span><span className="footer-version">BUILD 0.1.0</span></footer>
         </div>
       </main>
+      {settingsOpen && <AccountSettingsModal settings={accountSettings} onClose={() => setSettingsOpen(false)} onSave={saveAccountSettings} />}
     </div>
   );
 }
