@@ -6,6 +6,7 @@ import {
   BarChart3,
   Bell,
   Check,
+  ClipboardList,
   ChevronDown,
   CircleHelp,
   Clock3,
@@ -27,7 +28,9 @@ import {
 import PriceChart from "@/components/trader/PriceChart";
 import ScenarioChart from "@/components/trader/ScenarioChart";
 import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
+import DemoJournal from "@/components/trader/DemoJournal";
 import RiskPanel from "@/components/trader/RiskPanel";
+import { canAccessDemoJournalStorage, createDemoJournalRecord, MAX_DEMO_JOURNAL_RECORDS, readDemoJournal, writeDemoJournal, type DemoJournalRecord } from "@/lib/demoJournal";
 import { buildCandles, simulateScenarios, type Side } from "@/lib/simulation";
 
 type Market = { symbol: string; name: string; price: number; change: number; changePct: number; decimals: number };
@@ -43,6 +46,7 @@ const NAV_ITEMS = [
   { label: "График цены", icon: BarChart3, anchor: "price-chart" },
   { label: "Машина времени", icon: Sparkles, anchor: "time-machine" },
   { label: "Риск и бюджет", icon: ShieldCheck, anchor: "risk-manager" },
+  { label: "Журнал", icon: ClipboardList, anchor: "demo-journal" },
 ];
 
 const FUTURE_MODULES = [
@@ -66,7 +70,8 @@ export default function Home() {
   const [simSeed, setSimSeed] = useState(31);
   const [simulation, setSimulation] = useState(() => simulateScenarios(entry, stop, target, side, 10_000, 31));
   const [isRunning, setIsRunning] = useState(false);
-  const [demoTrades, setDemoTrades] = useState(0);
+  const [demoTrades, setDemoTrades] = useState<DemoJournalRecord[]>(() => readDemoJournal());
+  const [journalStorageAvailable, setJournalStorageAvailable] = useState(() => canAccessDemoJournalStorage());
   const [savedMessage, setSavedMessage] = useState("");
   const [activeNav, setActiveNav] = useState("Рабочий стол");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -110,8 +115,22 @@ export default function Home() {
   };
 
   const saveDemoTrade = () => {
-    setDemoTrades((count) => count + 1);
-    setSavedMessage("Демо-запись добавлена в журнал");
+    if (!validLevels) return;
+    const record = createDemoJournalRecord({ symbol: market.symbol, side, entry, stop, target, size });
+    const nextTrades = [record, ...demoTrades].slice(0, MAX_DEMO_JOURNAL_RECORDS);
+    const stored = writeDemoJournal(nextTrades);
+    setDemoTrades(nextTrades);
+    setJournalStorageAvailable(stored);
+    setSavedMessage(stored ? "Демо-сценарий сохранён в этом браузере" : "Хранилище недоступно: запись останется только до закрытия вкладки");
+    window.setTimeout(() => setSavedMessage(""), 2500);
+  };
+
+  const deleteDemoTrade = (id: string) => {
+    const nextTrades = demoTrades.filter((record) => record.id !== id);
+    const stored = writeDemoJournal(nextTrades);
+    setDemoTrades(nextTrades);
+    setJournalStorageAvailable(stored);
+    setSavedMessage(stored ? "Демо-запись удалена" : "Не удалось изменить локальное хранилище");
     window.setTimeout(() => setSavedMessage(""), 2500);
   };
 
@@ -195,7 +214,7 @@ export default function Home() {
               <div className="summary-copy"><span>Демо-баланс</span><strong>$500.00</strong><small><span className="summary-positive">+0.0%</span> · стартовый капитал</small></div>
               <div className="mini-sparkline"><svg viewBox="0 0 100 36" aria-hidden="true"><path d="M2 29 C12 26 14 18 24 21 S38 30 46 18 S59 17 68 22 S81 9 98 7" /></svg></div>
             </div>
-            <div className="summary-card"><div className="summary-icon trades-icon"><BarChart3 size={17} /></div><div className="summary-copy"><span>Демо-записи</span><strong>{demoTrades.toString().padStart(2, "0")}</strong><small>сохранено локально</small></div></div>
+            <div className="summary-card"><div className="summary-icon trades-icon"><BarChart3 size={17} /></div><div className="summary-copy"><span>Демо-записи</span><strong>{demoTrades.length.toString().padStart(2, "0")}</strong><small>сохранено локально</small></div></div>
             <div className="summary-card"><div className="summary-icon sim-icon"><Sparkles size={17} /></div><div className="summary-copy"><span>Сценарии</span><strong>{simulation.trials.toLocaleString("ru-RU")}</strong><small>учебных испытаний</small></div></div>
             <div className="summary-card market-summary">
               <div className="summary-icon market-icon"><Activity size={17} /></div><div className="summary-copy"><span>Активный инструмент</span><strong>{market.symbol}</strong><small><span className={market.changePct >= 0 ? "summary-positive" : "summary-negative"}>{market.changePct >= 0 ? "+" : ""}{market.changePct.toFixed(2)}%</span> · условное изменение</small></div>
@@ -228,7 +247,7 @@ export default function Home() {
               </div>
               <div className="trade-panel-footer">
                 <div className="trade-rr"><Target size={14} /><span>Прибыль / риск</span><strong>{Math.abs(entry - stop) > 0 ? (Math.abs(target - entry) / Math.abs(entry - stop)).toFixed(2) : "—"}R</strong></div>
-                <button className="save-demo-button" onClick={saveDemoTrade}><Check size={14} /> Сохранить демо-запись</button>
+                <button className="save-demo-button" onClick={saveDemoTrade} disabled={!validLevels}><Check size={14} /> Сохранить демо-запись</button>
               </div>
               {savedMessage && <div className="toast-message"><Check size={14} />{savedMessage}</div>}
             </section>
@@ -258,6 +277,14 @@ export default function Home() {
               </section>
             </aside>
           </div>
+
+          <DemoJournal
+            entries={demoTrades}
+            storageAvailable={journalStorageAvailable}
+            formatPrice={(symbol, value) => formatPriceFor(MARKETS.find((item) => item.symbol === symbol) ?? market, value)}
+            formatMoney={moneyFormatter}
+            onDelete={deleteDemoTrade}
+          />
 
           <section className="bottom-info-grid">
             <div className="panel news-placeholder"><div className="bottom-info-icon amber"><Newspaper size={16} /></div><div><strong>Монитор новостей</strong><p>Внешняя новостная лента не подключена. Здесь можно подключить выбранный источник событий.</p></div><span className="module-chip offline">НЕТ ИСТОЧНИКА</span></div>
