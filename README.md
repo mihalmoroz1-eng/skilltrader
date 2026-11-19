@@ -1,14 +1,46 @@
 # Skill Trader — демо-панель
 
-React / Express / tRPC / Drizzle starter, adapted from the Sandbox web-db-user template.
+Русскоязычный интерактивный прототип торгового помощника: синтетические котировки, свечной график, редактируемые уровни сделки, панель риска и «Машина времени» с 10 000 сценариями Монте-Карло.
 
-- `pnpm dev`: development server; honors `PORT` (default 3000).
-- `pnpm build` / `pnpm start`: build and serve `dist/index.js` and `dist/public/`.
-- `pnpm db:migrate`: apply checked-in migrations. `pnpm db:push`: generate and apply new schema changes.
-- `pnpm check` / `pnpm test`: types and application tests.
+> **Только учебное демо.** Цены и OHLC-свечи искусственные, результаты модели не являются прогнозом или рекомендацией. Приложение не подключено к брокеру и не отправляет реальные ордера. Сохранение сделки добавляет только локальный счётчик демо-записей.
 
-Start with the Webdev skill's default-template guide. Platform login, storage, payments and service contracts live in its shared references; read the relevant capability before extending its helper.
+## Возможности
 
-`server/_core/publicConfig.ts` exposes only named public runtime values. Private keys stay server-side. The platform serves managed `/manus-storage/` assets; the application does not register a second proxy.
+На панели доступны демонстрационные XAUUSD, EURUSD и BTCUSD, переключение направления позиции, цены входа, стопа, цели и размера. Свечной график и веер возможных траекторий связаны с этими параметрами. Симулятор показывает доли достижения целевого уровня, стопа и исхода без касания уровней; риск оценивается относительно стартового баланса $500. Веер отображает 28 примеров траекторий, медиану и диапазон 20–80% из общей симуляции.
 
-Platform configuration is readable and editable through `webdev.config`. Default settings are initial values, not enforced constraints. The agent may modify the files, commands and configuration or follow the flexible guide for another stack.
+Панель адаптирована для мобильного экрана и desktop. Модули новостей и таймера показаны как заглушки; подключённых внешних источников нет.
+
+## Запуск
+
+Требуется Node.js и pnpm, зафиксированный lock-файлом.
+
+```bash
+pnpm install
+pnpm dev:static
+```
+
+Откройте `http://localhost:3000`. Статическое приложение использует React, TypeScript, Vite и CSS; постоянная база данных и backend не требуются.
+
+## Команды качества
+
+```bash
+pnpm check
+pnpm test
+pnpm build:static
+```
+
+## Структура
+
+- `client/src/pages/Home.tsx` — панель инструментов и состояния демонстрационной позиции.
+- `client/src/components/trader/PriceChart.tsx` — синтетические свечи и уровни сделки.
+- `client/src/components/trader/ScenarioChart.tsx` — веер смоделированных траекторий и диапазон неопределённости.
+- `client/src/components/trader/RiskPanel.tsx` — учебные метрики риска и прибыли к риску.
+- `client/src/components/trader/OutcomeDistribution.tsx` — распределение исходов симуляции.
+- `client/src/lib/simulation.ts` — генерация условных OHLC-данных и случайных сценариев.
+- `plan.md` и `TODO.md` — согласованный план и состояние работ.
+
+## Следующие подключения
+
+Источники котировок, новостные API, внешние модели ИИ, paper-trading и уведомления могут быть добавлены отдельными адаптерами после выбора пользователя. Live-данные требуют ключей/API и проверки лицензии; брокерские ордера являются отдельной, отключённой сейчас функцией. Не храните секреты в клиентском коде или GitHub.
+
+Лицензия проекта: MIT.
