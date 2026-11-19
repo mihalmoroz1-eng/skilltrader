@@ -518,3 +518,20 @@ h1 span { color: #a9b3be; font-weight: 430; }
   .journal-side-filter, .journal-export-button { width: 100%; }
   .journal-results-row { min-height: 19px; }
 }
+
+
+/* Educational candle-boundary timer */
+.timer-content { display: grid; min-width: 0; flex: 1; gap: 7px; }
+.timer-kicker { color: #8491a0; font-size: 7px; font-weight: 700; letter-spacing: .11em; }
+.timer-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.timer-title-wrap { min-width: 0; }
+.timer-title-wrap .timer-title { color: #d9e0dc; font-size: 10px; }
+.timer-title-wrap p { margin-top: 4px; color: #73808e; font-size: 8px; line-height: 1.4; }
+.timer-countdown { flex: 0 0 auto; color: #c7b9ff; font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: .045em; }
+.timer-progress { height: 4px; overflow: hidden; background: #222b36; border-radius: 5px; }
+.timer-progress > span { display: block; height: 100%; background: linear-gradient(90deg, #7d91ff, #b19aff); border-radius: inherit; transition: width .35s linear; }
+.timer-footnote { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #788492; font-size: 7px; }
+@media (max-width: 700px) {
+  .timer-countdown { font-size: 22px; }
+  .timer-footnote { font-size: 7px; }
+}

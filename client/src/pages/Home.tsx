@@ -30,6 +30,7 @@ import ScenarioChart from "@/components/trader/ScenarioChart";
 import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
 import RiskPanel from "@/components/trader/RiskPanel";
+import CandleTimer from "@/components/trader/CandleTimer";
 import { canAccessDemoJournalStorage, createDemoJournalRecord, MAX_DEMO_JOURNAL_RECORDS, readDemoJournal, writeDemoJournal, type DemoJournalRecord } from "@/lib/demoJournal";
 import { buildCandles, simulateScenarios, type Side } from "@/lib/simulation";
 
@@ -288,7 +289,7 @@ export default function Home() {
 
           <section className="bottom-info-grid">
             <div className="panel news-placeholder"><div className="bottom-info-icon amber"><Newspaper size={16} /></div><div><strong>Монитор новостей</strong><p>Внешняя новостная лента не подключена. Здесь можно подключить выбранный источник событий.</p></div><span className="module-chip offline">НЕТ ИСТОЧНИКА</span></div>
-            <div className="panel timer-placeholder"><div className="bottom-info-icon blue"><Clock3 size={16} /></div><div><strong>Таймер входа</strong><p>Модуль анализа свечей предусмотрен для следующего этапа; в этом демо он не формирует сигналов.</p></div><span className="module-chip offline">МАКЕТ</span></div>
+            <CandleTimer />
           </section>
           <footer className="page-footer"><span><span className="footer-brand">ST</span> Skill Trader · демо-прототип</span><span>Синтетические данные · без торговых рекомендаций</span><span className="footer-version">BUILD 0.1.0</span></footer>
         </div>
