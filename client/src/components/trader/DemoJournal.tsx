@@ -7,6 +7,7 @@ type Props = {
   entries: DemoJournalRecord[];
   storageAvailable: boolean;
   formatPrice: (symbol: string, value: number) => string;
+  formatSize: (symbol: string, value: number) => string;
   formatMoney: (value: number) => string;
   onDelete: (id: string) => void;
 };
@@ -35,7 +36,7 @@ function EntryLevels({ entry, stop, target, symbol, formatPrice }: Pick<DemoJour
   );
 }
 
-export default function DemoJournal({ entries, storageAvailable, formatPrice, formatMoney, onDelete }: Props) {
+export default function DemoJournal({ entries, storageAvailable, formatPrice, formatSize, formatMoney, onDelete }: Props) {
   const [search, setSearch] = useState("");
   const [sideFilter, setSideFilter] = useState<DemoJournalSideFilter>("all");
   const [exportMessage, setExportMessage] = useState("");
@@ -106,7 +107,7 @@ export default function DemoJournal({ entries, storageAvailable, formatPrice, fo
                     <td><strong className="journal-symbol">{record.symbol}</strong><small>Демо-сценарий</small></td>
                     <td><DirectionBadge side={record.side} /></td>
                     <td><EntryLevels {...record} formatPrice={formatPrice} /></td>
-                    <td>{record.size.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ед.</td>
+                    <td>{formatSize(record.symbol, record.size)}</td>
                     <td><span className="journal-metric-risk">−{formatMoney(record.riskUsd)}</span><small className="journal-metric-reward">+{formatMoney(record.potentialUsd)} · {record.riskReward.toFixed(2)}R</small></td>
                     <td><button className="journal-delete" aria-label={`Удалить запись ${record.symbol} от ${formatDate(record.createdAt)}`} title="Удалить запись" onClick={() => onDelete(record.id)}><Trash2 size={14} /></button></td>
                   </tr>
@@ -122,7 +123,7 @@ export default function DemoJournal({ entries, storageAvailable, formatPrice, fo
                   <div className="journal-entry-actions"><DirectionBadge side={record.side} /><button className="journal-delete" aria-label={`Удалить запись ${record.symbol} от ${formatDate(record.createdAt)}`} title="Удалить запись" onClick={() => onDelete(record.id)}><Trash2 size={14} /></button></div>
                 </div>
                 <EntryLevels {...record} formatPrice={formatPrice} />
-                <div className="journal-entry-card-foot"><span>{record.size.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ед.</span><span className="journal-metric-risk">Риск −{formatMoney(record.riskUsd)}</span><span className="journal-metric-reward">Цель +{formatMoney(record.potentialUsd)} · {record.riskReward.toFixed(2)}R</span></div>
+                <div className="journal-entry-card-foot"><span>{formatSize(record.symbol, record.size)}</span><span className="journal-metric-risk">Риск −{formatMoney(record.riskUsd)}</span><span className="journal-metric-reward">Цель +{formatMoney(record.potentialUsd)} · {record.riskReward.toFixed(2)}R</span></div>
               </article>
             ))}
           </div>

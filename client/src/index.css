@@ -568,3 +568,22 @@ h1 span { color: #a9b3be; font-weight: 430; }
   .settings-dialog { padding: 15px; }
   .settings-field input { height: 42px; font-size: 16px; }
 }
+
+
+.draft-persistence-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  color: #788493;
+  font-size: 9px;
+}
+.draft-persistence-note::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--aqua);
+  content: "";
+}
+.draft-persistence-note.is-unavailable { color: var(--amber); }
+.draft-persistence-note.is-unavailable::before { background: var(--amber); }

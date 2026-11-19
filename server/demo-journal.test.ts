@@ -63,9 +63,10 @@ describe("local demo journal", () => {
     expect(writeDemoJournal([record()], failingStorage)).toBe(false);
   });
 
-  it("exports semicolon-delimited UTF-8 CSV and neutralizes formula-like text", () => {
+  it("exports unit metadata in UTF-8 CSV and neutralizes formula-like text", () => {
     const unsafe = record(9, "\t=1+1");
     const csv = createDemoJournalCsv([unsafe]);
+    const euroCsv = createDemoJournalCsv([record(10, "EURUSD")]);
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain(";\"Инструмент\";");
@@ -73,5 +74,7 @@ describe("local demo journal", () => {
     expect(csv).toContain("\"Покупка\"");
     expect(csv).toContain("\"2354,2\"");
     expect(csv).toMatch(/\r\n/);
+    expect(euroCsv).toContain("\"Размер\";\"Единица размера\";\"Риск USD\"");
+    expect(euroCsv).toContain("\"1\";\"EUR\";");
   });
 });

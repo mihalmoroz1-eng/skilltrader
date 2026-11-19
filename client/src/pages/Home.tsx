@@ -34,10 +34,12 @@ import CandleTimer from "@/components/trader/CandleTimer";
 import AccountSettingsModal from "@/components/trader/AccountSettingsModal";
 import type { CandleTimeframe } from "@/lib/candleTimer";
 import { readDemoAccountSettings, writeDemoAccountSettings, type DemoAccountSettings } from "@/lib/demoAccountSettings";
+import { formatDemoPositionSize, getDemoPositionSpec, type DemoInstrumentSymbol } from "@/lib/demoInstruments";
 import { canAccessDemoJournalStorage, createDemoJournalRecord, MAX_DEMO_JOURNAL_RECORDS, readDemoJournal, writeDemoJournal, type DemoJournalRecord } from "@/lib/demoJournal";
+import { isValidDemoScenarioDraft, readDemoScenarioDraft, writeDemoScenarioDraft, type DemoScenarioDraft } from "@/lib/demoScenarioDraft";
 import { buildCandles, simulateScenarios, type Side } from "@/lib/simulation";
 
-type Market = { symbol: string; name: string; price: number; change: number; changePct: number; decimals: number };
+type Market = { symbol: DemoInstrumentSymbol; name: string; price: number; change: number; changePct: number; decimals: number };
 
 const MARKETS: Market[] = [
   { symbol: "XAUUSD", name: "Золото / Доллар США", price: 2354.2, change: 9.84, changePct: 0.42, decimals: 2 },
@@ -63,20 +65,18 @@ function formatPriceFor(market: Market, value: number) {
 }
 
 export default function Home() {
-  const [market, setMarket] = useState(MARKETS[0]);
-  const [timeframe, setTimeframe] = useState<CandleTimeframe>("15м");
+  const [draft, setDraft] = useState<DemoScenarioDraft>(() => readDemoScenarioDraft());
+  const market = MARKETS.find((item) => item.symbol === draft.symbol) ?? MARKETS[0];
+  const positionSpec = getDemoPositionSpec(market.symbol);
+  const { timeframe, side, entry, stop, target, size } = draft;
   const [accountSettings, setAccountSettings] = useState<DemoAccountSettings>(() => readDemoAccountSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [side, setSide] = useState<Side>("long");
-  const [entry, setEntry] = useState(MARKETS[0].price);
-  const [stop, setStop] = useState(MARKETS[0].price - 8.2);
-  const [target, setTarget] = useState(MARKETS[0].price + 16.3);
-  const [size, setSize] = useState(1);
   const [simSeed, setSimSeed] = useState(31);
-  const [simulation, setSimulation] = useState(() => simulateScenarios(entry, stop, target, side, 10_000, 31));
+  const [simulation, setSimulation] = useState(() => simulateScenarios(draft.entry, draft.stop, draft.target, draft.side, 10_000, 31));
   const [isRunning, setIsRunning] = useState(false);
   const [demoTrades, setDemoTrades] = useState<DemoJournalRecord[]>(() => readDemoJournal());
   const [journalStorageAvailable, setJournalStorageAvailable] = useState(() => canAccessDemoJournalStorage());
+  const [draftStorageAvailable, setDraftStorageAvailable] = useState<boolean | null>(null);
   const [savedMessage, setSavedMessage] = useState("");
   const [activeNav, setActiveNav] = useState("Рабочий стол");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -88,6 +88,21 @@ export default function Home() {
   const candles = useMemo(() => buildCandles(market.price, 64, MARKETS.indexOf(market) + 17), [market]);
   const quote = market.price;
 
+  const setTimeframe = (nextTimeframe: CandleTimeframe) => setDraft((current) => ({ ...current, timeframe: nextTimeframe }));
+  const setEntry = (nextEntry: number) => setDraft((current) => ({ ...current, entry: nextEntry }));
+  const setStop = (nextStop: number) => setDraft((current) => ({ ...current, stop: nextStop }));
+  const setTarget = (nextTarget: number) => setDraft((current) => ({ ...current, target: nextTarget }));
+  const setSize = (nextSize: number) => setDraft((current) => ({ ...current, size: nextSize }));
+
+  useEffect(() => {
+    if (!isValidDemoScenarioDraft(draft)) {
+      setDraftStorageAvailable(null);
+      return;
+    }
+    const timer = window.setTimeout(() => setDraftStorageAvailable(writeDemoScenarioDraft(draft)), 250);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
+
   useEffect(() => {
     if (!validLevels) return;
     const timer = window.setTimeout(() => {
@@ -98,18 +113,31 @@ export default function Home() {
   }, [entry, stop, target, side, simSeed, validLevels]);
 
   const setDirection = (nextSide: Side) => {
-    setSide(nextSide);
-    const unit = Math.max(Math.abs(entry) * 0.0035, market.decimals === 2 ? 1 : 0.001);
-    setStop(nextSide === "long" ? entry - unit : entry + unit);
-    setTarget(nextSide === "long" ? entry + unit * 2 : entry - unit * 2);
+    setDraft((current) => {
+      const currentMarket = MARKETS.find((item) => item.symbol === current.symbol) ?? MARKETS[0];
+      const unit = Math.max(Math.abs(current.entry) * 0.0035, currentMarket.decimals === 2 ? 1 : 0.001);
+      return {
+        ...current,
+        side: nextSide,
+        stop: nextSide === "long" ? current.entry - unit : current.entry + unit,
+        target: nextSide === "long" ? current.entry + unit * 2 : current.entry - unit * 2,
+      };
+    });
   };
 
   const selectMarket = (nextMarket: Market) => {
-    setMarket(nextMarket);
-    setEntry(nextMarket.price);
-    const unit = Math.max(Math.abs(nextMarket.price) * 0.0035, nextMarket.decimals === 2 ? 1 : 0.001);
-    setStop(side === "long" ? nextMarket.price - unit : nextMarket.price + unit);
-    setTarget(side === "long" ? nextMarket.price + unit * 2 : nextMarket.price - unit * 2);
+    setDraft((current) => {
+      const unit = Math.max(Math.abs(nextMarket.price) * 0.0035, nextMarket.decimals === 2 ? 1 : 0.001);
+      const nextPositionSpec = getDemoPositionSpec(nextMarket.symbol);
+      return {
+        ...current,
+        symbol: nextMarket.symbol as DemoScenarioDraft["symbol"],
+        entry: nextMarket.price,
+        stop: current.side === "long" ? nextMarket.price - unit : nextMarket.price + unit,
+        target: current.side === "long" ? nextMarket.price + unit * 2 : nextMarket.price - unit * 2,
+        size: nextPositionSpec.defaultSize,
+      };
+    });
     setMarketMenuOpen(false);
   };
 
@@ -256,12 +284,13 @@ export default function Home() {
                 <label className="field-label">Вход <span>USD</span><input type="number" step={market.decimals === 2 ? "0.01" : "0.0001"} value={entry} onChange={(event) => setEntry(Number(event.target.value))} /></label>
                 <label className="field-label">Стоп-лосс <span>USD</span><input className="input-stop" type="number" step={market.decimals === 2 ? "0.01" : "0.0001"} value={stop} onChange={(event) => setStop(Number(event.target.value))} /></label>
                 <label className="field-label">Цель <span>USD</span><input className="input-target" type="number" step={market.decimals === 2 ? "0.01" : "0.0001"} value={target} onChange={(event) => setTarget(Number(event.target.value))} /></label>
-                <label className="field-label">Размер позиции <span>ед.</span><input type="number" min="0.01" step="0.1" value={size} onChange={(event) => setSize(Math.max(0.01, Number(event.target.value) || 0.01))} /></label>
+                <label className="field-label">Размер позиции <span>{positionSpec.unit}</span><input type="number" min={positionSpec.minSize} step={positionSpec.step} value={size} onChange={(event) => { const nextSize = event.currentTarget.valueAsNumber; setSize(Number.isFinite(nextSize) ? Math.max(positionSpec.minSize, nextSize) : positionSpec.minSize); }} /></label>
               </div>
               <div className="trade-panel-footer">
                 <div className="trade-rr"><Target size={14} /><span>Прибыль / риск</span><strong>{Math.abs(entry - stop) > 0 ? (Math.abs(target - entry) / Math.abs(entry - stop)).toFixed(2) : "—"}R</strong></div>
                 <button className="save-demo-button" onClick={saveDemoTrade} disabled={!validLevels}><Check size={14} /> Сохранить демо-запись</button>
               </div>
+              {draftStorageAvailable !== null && <div className={`draft-persistence-note ${draftStorageAvailable ? "is-saved" : "is-unavailable"}`} role="status">{draftStorageAvailable ? "Черновик автоматически сохранён в этом браузере" : "Автосохранение черновика недоступно"}</div>}
               {savedMessage && <div className="toast-message"><Check size={14} />{savedMessage}</div>}
             </section>
           </div>
@@ -272,7 +301,7 @@ export default function Home() {
               <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} />
             </div>
             <aside className="analysis-column">
-              <RiskPanel entry={entry} stop={stop} target={target} side={side} size={size} balance={accountSettings.balanceUsd} maxRiskPercent={accountSettings.riskLimitPercent} valid={validLevels} formatMoney={moneyFormatter} />
+              <RiskPanel entry={entry} stop={stop} target={target} side={side} size={size} sizeUnit={positionSpec.unit} formatSize={(value) => formatDemoPositionSize(market.symbol, value)} balance={accountSettings.balanceUsd} maxRiskPercent={accountSettings.riskLimitPercent} valid={validLevels} formatMoney={moneyFormatter} />
               <section className="panel probability-panel" id="scenario-outcomes">
                 <div className="panel-heading probability-heading"><div><div className="eyebrow">РЕЗУЛЬТАТЫ МОДЕЛИ</div><h2>Вероятности исходов</h2></div><button className={`run-button ${isRunning ? "running" : ""}`} onClick={runSimulation} disabled={!validLevels || isRunning}><Play size={12} fill="currentColor" />{isRunning ? "Считаем" : "Пересчитать"}</button></div>
                 <div className="model-status"><span className="model-status-dot" /> {simulation.trials.toLocaleString("ru-RU")} прогонов · параметры текущего сценария</div>
@@ -295,6 +324,7 @@ export default function Home() {
             entries={demoTrades}
             storageAvailable={journalStorageAvailable}
             formatPrice={(symbol, value) => formatPriceFor(MARKETS.find((item) => item.symbol === symbol) ?? market, value)}
+            formatSize={formatDemoPositionSize}
             formatMoney={moneyFormatter}
             onDelete={deleteDemoTrade}
           />

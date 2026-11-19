@@ -7,13 +7,15 @@ type Props = {
   target: number;
   side: Side;
   size: number;
+  sizeUnit: string;
+  formatSize: (value: number) => string;
   balance: number;
   maxRiskPercent: number;
   valid: boolean;
   formatMoney: (value: number) => string;
 };
 
-export default function RiskPanel({ entry, stop, target, side, size, balance, maxRiskPercent, valid, formatMoney }: Props) {
+export default function RiskPanel({ entry, stop, target, side, size, sizeUnit, formatSize, balance, maxRiskPercent, valid, formatMoney }: Props) {
   const risk = Math.abs(entry - stop) * size;
   const reward = Math.abs(target - entry) * size;
   const riskPercent = balance > 0 ? (risk / balance) * 100 : 0;
@@ -49,10 +51,10 @@ export default function RiskPanel({ entry, stop, target, side, size, balance, ma
         <div className="risk-line"><span><span className="risk-line-icon muted"><ArrowDownRight size={14} /></span>Если достигнет стопа</span><b className="text-coral">−{formatMoney(risk)}</b></div>
         <div className="risk-line"><span><span className="risk-line-icon muted"><ArrowUpRight size={14} /></span>Если достигнет цели</span><b className="text-lime">+{formatMoney(reward)}</b></div>
         <div className="risk-line"><span>Прибыль / риск</span><b className="rr-value">{rewardRisk.toFixed(2)} <small>R</small></b></div>
-        <div className="risk-line"><span>Размер позиции</span><b>{size.toFixed(2)} ед.</b></div>
+        <div className="risk-line"><span>Размер позиции</span><b>{formatSize(size)}</b></div>
       </div>
       {!valid && <div className="risk-warning"><AlertTriangle size={14} /> Для выбранного направления цель и стоп должны располагаться по разные стороны от входа.</div>}
-      <p className="risk-disclaimer">Упрощённый учебный расчёт в условных единицах. Это не финансовая рекомендация и не заявка брокеру.</p>
+      <p className="risk-disclaimer">Объём указан в {sizeUnit} как учебное допущение, не спецификация брокера. Расчёт не является рекомендацией или заявкой.</p>
     </section>
   );
 }

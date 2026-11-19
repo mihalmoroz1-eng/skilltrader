@@ -1,3 +1,5 @@
+import { getDemoPositionSpec } from "./demoInstruments";
+
 export type DemoJournalSide = "long" | "short";
 
 export type DemoJournalInput = {
@@ -110,7 +112,6 @@ export function canAccessDemoJournalStorage(storage: JournalStorage | undefined 
   }
 }
 
-
 export type DemoJournalSideFilter = "all" | DemoJournalSide;
 
 export function filterDemoJournal(
@@ -134,6 +135,7 @@ const CSV_HEADERS = [
   "Стоп",
   "Цель",
   "Размер",
+  "Единица размера",
   "Риск USD",
   "Потенциал USD",
   "Прибыль/риск",
@@ -159,6 +161,7 @@ export function createDemoJournalCsv(records: DemoJournalRecord[]): string {
     record.stop,
     record.target,
     record.size,
+    getDemoPositionSpec(record.symbol).unit,
     record.riskUsd,
     record.potentialUsd,
     record.riskReward,
