@@ -54,6 +54,22 @@ describe("current platform integration", () => {
     expect(payload).toMatchObject({ model: "gpt-6-luna", max_completion_tokens: 700, reasoning: { effort: "low" } });
     expect(payload).not.toHaveProperty("max_tokens");
   });
+  it("forwards strict JSON-schema response formats for pipeline analysis stages", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "json-schema-test", created: 1, model: "gpt-6-luna",
+      choices: [{ index: 0, message: { role: "assistant", content: "{}" }, finish_reason: "stop" }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", request);
+    const responseFormat = {
+      type: "json_schema" as const,
+      json_schema: { name: "stage_result", strict: true, schema: { type: "object", properties: {}, required: [], additionalProperties: false } },
+    };
+    await invokeLLM({ model: "gpt-6-luna", messages: [{ role: "user", content: "Проверка" }], responseFormat, maxRetries: 0 });
+    const payload = JSON.parse(request.mock.calls[0][1].body as string);
+    expect(payload.response_format).toEqual(responseFormat);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
   it("does not retry permanent upstream 4xx errors and does not expose their body", async () => {
     vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: "unsupported_model", message: "private upstream detail" } }), {
@@ -77,6 +93,33 @@ describe("current platform integration", () => {
     await expect(invokeLLM({ model: "gpt-6-luna", messages: [{ role: "user", content: "test" }] })).resolves.toMatchObject({ model: "gpt-6-luna" });
     expect(request).toHaveBeenCalledTimes(2);
   });
+  it("honors a zero-retry cap to prevent hidden additional model calls", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const request = vi.fn().mockResolvedValue(new Response("temporary failure", { status: 503 }));
+    vi.stubGlobal("fetch", request);
+    await expect(invokeLLM({
+      model: "gpt-6-luna",
+      messages: [{ role: "user", content: "test" }],
+      maxRetries: 0,
+    })).rejects.toMatchObject({ status: 503, retryable: true });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it("classifies a rejected fetch as an explicitly retryable network failure", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const request = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", request);
+    await expect(invokeLLM({
+      model: "gpt-6-luna",
+      messages: [{ role: "user", content: "test" }],
+      maxRetries: 0,
+    })).rejects.toMatchObject({
+      name: "LlmInvocationError",
+      status: 0,
+      upstreamCode: "network_error",
+      retryable: true,
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
   it("aborts a stalled upstream request at its deadline without retrying", async () => {
     vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
     const request = vi.fn((_url: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
@@ -92,7 +135,7 @@ describe("current platform integration", () => {
       model: "gpt-6-luna",
       messages: [{ role: "user", content: "test" }],
       timeoutMs: 10,
-    })).rejects.toMatchObject({ name: "TimeoutError" });
+    })).rejects.toMatchObject({ name: "LlmInvocationError", status: 0, upstreamCode: "timeout", retryable: true });
     expect(request).toHaveBeenCalledTimes(1);
   });
   it("does not wait for stalled retry-body cleanup beyond the global deadline", async () => {
@@ -105,7 +148,7 @@ describe("current platform integration", () => {
       model: "gpt-6-luna",
       messages: [{ role: "user", content: "test" }],
       timeoutMs: 10,
-    })).rejects.toMatchObject({ name: "TimeoutError" });
+    })).rejects.toMatchObject({ name: "LlmInvocationError", status: 0, upstreamCode: "timeout", retryable: true });
     expect(request).toHaveBeenCalledTimes(1);
   });
   it("persists URL-only image results through current managed storage", async () => {

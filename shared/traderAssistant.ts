@@ -3,7 +3,15 @@ import { z } from "zod";
 export const TRADER_ASSISTANT_MODEL = "gpt-6-luna" as const;
 export const TRADER_ASSISTANT_MAX_PROMPT_CHARACTERS = 1_200;
 export const TRADER_ASSISTANT_MAX_HISTORY_MESSAGES = 8;
+export const TRADER_ASSISTANT_MAX_HISTORY_CHARACTERS = 8_000;
 export const TRADER_ASSISTANT_MAX_RESPONSE_CHARACTERS = 5_000;
+export const TRADER_ASSISTANT_PIPELINE_STAGES = [
+  { id: "analysis", label: "Разбор вопроса" },
+  { id: "risk_check", label: "Проверка чисел риска" },
+  { id: "explanation", label: "Учебное объяснение" },
+] as const;
+export const TRADER_ASSISTANT_PIPELINE_CALLS = TRADER_ASSISTANT_PIPELINE_STAGES.length;
+export type TraderAssistantPipelineStageId = typeof TRADER_ASSISTANT_PIPELINE_STAGES[number]["id"];
 
 export const traderAssistantHistoryMessageSchema = z.discriminatedUnion("role", [
   z.object({
@@ -78,8 +86,33 @@ export const traderAssistantInputSchema = z.object({
   prompt: z.string().trim().min(1).max(TRADER_ASSISTANT_MAX_PROMPT_CHARACTERS),
   history: z.array(traderAssistantHistoryMessageSchema).max(TRADER_ASSISTANT_MAX_HISTORY_MESSAGES),
   scenario: traderAssistantScenarioSchema,
-}).strict();
+}).strict().superRefine((input, context) => {
+  const historyCharacters = input.history.reduce((total, message) => total + message.content.length, 0);
+  if (historyCharacters > TRADER_ASSISTANT_MAX_HISTORY_CHARACTERS) {
+    context.addIssue({
+      code: "custom",
+      path: ["history"],
+      message: `History exceeds ${TRADER_ASSISTANT_MAX_HISTORY_CHARACTERS} characters in total`,
+    });
+  }
+});
 
 export type TraderAssistantHistoryMessage = z.infer<typeof traderAssistantHistoryMessageSchema>;
 export type TraderAssistantScenario = z.infer<typeof traderAssistantScenarioSchema>;
 export type TraderAssistantInput = z.infer<typeof traderAssistantInputSchema>;
+
+/** Keep the newest contiguous history suffix that satisfies both server-side budgets. */
+export function limitTraderAssistantHistory(
+  history: TraderAssistantHistoryMessage[],
+): TraderAssistantHistoryMessage[] {
+  const newestFirst: TraderAssistantHistoryMessage[] = [];
+  let characterCount = 0;
+
+  for (const message of history.slice(-TRADER_ASSISTANT_MAX_HISTORY_MESSAGES).reverse()) {
+    if (characterCount + message.content.length > TRADER_ASSISTANT_MAX_HISTORY_CHARACTERS) break;
+    newestFirst.push(message);
+    characterCount += message.content.length;
+  }
+
+  return newestFirst.reverse();
+}

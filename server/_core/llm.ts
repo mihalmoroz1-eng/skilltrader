@@ -66,6 +66,8 @@ export type InvokeParams = {
   max_completion_tokens?: number;
   /** Overall upstream request deadline in milliseconds; defaults to 45 seconds. */
   timeoutMs?: number;
+  /** Maximum transient upstream retries; defaults to the shared retry policy. */
+  maxRetries?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -380,27 +382,28 @@ const fetchWithBackoff = async (
   url: string,
   init: FetchInit,
   timeoutMs = LLM_REQUEST_TIMEOUT_MS,
+  maxRetries = RETRY_MAX_RETRIES,
 ): Promise<Response> => {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   let lastError: unknown;
 
-  for (let attempt = 0; attempt <= RETRY_MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (timeoutSignal.aborted) throw timeoutSignal.reason;
     let response: Response;
     try {
       response = await fetch(url, { ...init, signal: timeoutSignal });
     } catch (error) {
-      if (timeoutSignal.aborted) throw timeoutSignal.reason ?? error;
+      if (timeoutSignal.aborted) throw new LlmInvocationError(0, "timeout", true);
       lastError = error;
-      if (attempt === RETRY_MAX_RETRIES) throw error;
+      if (attempt === maxRetries) throw new LlmInvocationError(0, "network_error", true);
       console.warn(
-        `LLM request retry ${attempt + 1}/${RETRY_MAX_RETRIES} after network error`
+        `LLM request retry ${attempt + 1}/${maxRetries} after network error`
       );
       await sleep(computeBackoffDelay(attempt), timeoutSignal);
       continue;
     }
 
-    if (response.ok || !isRetryableHttpStatus(response.status) || attempt === RETRY_MAX_RETRIES) {
+    if (response.ok || !isRetryableHttpStatus(response.status) || attempt === maxRetries) {
       return response;
     }
 
@@ -412,7 +415,7 @@ const fetchWithBackoff = async (
       // Body already settled; nothing to clean up.
     }
     console.warn(
-      `LLM request retry ${attempt + 1}/${RETRY_MAX_RETRIES} after status ${response.status}`
+      `LLM request retry ${attempt + 1}/${maxRetries} after status ${response.status}`
     );
     await sleep(computeBackoffDelay(attempt, retryAfterMs), timeoutSignal);
   }
@@ -442,7 +445,13 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     maxCompletionTokens,
     max_completion_tokens,
     timeoutMs,
+    maxRetries,
   } = params;
+
+  const resolvedMaxRetries = maxRetries ?? RETRY_MAX_RETRIES;
+  if (!Number.isInteger(resolvedMaxRetries) || resolvedMaxRetries < 0 || resolvedMaxRetries > RETRY_MAX_RETRIES) {
+    throw new RangeError(`maxRetries must be an integer between 0 and ${RETRY_MAX_RETRIES}`);
+  }
 
   const payload: Record<string, unknown> = {
     messages: messages.map(normalizeMessage),
@@ -492,14 +501,22 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetchWithBackoff(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  }, timeoutMs);
+  let response: Response;
+  try {
+    response = await fetchWithBackoff(resolveApiUrl(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${ENV.forgeApiKey}`,
+      },
+      body: JSON.stringify(payload),
+    }, timeoutMs, resolvedMaxRetries);
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new LlmInvocationError(0, "timeout", true);
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

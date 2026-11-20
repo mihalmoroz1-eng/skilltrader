@@ -3,14 +3,18 @@ import { AlertTriangle, Bot, Clock3, RotateCcw, ShieldCheck, Trash2 } from "luci
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import {
   TRADER_ASSISTANT_MODEL,
+  TRADER_ASSISTANT_PIPELINE_STAGES,
+  limitTraderAssistantHistory,
   getTraderAssistantScenarioKey,
   traderAssistantScenarioSchema,
   type TraderAssistantInput,
+  type TraderAssistantPipelineStageId,
   type TraderAssistantScenario,
 } from "@shared/traderAssistant";
 import { trpc } from "@/lib/trpc";
 
 type ConversationMessage = { role: "user" | "assistant"; content: string };
+type PipelineReceipt = { modelCalls: number; completedStages: TraderAssistantPipelineStageId[] };
 
 const SUGGESTED_PROMPTS = [
   "Объясни разницу между условным риском и потенциальным результатом.",
@@ -24,7 +28,9 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
   const [requestError, setRequestError] = useState("");
   const [failedRequest, setFailedRequest] = useState<TraderAssistantInput | null>(null);
   const [canRetry, setCanRetry] = useState(false);
+  const [callCountMayBeUnknown, setCallCountMayBeUnknown] = useState(false);
   const [scenarioResetNotice, setScenarioResetNotice] = useState(false);
+  const [pipelineReceipt, setPipelineReceipt] = useState<PipelineReceipt | null>(null);
   const scenarioResult = traderAssistantScenarioSchema.safeParse(scenario);
   const scenarioIsValid = scenarioResult.success;
   const scenarioKey = scenarioIsValid ? getTraderAssistantScenarioKey(scenarioResult.data) : "invalid";
@@ -43,6 +49,7 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
     setRequestError("");
     setFailedRequest(null);
     setCanRetry(false);
+    setPipelineReceipt(null);
     setScenarioResetNotice(true);
   }, [scenarioKey]);
 
@@ -58,14 +65,22 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
       setRequestError("");
       setFailedRequest(null);
       setCanRetry(false);
+      setPipelineReceipt({ modelCalls: response.modelCalls, completedStages: response.completedStages });
       appendMessage({ role: "assistant", content: response.text });
     },
     onError: (error, variables) => {
       if (getTraderAssistantScenarioKey(variables.scenario) !== latestScenarioKeyRef.current) return;
       setRequestError(error.message);
       setFailedRequest(variables);
+      setPipelineReceipt(null);
       const errorCode = error.data?.code;
-      setCanRetry(errorCode === "SERVICE_UNAVAILABLE" || errorCode === "TOO_MANY_REQUESTS");
+      setCanRetry(errorCode === "SERVICE_UNAVAILABLE");
+      setCallCountMayBeUnknown(
+        errorCode === "INTERNAL_SERVER_ERROR"
+        || errorCode === "SERVICE_UNAVAILABLE"
+        || (errorCode === "TOO_MANY_REQUESTS" && error.message.startsWith("Сервис AI ограничил"))
+        || (errorCode === "PRECONDITION_FAILED" && (error.message.includes("Недостаточно project credits") || error.message.includes("Модель отклонила запрос"))),
+      );
     },
   });
 
@@ -82,6 +97,7 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
       setRequestError("");
       setFailedRequest(null);
       setCanRetry(false);
+      setPipelineReceipt(null);
       setScenarioResetNotice(true);
     }
 
@@ -89,13 +105,14 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
       prompt,
       scenario: scenarioResult.data,
       history: conversationMatchesScenario
-        ? messagesRef.current.slice(-8).map(({ role, content: messageContent }) => ({ role, content: messageContent }))
+        ? limitTraderAssistantHistory(messagesRef.current.map(({ role, content: messageContent }) => ({ role, content: messageContent })))
         : [],
     };
     appendMessage({ role: "user", content: prompt });
     setRequestError("");
     setFailedRequest(null);
     setCanRetry(false);
+    setPipelineReceipt(null);
     setScenarioResetNotice(false);
     chatMutation.mutate(request);
   };
@@ -107,6 +124,7 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
     setRequestError("");
     setFailedRequest(null);
     setCanRetry(false);
+    setPipelineReceipt(null);
     setScenarioResetNotice(false);
   };
 
@@ -118,6 +136,7 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
     }
     setRequestError("");
     setCanRetry(false);
+    setPipelineReceipt(null);
     chatMutation.mutate(failedRequest);
   };
 
@@ -140,9 +159,33 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
         </div>
       </div>
 
+      <ol className="trader-ai-pipeline" aria-label="Три последовательных этапа Skill Trader AI">
+        {TRADER_ASSISTANT_PIPELINE_STAGES.map((stage, index) => {
+          const completed = pipelineReceipt?.completedStages.includes(stage.id) ?? false;
+          return (
+            <li key={stage.id} className={completed ? "is-complete" : ""}>
+              <span className="trader-ai-pipeline-number" aria-hidden="true">0{index + 1}</span>
+              <span>{stage.label}</span>
+            </li>
+          );
+        })}
+        <li className="trader-ai-pipeline-count">до 3 вызовов / ответ</li>
+      </ol>
+
+      {chatMutation.isPending && (
+        <div className="trader-ai-pipeline-status" role="status">
+          Запрос обрабатывается последовательно; при неразрешённом намерении или несогласованной сверке цепочка остановится раньше. Полное учебное объяснение требует три вызова. Внутренние результаты не показываются; каждый этап ограничен 30 секундами.
+        </div>
+      )}
+      {pipelineReceipt && !chatMutation.isPending && (
+        <div className="trader-ai-pipeline-status is-complete" role="status">
+          Последний ответ: {pipelineReceipt.completedStages.length}/3 этапа завершены · {pipelineReceipt.modelCalls} обращения к модели.
+        </div>
+      )}
+
       <div className="trader-ai-disclosure" role="note">
         <ShieldCheck size={15} />
-        <p><strong>Перед отправкой:</strong> на серверную модель проекта уйдут ваш вопрос, до 8 предыдущих реплик и параметры этого синтетического сценария (инструмент, период, условная цена, направление, уровни, размер и доли симуляции). Журнал, настройки счёта и localStorage автоматически не передаются. Не вводите личные данные, пароли или ключи. Запрос расходует кредиты проекта; ответы не являются финансовой рекомендацией.</p>
+        <p><strong>Перед отправкой:</strong> вопрос и до 8 предыдущих сообщений (не более 8 000 символов суммарно) обрабатываются последовательными этапами `gpt-6-luna`. История передаётся как недоверенный цитируемый контекст, не как роли/инструкции модели; часть старых сообщений может не войти в лимит. Второй этап получает синтетические параметры, вычисления сервера и ограниченные fact-ID. Каждый этап ограничен 30 секундами, полный ответ может занять до 90 секунд. Успешное учебное объяснение требует 3 вызова; при запрещённом намерении или несогласованной сверке сервер остановит цепочку раньше и вернёт безопасный шаблон. Поэтому выше задержка и расход project credits. При сбое уже отправленные вызовы тоже могут расходовать credits; ручной повтор запускает цепочку заново и может выполнить ещё до 3 вызовов. Кнопка полного повтора доступна только при временной ошибке сервиса; лимит частоты, дневной лимит и нехватка project credits требуют подождать/пополнить лимит и отправить вопрос вручную. Промежуточные JSON не показываются и не сохраняются. Журнал, настройки счёта и localStorage не передаются. Не вводите личные данные, пароли или ключи. Сверка чисел не является финансовой рекомендацией или гарантией точности.</p>
       </div>
 
       {!scenarioIsValid && (
@@ -157,7 +200,8 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
       {requestError && (
         <div className="trader-ai-error" role="alert">
           <span><AlertTriangle size={14} />{requestError}</span>
-          {failedRequest && canRetry && <button type="button" onClick={retry} disabled={chatMutation.isPending}><RotateCcw size={13} />Повторить</button>}
+          {callCountMayBeUnknown && <p className="trader-ai-error-note">После сбоя точное число завершившихся/оплаченных вызовов не отображается; уже отправленные этапы могли списать project credits.</p>}
+          {failedRequest && canRetry && <button type="button" onClick={retry} disabled={chatMutation.isPending}><RotateCcw size={13} />Перезапустить всю цепочку</button>}
         </div>
       )}
 
@@ -173,7 +217,7 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
         emptyStateMessage="Задайте вопрос о текущих синтетических параметрах"
         suggestedPrompts={SUGGESTED_PROMPTS}
       />
-      <div className="trader-ai-footnote">Диалог хранится только в памяти этой вкладки. При изменении сценария история очищается. Live-котировки не используются.</div>
+      <div className="trader-ai-footnote">Полное учебное объяснение требует трёх последовательных модельных вызовов; безопасный отказ может завершиться после первого или второго этапа. Диалог хранится только в памяти этой вкладки; при изменении сценария история очищается. Live-котировки не используются.</div>
     </section>
   );
 }

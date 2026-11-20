@@ -618,6 +618,7 @@ h1 span { color: #a9b3be; font-weight: 430; }
 .trader-ai-error > span, .trader-ai-error button { display: inline-flex; align-items: center; gap: 7px; }
 .trader-ai-error button { padding: 5px 7px; color: #ffd2b6; background: #251a19; border: 1px solid #57352e; border-radius: 4px; font-size: 9px; }
 .trader-ai-error button:hover:not(:disabled) { background: #39221f; }
+.trader-ai-error-note { flex-basis: 100%; margin: 0; color: #e6a895; font-size: 9px; line-height: 1.45; }
 .trader-ai-box { height: 420px !important; overflow: hidden; color: var(--white) !important; background: #0e131a !important; border-color: #28313c !important; border-radius: 7px !important; box-shadow: none !important; }
 .trader-ai-box > form { background: #10161e !important; border-color: #252e39 !important; }
 .trader-ai-box textarea { color: #e3e9e6 !important; background: #0c1117 !important; border-color: #29323d !important; font-size: 11px !important; }
@@ -640,4 +641,12 @@ h1 span { color: #a9b3be; font-weight: 430; }
 .simulation-pending-state { min-height: 116px; display: grid; place-content: center; padding: 12px; color: #939daa; background: #0e131a; border: 1px dashed #303a46; border-radius: 6px; text-align: center; font-size: 9px; line-height: 1.5; }
 .trader-ai-pending { display: flex; align-items: flex-start; gap: 7px; padding: 8px 10px; color: #b8addf; background: rgba(177,154,255,.055); border: 1px solid rgba(177,154,255,.16); border-radius: 6px; font-size: 9px; line-height: 1.45; }
 .trader-ai-pending svg { flex: 0 0 auto; margin-top: 1px; }
+.trader-ai-pipeline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.trader-ai-pipeline li { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; color: #9ba8b6; background: #0f151d; border: 1px solid #26313d; border-radius: 5px; font-size: 9px; line-height: 1.2; }
+.trader-ai-pipeline li.is-complete { color: #cce9aa; background: rgba(165,242,76,.045); border-color: rgba(165,242,76,.2); }
+.trader-ai-pipeline-number { color: #8293a2; font-family: var(--mono); font-size: 8px; }
+.trader-ai-pipeline li.is-complete .trader-ai-pipeline-number { color: var(--lime); }
+.trader-ai-pipeline .trader-ai-pipeline-count { margin-left: auto; color: #c7b9f6; border-color: rgba(177,154,255,.2); background: rgba(177,154,255,.045); }
+.trader-ai-pipeline-status { padding: 7px 9px; color: #b7add7; background: rgba(177,154,255,.04); border: 1px solid rgba(177,154,255,.12); border-radius: 5px; font-size: 9px; line-height: 1.45; }
+.trader-ai-pipeline-status.is-complete { color: #c6e3a6; background: rgba(165,242,76,.035); border-color: rgba(165,242,76,.13); }
 @media (max-width: 680px) { .scenario-stale-overlay { inset: 72px 10px 28px; font-size: 9px; } }
