@@ -31,6 +31,7 @@ import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
 import RiskPanel from "@/components/trader/RiskPanel";
 import CandleTimer from "@/components/trader/CandleTimer";
+import TraderAIChat from "@/components/trader/TraderAIChat";
 import AccountSettingsModal from "@/components/trader/AccountSettingsModal";
 import type { CandleTimeframe } from "@/lib/candleTimer";
 import { readDemoAccountSettings, writeDemoAccountSettings, type DemoAccountSettings } from "@/lib/demoAccountSettings";
@@ -53,6 +54,7 @@ const NAV_ITEMS = [
   { label: "Машина времени", icon: Sparkles, anchor: "time-machine" },
   { label: "Риск и бюджет", icon: ShieldCheck, anchor: "risk-manager" },
   { label: "Журнал", icon: ClipboardList, anchor: "demo-journal" },
+  { label: "Skill Trader AI", icon: Sparkles, anchor: "skill-trader-ai" },
 ];
 
 const FUTURE_MODULES = [
@@ -330,6 +332,26 @@ export default function Home() {
             formatSize={formatDemoPositionSize}
             formatMoney={moneyFormatter}
             onDelete={deleteDemoTrade}
+          />
+
+          <TraderAIChat
+            scenario={{
+              symbol: market.symbol,
+              timeframe,
+              side,
+              unit: market.symbol === "XAUUSD" ? "oz" : market.symbol === "EURUSD" ? "EUR" : "BTC",
+              currentPrice: candles[candles.length - 1]?.close ?? quote,
+              entry,
+              stop,
+              target,
+              size,
+              trials: 10_000,
+              outcomes: {
+                target: simulation.targetProbability,
+                stop: simulation.stopProbability,
+                other: simulation.otherProbability,
+              },
+            }}
           />
 
           <section className="bottom-info-grid">

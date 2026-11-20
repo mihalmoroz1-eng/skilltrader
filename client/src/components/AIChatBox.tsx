@@ -3,8 +3,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Loader2, Send, User, Sparkles } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
-import { Streamdown } from "streamdown";
+import { Suspense, lazy, useState, useEffect, useRef } from "react";
+
+const Streamdown = lazy(async () => {
+  const module = await import("streamdown");
+  return { default: module.Streamdown };
+});
 
 /**
  * Message type matching server-side LLM Message interface
@@ -31,6 +35,12 @@ export type AIChatBoxProps = {
    * Whether the AI is currently generating a response
    */
   isLoading?: boolean;
+
+  /** Disable entry while the caller's context is invalid or unavailable. */
+  disabled?: boolean;
+
+  /** Optional browser-side input cap; the server still validates requests. */
+  maxLength?: number;
 
   /**
    * Placeholder text for the input field
@@ -114,6 +124,8 @@ export function AIChatBox({
   messages,
   onSendMessage,
   isLoading = false,
+  disabled = false,
+  maxLength,
   placeholder = "Type your message...",
   className,
   height = "600px",
@@ -168,7 +180,7 @@ export function AIChatBox({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = input.trim();
-    if (!trimmedInput || isLoading) return;
+    if (!trimmedInput || isLoading || disabled) return;
 
     onSendMessage(trimmedInput);
     setInput("");
@@ -212,7 +224,7 @@ export function AIChatBox({
                     <button
                       key={index}
                       onClick={() => onSendMessage(prompt)}
-                      disabled={isLoading}
+                      disabled={isLoading || disabled}
                       className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {prompt}
@@ -262,7 +274,9 @@ export function AIChatBox({
                     >
                       {message.role === "assistant" ? (
                         <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <Streamdown>{message.content}</Streamdown>
+                          <Suspense fallback={<span className="text-xs text-muted-foreground">Подготовка форматирования…</span>}>
+                            <Streamdown>{message.content}</Streamdown>
+                          </Suspense>
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap text-sm">
@@ -313,6 +327,8 @@ export function AIChatBox({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          maxLength={maxLength}
+          disabled={disabled}
           placeholder={placeholder}
           className="flex-1 max-h-32 resize-none min-h-9"
           rows={1}
@@ -320,7 +336,7 @@ export function AIChatBox({
         <Button
           type="submit"
           size="icon"
-          disabled={!input.trim() || isLoading}
+          disabled={!input.trim() || isLoading || disabled}
           className="shrink-0 h-[38px] w-[38px]"
         >
           {isLoading ? (

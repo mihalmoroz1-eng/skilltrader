@@ -587,3 +587,42 @@ h1 span { color: #a9b3be; font-weight: 430; }
 }
 .draft-persistence-note.is-unavailable { color: var(--amber); }
 .draft-persistence-note.is-unavailable::before { background: var(--amber); }
+
+
+.trader-ai-panel { display: grid; gap: 12px; margin-top: 12px; padding: 15px; scroll-margin-top: 74px; }
+.trader-ai-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.trader-ai-title-wrap { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.trader-ai-icon { display: grid; place-items: center; width: 31px; height: 31px; flex: 0 0 auto; color: var(--violet); background: rgba(177,154,255,.1); border: 1px solid rgba(177,154,255,.18); border-radius: 8px; }
+.trader-ai-title-wrap h2 { margin-top: 4px; color: #e8ecea; font-size: 15px; font-weight: 620; letter-spacing: -.02em; }
+.trader-ai-title-wrap p { margin-top: 5px; color: #7e8998; font-size: 10px; }
+.trader-ai-actions { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+.trader-ai-model { padding: 5px 7px; color: #b7a8ef; background: rgba(177,154,255,.07); border: 1px solid rgba(177,154,255,.13); border-radius: 5px; font-size: 8px; font-weight: 700; letter-spacing: .04em; }
+.trader-ai-clear { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; color: #788392; background: transparent; border: 1px solid transparent; border-radius: 5px; font-size: 9px; }
+.trader-ai-clear:hover:not(:disabled) { color: #d8deda; background: #171e27; border-color: #29323d; }
+.trader-ai-clear:disabled { opacity: .4; cursor: not-allowed; }
+.trader-ai-disclosure { display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; color: #a9b4a0; background: rgba(165,242,76,.035); border: 1px solid rgba(165,242,76,.12); border-radius: 6px; }
+.trader-ai-disclosure svg { flex: 0 0 auto; margin-top: 1px; color: var(--lime); }
+.trader-ai-disclosure p { color: #85917e; font-size: 9px; line-height: 1.55; }
+.trader-ai-disclosure strong { color: #c1d6a9; font-weight: 650; }
+.trader-ai-invalid, .trader-ai-error { display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 6px; font-size: 10px; }
+.trader-ai-invalid { color: #e4bd7f; background: rgba(255,190,99,.06); border: 1px solid rgba(255,190,99,.16); }
+.trader-ai-invalid svg { flex: 0 0 auto; }
+.trader-ai-error { justify-content: space-between; color: #ffc2a1; background: rgba(255,117,111,.06); border: 1px solid rgba(255,117,111,.16); }
+.trader-ai-error > span, .trader-ai-error button { display: inline-flex; align-items: center; gap: 7px; }
+.trader-ai-error button { padding: 5px 7px; color: #ffd2b6; background: #251a19; border: 1px solid #57352e; border-radius: 4px; font-size: 9px; }
+.trader-ai-error button:hover:not(:disabled) { background: #39221f; }
+.trader-ai-box { height: 420px !important; overflow: hidden; color: var(--white) !important; background: #0e131a !important; border-color: #28313c !important; border-radius: 7px !important; box-shadow: none !important; }
+.trader-ai-box > form { background: #10161e !important; border-color: #252e39 !important; }
+.trader-ai-box textarea { color: #e3e9e6 !important; background: #0c1117 !important; border-color: #29323d !important; font-size: 11px !important; }
+.trader-ai-box textarea::placeholder { color: #677281 !important; }
+.trader-ai-box > div:first-child { color: #c9d1d0; }
+.trader-ai-footnote { color: #667281; font-size: 8px; line-height: 1.4; }
+@media (max-width: 680px) {
+  .trader-ai-panel { padding: 12px; }
+  .trader-ai-header { flex-direction: column; }
+  .trader-ai-actions { width: 100%; justify-content: space-between; padding-left: 41px; }
+  .trader-ai-box { height: 390px !important; }
+  .trader-ai-disclosure p { font-size: 8px; }
+}
+
+.trader-ai-context-reset { margin-top: 8px; padding: 8px 10px; color: #b5c6e3; background: rgba(117,168,255,.055); border: 1px solid rgba(117,168,255,.14); border-radius: 5px; font-size: 9px; line-height: 1.45; }

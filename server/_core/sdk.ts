@@ -293,6 +293,15 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    // Database-free projects still need real, project-bound application
+    // sessions for protected endpoints such as Skill Trader AI. The signed
+    // session is already verified above; use the configured owner identity
+    // only for the owner role and never invent a Preview user.
+    if (!ENV.databaseUrl) {
+      return buildSessionUser(session, signedInAt);
+    }
+
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically
@@ -350,6 +359,23 @@ function buildCronUser(
     lastSignedIn: now,
     taskUid: userInfo.taskUid ?? undefined,
     isCron: true,
+  } as AuthenticatedUser;
+}
+
+function buildSessionUser(
+  session: SessionPayload,
+  now: Date,
+): AuthenticatedUser {
+  return {
+    id: -1,
+    openId: session.openId,
+    name: session.name || "Пользователь Skill Trader",
+    email: null,
+    loginMethod: null,
+    role: ENV.ownerOpenId && session.openId === ENV.ownerOpenId ? "admin" : "user",
+    createdAt: now,
+    updatedAt: now,
+    lastSignedIn: now,
   } as AuthenticatedUser;
 }
 

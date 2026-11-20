@@ -62,6 +62,8 @@ export type InvokeParams = {
   tool_choice?: ToolChoice;
   maxTokens?: number;
   max_tokens?: number;
+  maxCompletionTokens?: number;
+  max_completion_tokens?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -272,6 +274,8 @@ const normalizeResponseFormat = ({
 const RETRY_MAX_RETRIES = 4;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 30_000;
+const isRetryableHttpStatus = (status: number) =>
+  status === 408 || status === 409 || status === 429 || status >= 500;
 
 type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
@@ -286,6 +290,47 @@ const parseRetryAfter = (value: string | null): number | undefined => {
   return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
 };
 
+export class LlmInvocationError extends Error {
+  constructor(
+    readonly status: number,
+    readonly upstreamCode: string | undefined,
+    readonly retryable: boolean,
+  ) {
+    super(`LLM upstream returned status ${status}`);
+    this.name = "LlmInvocationError";
+  }
+}
+
+function readUpstreamErrorDetails(value: unknown): {
+  hasError: boolean;
+  code?: string;
+  retryable?: boolean;
+} {
+  let body = value;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return { hasError: false };
+    }
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { hasError: false };
+  }
+
+  const envelope = body as Record<string, unknown>;
+  const error = typeof envelope.error === "object" && envelope.error !== null && !Array.isArray(envelope.error)
+    ? envelope.error as Record<string, unknown>
+    : undefined;
+  const rawCode = error?.code ?? error?.type ?? envelope.code;
+  const rawRetryable = envelope.retry_able ?? error?.retry_able;
+  return {
+    hasError: envelope.error !== undefined && envelope.error !== null,
+    code: typeof rawCode === "string" && rawCode.length <= 120 ? rawCode : undefined,
+    retryable: typeof rawRetryable === "boolean" ? rawRetryable : undefined,
+  };
+}
+
 // Equal-jitter exponential backoff. The cap/2 floor guarantees a minimum
 // delay so a misbehaving caller loop slows down instead of hammering the
 // upstream while it keeps returning errors.
@@ -298,8 +343,8 @@ const computeBackoffDelay = (
   return Math.min(Math.max(jittered, retryAfterMs ?? 0), RETRY_MAX_DELAY_MS);
 };
 
-// Retries non-2xx responses and network errors with exponential backoff, then
-// returns the final Response so callers keep their existing error handling.
+// Retries only transient HTTP statuses and network errors; permanent 4xx
+// responses return immediately so callers can report the actual failure class.
 const fetchWithBackoff = async (
   url: string,
   init: FetchInit
@@ -309,7 +354,7 @@ const fetchWithBackoff = async (
   for (let attempt = 0; attempt <= RETRY_MAX_RETRIES; attempt++) {
     try {
       const response = await fetch(url, init);
-      if (response.ok || attempt === RETRY_MAX_RETRIES) {
+      if (response.ok || !isRetryableHttpStatus(response.status) || attempt === RETRY_MAX_RETRIES) {
         return response;
       }
 
@@ -357,6 +402,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     reasoning,
     maxTokens,
     max_tokens,
+    maxCompletionTokens,
+    max_completion_tokens,
   } = params;
 
   const payload: Record<string, unknown> = {
@@ -382,6 +429,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const resolvedMaxTokens = max_tokens ?? maxTokens;
   if (typeof resolvedMaxTokens === "number") {
     payload.max_tokens = resolvedMaxTokens;
+  }
+
+  const resolvedMaxCompletionTokens = max_completion_tokens ?? maxCompletionTokens;
+  if (typeof resolvedMaxCompletionTokens === "number") {
+    payload.max_completion_tokens = resolvedMaxCompletionTokens;
   }
 
   if (thinking) {
@@ -413,12 +465,20 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+    const details = readUpstreamErrorDetails(errorText);
+    throw new LlmInvocationError(
+      response.status,
+      details.code,
+      details.retryable ?? isRetryableHttpStatus(response.status),
     );
   }
 
-  return (await response.json()) as InvokeResult;
+  const result: unknown = await response.json();
+  const details = readUpstreamErrorDetails(result);
+  if (details.hasError) {
+    throw new LlmInvocationError(response.status, details.code, details.retryable ?? false);
+  }
+  return result as InvokeResult;
 }
 
 export type ModelInfo = {

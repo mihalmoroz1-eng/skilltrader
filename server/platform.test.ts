@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { publicPlatformConfig, publicPlatformScript } from "./_core/publicConfig";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
-import { listLLMModels } from "./_core/llm";
+import { invokeLLM, listLLMModels, LlmInvocationError } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { COOKIE_NAME } from "../shared/const";
 
@@ -25,6 +25,46 @@ describe("current platform integration", () => {
     const request = vi.fn(); vi.stubGlobal("fetch", request);
     await expect(listLLMModels()).rejects.toThrow("MANUS_API_URL");
     expect(request).not.toHaveBeenCalled();
+  });
+  it("forwards GPT completion-token caps and reasoning in the documented payload", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "completion-test", created: 1, model: "gpt-6-luna",
+      choices: [{ index: 0, message: { role: "assistant", content: "Учебный ответ" }, finish_reason: "stop" }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", request);
+    await invokeLLM({
+      model: "gpt-6-luna",
+      messages: [{ role: "user", content: "Объясни" }],
+      maxCompletionTokens: 700,
+      reasoning: { effort: "low" },
+    });
+    const payload = JSON.parse(request.mock.calls[0][1].body as string);
+    expect(payload).toMatchObject({ model: "gpt-6-luna", max_completion_tokens: 700, reasoning: { effort: "low" } });
+    expect(payload).not.toHaveProperty("max_tokens");
+  });
+  it("does not retry permanent upstream 4xx errors and does not expose their body", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: "unsupported_model", message: "private upstream detail" } }), {
+      status: 400, statusText: "Bad Request", headers: { "content-type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", request);
+    const pending = invokeLLM({ model: "gpt-6-luna", messages: [{ role: "user", content: "test" }] });
+    await expect(pending).rejects.toBeInstanceOf(LlmInvocationError);
+    await expect(pending).rejects.toMatchObject({ status: 400, upstreamCode: "unsupported_model", retryable: false });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it("retries transient upstream 5xx errors", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "transient-test", created: 1, model: "gpt-6-luna",
+        choices: [{ index: 0, message: { role: "assistant", content: "Recovered" }, finish_reason: "stop" }],
+      }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", request);
+    await expect(invokeLLM({ model: "gpt-6-luna", messages: [{ role: "user", content: "test" }] })).resolves.toMatchObject({ model: "gpt-6-luna" });
+    expect(request).toHaveBeenCalledTimes(2);
   });
   it("persists URL-only image results through current managed storage", async () => {
     vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
@@ -50,5 +90,17 @@ describe("current platform integration", () => {
     expect(await sdk.verifySession(token)).toMatchObject({ openId: "user-test" });
     vi.stubEnv("MANUS_PROJECT_ID", "different-project");
     expect(await sdk.verifySession(token)).toBeNull();
+  });
+  it("authenticates a valid signed session without a database", async () => {
+    vi.stubEnv("MANUS_PROJECT_ID", "project-test");
+    vi.stubEnv("MANUS_JWT_SECRET", "unit-test-signing-key-never-deployed");
+    vi.stubEnv("DATABASE_URL", "");
+    vi.stubEnv("OWNER_OPEN_ID", "owner-test");
+    const token = await sdk.signSession({ openId: "user-test", appId: "project-test", name: "Demo user" });
+    const user = await sdk.authenticateRequest({
+      headers: { cookie: `${COOKIE_NAME}=${token}` },
+      path: "/api/trpc/traderAssistant.chat",
+    } as never);
+    expect(user).toMatchObject({ openId: "user-test", name: "Demo user", role: "user", id: -1 });
   });
 });
