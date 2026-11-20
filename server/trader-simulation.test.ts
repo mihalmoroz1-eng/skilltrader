@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { CANDLE_INTERVALS_MS } from "../client/src/lib/candleTimer";
-import { buildCandles, simulateScenarios } from "../client/src/lib/simulation";
+import { buildCandles, getSimulationInputKey, simulateScenarios } from "../client/src/lib/simulation";
 
 const fixedNow = Date.UTC(2026, 10, 20, 12, 7);
 
 describe("synthetic market simulation", () => {
+  it("marks a Monte Carlo result stale when any simulation input changes", () => {
+    const previous = { entry: 100, stop: 98, target: 104, side: "long" as const, trials: 10_000, seed: 31 };
+    const key = getSimulationInputKey(previous);
+
+    expect(getSimulationInputKey({ ...previous })).toBe(key);
+    expect(getSimulationInputKey({ ...previous, entry: 101 })).not.toBe(key);
+    expect(getSimulationInputKey({ ...previous, stop: 97 })).not.toBe(key);
+    expect(getSimulationInputKey({ ...previous, target: 105 })).not.toBe(key);
+    expect(getSimulationInputKey({ ...previous, seed: 32 })).not.toBe(key);
+  });
+
   it("creates reproducible OHLC candles for a fixed seed, period and time", () => {
     const first = buildCandles(2354.2, 64, 17, "15м", fixedNow);
     const second = buildCandles(2354.2, 64, 17, "15м", fixedNow);

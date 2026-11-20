@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { traderAssistantInputSchema } from "@shared/traderAssistant";
 import { TRPCError } from "@trpc/server";
-import { LlmInvocationError } from "./_core/llm";
+import { assertLLMConfigured, LlmConfigurationError, LlmInvocationError } from "./_core/llm";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -25,6 +25,16 @@ export const appRouter = router({
     chat: protectedProcedure
       .input(traderAssistantInputSchema)
       .mutation(async ({ ctx, input }) => {
+        try {
+          assertLLMConfigured();
+        } catch (error) {
+          if (error instanceof LlmConfigurationError) {
+            console.error("[Skill Trader AI] Missing project model configuration", error.missingSetting);
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Служебная конфигурация AI требует проверки владельцем проекта." });
+          }
+          throw error;
+        }
+
         const limit = traderAssistantRateLimiter.consume(ctx.user.openId);
         if (!limit.allowed) {
           if (limit.scope === "capacity") {
@@ -39,6 +49,10 @@ export const appRouter = router({
         try {
           return await askTraderAssistant(input);
         } catch (error) {
+          if (error instanceof LlmConfigurationError) {
+            console.error("[Skill Trader AI] Missing project model configuration", error.missingSetting);
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Служебная конфигурация AI требует проверки владельцем проекта." });
+          }
           if (error instanceof LlmInvocationError) {
             const code = error.upstreamCode?.toLowerCase() ?? "";
             console.error("[Skill Trader AI] Upstream error", error.status, code || "unknown");

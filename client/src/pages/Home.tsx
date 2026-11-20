@@ -38,7 +38,7 @@ import { readDemoAccountSettings, writeDemoAccountSettings, type DemoAccountSett
 import { formatDemoPositionSize, getDemoPositionSpec, type DemoInstrumentSymbol } from "@/lib/demoInstruments";
 import { canAccessDemoJournalStorage, createDemoJournalRecord, MAX_DEMO_JOURNAL_RECORDS, readDemoJournal, writeDemoJournal, type DemoJournalRecord } from "@/lib/demoJournal";
 import { isValidDemoScenarioDraft, readDemoScenarioDraft, writeDemoScenarioDraft, type DemoScenarioDraft } from "@/lib/demoScenarioDraft";
-import { buildCandles, simulateScenarios, type Side } from "@/lib/simulation";
+import { buildCandles, getSimulationInputKey, simulateScenarios, type Side } from "@/lib/simulation";
 
 type Market = { symbol: DemoInstrumentSymbol; name: string; price: number; change: number; changePct: number; decimals: number };
 
@@ -75,6 +75,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [simSeed, setSimSeed] = useState(31);
   const [simulation, setSimulation] = useState(() => simulateScenarios(draft.entry, draft.stop, draft.target, draft.side, 10_000, 31));
+  const [simulationInputKey, setSimulationInputKey] = useState(() => getSimulationInputKey({ entry: draft.entry, stop: draft.stop, target: draft.target, side: draft.side, trials: 10_000, seed: 31 }));
   const [isRunning, setIsRunning] = useState(false);
   const [demoTrades, setDemoTrades] = useState<DemoJournalRecord[]>(() => readDemoJournal());
   const [journalStorageAvailable, setJournalStorageAvailable] = useState(() => canAccessDemoJournalStorage());
@@ -85,6 +86,9 @@ export default function Home() {
   const [marketMenuOpen, setMarketMenuOpen] = useState(false);
 
   const validLevels = side === "long" ? stop < entry && target > entry : stop > entry && target < entry;
+  const currentSimulationInputKey = getSimulationInputKey({ entry, stop, target, side, trials: 10_000, seed: simSeed });
+  const simulationIsCurrent = simulationInputKey === currentSimulationInputKey;
+  const simulationIsReady = simulationIsCurrent && validLevels;
   const priceFormatter = (value: number) => formatPriceFor(market, value);
   const moneyFormatter = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(value);
   const candles = useMemo(
@@ -110,8 +114,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!validLevels) return;
+    const nextInputKey = getSimulationInputKey({ entry, stop, target, side, trials: 10_000, seed: simSeed });
     const timer = window.setTimeout(() => {
       setSimulation(simulateScenarios(entry, stop, target, side, 10_000, simSeed));
+      setSimulationInputKey(nextInputKey);
       setIsRunning(false);
     }, 180);
     return () => window.clearTimeout(timer);
@@ -303,14 +309,14 @@ export default function Home() {
           <div className="main-grid">
             <div className="chart-column">
               <PriceChart candles={candles} symbol={market.symbol} entry={entry} stop={stop} target={target} side={side} timeframe={timeframe} onTimeframeChange={setTimeframe} formatPrice={priceFormatter} />
-              <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} />
+              <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} isStale={!simulationIsReady} levelsValid={validLevels} />
             </div>
             <aside className="analysis-column">
               <RiskPanel entry={entry} stop={stop} target={target} side={side} size={size} sizeUnit={positionSpec.unit} formatSize={(value) => formatDemoPositionSize(market.symbol, value)} balance={accountSettings.balanceUsd} maxRiskPercent={accountSettings.riskLimitPercent} valid={validLevels} formatMoney={moneyFormatter} />
               <section className="panel probability-panel" id="scenario-outcomes">
                 <div className="panel-heading probability-heading"><div><div className="eyebrow">РЕЗУЛЬТАТЫ МОДЕЛИ</div><h2>Вероятности исходов</h2></div><button className={`run-button ${isRunning ? "running" : ""}`} onClick={runSimulation} disabled={!validLevels || isRunning}><Play size={12} fill="currentColor" />{isRunning ? "Считаем" : "Пересчитать"}</button></div>
-                <div className="model-status"><span className="model-status-dot" /> {simulation.trials.toLocaleString("ru-RU")} прогонов · параметры текущего сценария</div>
-                <OutcomeDistribution result={simulation} side={side} />
+                <div className="model-status"><span className="model-status-dot" /> {simulationIsReady ? `${simulation.trials.toLocaleString("ru-RU")} прогонов · параметры текущего сценария` : validLevels ? "Обновляем результаты для изменённых параметров…" : "Исправьте направление, вход, стоп и цель для симуляции."}</div>
+                {simulationIsReady ? <OutcomeDistribution result={simulation} side={side} /> : <div className="simulation-pending-state" role="status">{validLevels ? "Старые доли исходов временно скрыты до завершения пересчёта." : "Корректные уровни пока не заданы; вероятности не показываются."}</div>}
                 <div className="probability-foot"><span>Результаты зависят от входа, стопа и цели</span><button onClick={runSimulation} aria-label="Перезапустить модель" disabled={!validLevels || isRunning}><RefreshCw size={14} /></button></div>
               </section>
               <section className="panel modules-panel">
@@ -335,6 +341,7 @@ export default function Home() {
           />
 
           <TraderAIChat
+            simulationReady={simulationIsReady}
             scenario={{
               symbol: market.symbol,
               timeframe,

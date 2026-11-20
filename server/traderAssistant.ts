@@ -1,5 +1,6 @@
 import {
   TRADER_ASSISTANT_MODEL,
+  TRADER_ASSISTANT_MAX_RESPONSE_CHARACTERS,
   type TraderAssistantInput,
   type TraderAssistantHistoryMessage,
 } from "@shared/traderAssistant";
@@ -18,7 +19,6 @@ export const TRADER_ASSISTANT_SYSTEM_PROMPT = `Ты — Skill Trader AI, уче�
 
 Пиши кратко. При необходимости показывай формулу и подчёркивай допущения учебной модели, включая отсутствие комиссий, проскальзывания и брокерских спецификаций.`;
 
-const MAX_RESPONSE_CHARACTERS = 5_000;
 const REQUESTS_PER_MINUTE = 6;
 const REQUESTS_PER_UTC_DAY = 80;
 const RATE_WINDOW_MS = 60_000;
@@ -141,7 +141,7 @@ export async function askTraderAssistant(input: TraderAssistantInput): Promise<{
   const text = extractText(response.choices?.[0]?.message?.content);
   if (!text) throw new Error("Skill Trader AI returned an empty completion");
   return {
-    text: text.slice(0, MAX_RESPONSE_CHARACTERS),
+    text: text.slice(0, TRADER_ASSISTANT_MAX_RESPONSE_CHARACTERS),
     model: response.model || TRADER_ASSISTANT_MODEL,
   };
 }

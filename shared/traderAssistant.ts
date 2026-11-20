@@ -1,11 +1,20 @@
 import { z } from "zod";
 
 export const TRADER_ASSISTANT_MODEL = "gpt-6-luna" as const;
+export const TRADER_ASSISTANT_MAX_PROMPT_CHARACTERS = 1_200;
+export const TRADER_ASSISTANT_MAX_HISTORY_MESSAGES = 8;
+export const TRADER_ASSISTANT_MAX_RESPONSE_CHARACTERS = 5_000;
 
-export const traderAssistantHistoryMessageSchema = z.object({
-  role: z.enum(["user", "assistant"]),
-  content: z.string().trim().min(1).max(1_600),
-}).strict();
+export const traderAssistantHistoryMessageSchema = z.discriminatedUnion("role", [
+  z.object({
+    role: z.literal("user"),
+    content: z.string().trim().min(1).max(TRADER_ASSISTANT_MAX_PROMPT_CHARACTERS),
+  }).strict(),
+  z.object({
+    role: z.literal("assistant"),
+    content: z.string().trim().min(1).max(TRADER_ASSISTANT_MAX_RESPONSE_CHARACTERS),
+  }).strict(),
+]);
 
 export const traderAssistantScenarioSchema = z.object({
   symbol: z.enum(["XAUUSD", "EURUSD", "BTCUSD"]),
@@ -66,8 +75,8 @@ export function getTraderAssistantScenarioKey(scenario: z.infer<typeof traderAss
 }
 
 export const traderAssistantInputSchema = z.object({
-  prompt: z.string().trim().min(1).max(1_200),
-  history: z.array(traderAssistantHistoryMessageSchema).max(8),
+  prompt: z.string().trim().min(1).max(TRADER_ASSISTANT_MAX_PROMPT_CHARACTERS),
+  history: z.array(traderAssistantHistoryMessageSchema).max(TRADER_ASSISTANT_MAX_HISTORY_MESSAGES),
   scenario: traderAssistantScenarioSchema,
 }).strict();
 

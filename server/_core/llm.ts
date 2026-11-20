@@ -64,6 +64,8 @@ export type InvokeParams = {
   max_tokens?: number;
   maxCompletionTokens?: number;
   max_completion_tokens?: number;
+  /** Overall upstream request deadline in milliseconds; defaults to 45 seconds. */
+  timeoutMs?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -214,17 +216,29 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
+export class LlmConfigurationError extends Error {
+  constructor(readonly missingSetting: "MANUS_API_URL" | "MANUS_API_KEY") {
+    super(`${missingSetting} is not configured`);
+    this.name = "LlmConfigurationError";
+  }
+}
+
 const platformApiBase = () => {
-  if (!ENV.forgeApiUrl.trim()) throw new Error("MANUS_API_URL is not configured");
+  if (!ENV.forgeApiUrl.trim()) throw new LlmConfigurationError("MANUS_API_URL");
   return ENV.forgeApiUrl.replace(/\/$/, "");
 };
 const resolveApiUrl = () => `${platformApiBase()}/v1/chat/completions`;
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
-    throw new Error("MANUS_API_KEY is not configured");
+    throw new LlmConfigurationError("MANUS_API_KEY");
   }
 };
+
+export function assertLLMConfigured() {
+  platformApiBase();
+  assertApiKey();
+}
 
 const normalizeResponseFormat = ({
   responseFormat,
@@ -274,13 +288,30 @@ const normalizeResponseFormat = ({
 const RETRY_MAX_RETRIES = 4;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_MAX_DELAY_MS = 30_000;
+const LLM_REQUEST_TIMEOUT_MS = 45_000;
 const isRetryableHttpStatus = (status: number) =>
   status === 408 || status === 409 || status === 429 || status >= 500;
 
 type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
-const sleep = (ms: number) =>
-  new Promise<void>(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const finish = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const abort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(signal?.reason ?? new DOMException("Request aborted", "AbortError"));
+    };
+    const timer = setTimeout(finish, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 
 const parseRetryAfter = (value: string | null): number | undefined => {
   if (!value) return undefined;
@@ -347,37 +378,43 @@ const computeBackoffDelay = (
 // responses return immediately so callers can report the actual failure class.
 const fetchWithBackoff = async (
   url: string,
-  init: FetchInit
+  init: FetchInit,
+  timeoutMs = LLM_REQUEST_TIMEOUT_MS,
 ): Promise<Response> => {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= RETRY_MAX_RETRIES; attempt++) {
+    if (timeoutSignal.aborted) throw timeoutSignal.reason;
+    let response: Response;
     try {
-      const response = await fetch(url, init);
-      if (response.ok || !isRetryableHttpStatus(response.status) || attempt === RETRY_MAX_RETRIES) {
-        return response;
-      }
-
-      const retryAfterMs = parseRetryAfter(
-        response.headers.get("retry-after")
-      );
-      try {
-        await response.body?.cancel();
-      } catch {
-        // Body already settled; nothing to clean up.
-      }
-      console.warn(
-        `LLM request retry ${attempt + 1}/${RETRY_MAX_RETRIES} after status ${response.status}`
-      );
-      await sleep(computeBackoffDelay(attempt, retryAfterMs));
+      response = await fetch(url, { ...init, signal: timeoutSignal });
     } catch (error) {
+      if (timeoutSignal.aborted) throw timeoutSignal.reason ?? error;
       lastError = error;
       if (attempt === RETRY_MAX_RETRIES) throw error;
       console.warn(
         `LLM request retry ${attempt + 1}/${RETRY_MAX_RETRIES} after network error`
       );
-      await sleep(computeBackoffDelay(attempt));
+      await sleep(computeBackoffDelay(attempt), timeoutSignal);
+      continue;
     }
+
+    if (response.ok || !isRetryableHttpStatus(response.status) || attempt === RETRY_MAX_RETRIES) {
+      return response;
+    }
+
+    const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+    try {
+      const cancellation = response.body?.cancel();
+      if (cancellation) void cancellation.catch(() => {});
+    } catch {
+      // Body already settled; nothing to clean up.
+    }
+    console.warn(
+      `LLM request retry ${attempt + 1}/${RETRY_MAX_RETRIES} after status ${response.status}`
+    );
+    await sleep(computeBackoffDelay(attempt, retryAfterMs), timeoutSignal);
   }
 
   throw lastError instanceof Error
@@ -386,7 +423,7 @@ const fetchWithBackoff = async (
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+  assertLLMConfigured();
 
   const {
     messages,
@@ -404,6 +441,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     max_tokens,
     maxCompletionTokens,
     max_completion_tokens,
+    timeoutMs,
   } = params;
 
   const payload: Record<string, unknown> = {
@@ -461,7 +499,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       authorization: `Bearer ${ENV.forgeApiKey}`,
     },
     body: JSON.stringify(payload),
-  });
+  }, timeoutMs);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -494,7 +532,7 @@ export type ModelsResponse = {
 };
 
 export async function listLLMModels(): Promise<ModelsResponse> {
-  assertApiKey();
+  assertLLMConfigured();
 
   const url = `${platformApiBase()}/v1/models`;
 

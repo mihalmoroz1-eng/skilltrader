@@ -26,6 +26,17 @@ describe("current platform integration", () => {
     await expect(listLLMModels()).rejects.toThrow("MANUS_API_URL");
     expect(request).not.toHaveBeenCalled();
   });
+  it.each([
+    ["", "test-only", "MANUS_API_URL"],
+    ["https://api.example", "", "MANUS_API_KEY"],
+  ])("classifies missing LLM configuration as non-retryable (%s)", async (apiUrl, apiKey, missingSetting) => {
+    vi.stubEnv("MANUS_API_URL", apiUrl);
+    vi.stubEnv("MANUS_API_KEY", apiKey);
+    const request = vi.fn(); vi.stubGlobal("fetch", request);
+    await expect(invokeLLM({ model: "gpt-6-luna", messages: [{ role: "user", content: "test" }] }))
+      .rejects.toMatchObject({ name: "LlmConfigurationError", missingSetting });
+    expect(request).not.toHaveBeenCalled();
+  });
   it("forwards GPT completion-token caps and reasoning in the documented payload", async () => {
     vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -65,6 +76,37 @@ describe("current platform integration", () => {
     vi.stubGlobal("fetch", request);
     await expect(invokeLLM({ model: "gpt-6-luna", messages: [{ role: "user", content: "test" }] })).resolves.toMatchObject({ model: "gpt-6-luna" });
     expect(request).toHaveBeenCalledTimes(2);
+  });
+  it("aborts a stalled upstream request at its deadline without retrying", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const request = vi.fn((_url: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) {
+        reject(new Error("Missing upstream timeout signal"));
+        return;
+      }
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    }));
+    vi.stubGlobal("fetch", request);
+    await expect(invokeLLM({
+      model: "gpt-6-luna",
+      messages: [{ role: "user", content: "test" }],
+      timeoutMs: 10,
+    })).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it("does not wait for stalled retry-body cleanup beyond the global deadline", async () => {
+    vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");
+    const response = new Response("temporary failure", { status: 503 });
+    vi.spyOn(response.body!, "cancel").mockImplementation(() => new Promise<void>(() => {}));
+    const request = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal("fetch", request);
+    await expect(invokeLLM({
+      model: "gpt-6-luna",
+      messages: [{ role: "user", content: "test" }],
+      timeoutMs: 10,
+    })).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(request).toHaveBeenCalledTimes(1);
   });
   it("persists URL-only image results through current managed storage", async () => {
     vi.stubEnv("MANUS_API_URL", "https://api.example"); vi.stubEnv("MANUS_API_KEY", "test-only");

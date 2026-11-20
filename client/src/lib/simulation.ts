@@ -22,6 +22,26 @@ export type ScenarioResult = {
   trials: number;
 };
 
+export function getSimulationInputKey(input: {
+  entry: number;
+  stop: number;
+  target: number;
+  side: Side;
+  trials: number;
+  seed: number;
+  steps?: number;
+}): string {
+  return JSON.stringify([
+    input.entry,
+    input.stop,
+    input.target,
+    input.side,
+    input.trials,
+    input.seed,
+    input.steps ?? 42,
+  ]);
+}
+
 function createRandom(seed: number) {
   let state = (seed >>> 0) || 1;
   return () => {

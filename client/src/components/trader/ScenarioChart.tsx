@@ -8,13 +8,15 @@ type Props = {
   target: number;
   side: Side;
   formatPrice: (value: number) => string;
+  isStale?: boolean;
+  levelsValid?: boolean;
 };
 
 const WIDTH = 760;
 const HEIGHT = 290;
 const PAD = { top: 22, right: 78, bottom: 30, left: 14 };
 
-export default function ScenarioChart({ result, entry, stop, target, side, formatPrice }: Props) {
+export default function ScenarioChart({ result, entry, stop, target, side, formatPrice, isStale = false, levelsValid = true }: Props) {
   const values = [...result.lowerBand, ...result.upperBand, ...result.trajectories.flat(), stop, target, entry].filter(Number.isFinite);
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
@@ -39,7 +41,7 @@ export default function ScenarioChart({ result, entry, stop, target, side, forma
   ];
 
   return (
-    <section className="panel scenario-panel" id="time-machine">
+    <section className="panel scenario-panel" id="time-machine" aria-busy={isStale && levelsValid}>
       <div className="panel-heading chart-heading">
         <div>
           <div className="eyebrow">СЦЕНАРНЫЙ МОДУЛЬ <span className="tiny-demo">НЕ ПРОГНОЗ</span></div>
@@ -48,6 +50,7 @@ export default function ScenarioChart({ result, entry, stop, target, side, forma
         </div>
         <div className="horizon-chip"><Clock3 size={13} /> 42 шага</div>
       </div>
+      <div className={`scenario-chart-content${isStale ? " is-stale" : ""}`} aria-hidden={isStale}>
       <div className="chart-toolbar scenario-toolbar">
         <div className="chart-symbol"><span className="symbol-dot violet" />Модель Монте-Карло<span className="market-status">{result.trajectories.length} траекторий показано</span></div>
         <div className={`chart-direction ${side === "long" ? "up" : "down"}`}>
@@ -97,6 +100,8 @@ export default function ScenarioChart({ result, entry, stop, target, side, forma
         <span><i className="legend-line stop-legend" />Стоп</span>
       </div>
       <p className="scenario-note"><span className="note-dot" />Учебная случайная модель на синтетических данных — не прогноз, не инвестиционная рекомендация.</p>
+      </div>
+      {isStale && <div className="scenario-stale-overlay" role="status">{levelsValid ? "Симуляция пересчитывается для изменённых параметров. Предыдущие траектории временно скрыты." : "Исправьте направление, вход, стоп и цель, чтобы построить корректную симуляцию."}</div>}
     </section>
   );
 }

@@ -36,6 +36,22 @@ describe("Skill Trader AI input contract", () => {
     expect(traderAssistantInputSchema.parse(validInput)).toEqual(validInput);
   });
 
+  it("accepts assistant history up to the response cap without widening user turns", () => {
+    const longAssistantReply = "а".repeat(5_000);
+    expect(traderAssistantInputSchema.safeParse({
+      ...validInput,
+      history: [{ role: "assistant", content: longAssistantReply }],
+    }).success).toBe(true);
+    expect(traderAssistantInputSchema.safeParse({
+      ...validInput,
+      history: [{ role: "assistant", content: `${longAssistantReply}а` }],
+    }).success).toBe(false);
+    expect(traderAssistantInputSchema.safeParse({
+      ...validInput,
+      history: [{ role: "user", content: "в".repeat(1_201) }],
+    }).success).toBe(false);
+  });
+
   it("changes the chat context key when any scenario-driving value changes", () => {
     const key = getTraderAssistantScenarioKey(validInput.scenario);
     expect(getTraderAssistantScenarioKey({ ...validInput.scenario })).toBe(key);

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AlertTriangle, Bot, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, Bot, Clock3, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import {
   TRADER_ASSISTANT_MODEL,
@@ -18,7 +18,7 @@ const SUGGESTED_PROMPTS = [
   "Как рассчитывается отношение потенциального расстояния к риску?",
 ];
 
-export default function TraderAIChat({ scenario }: { scenario: TraderAssistantScenario }) {
+export default function TraderAIChat({ scenario, simulationReady }: { scenario: TraderAssistantScenario; simulationReady: boolean }) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const messagesRef = useRef<ConversationMessage[]>([]);
   const [requestError, setRequestError] = useState("");
@@ -70,7 +70,7 @@ export default function TraderAIChat({ scenario }: { scenario: TraderAssistantSc
   });
 
   const sendMessage = (content: string) => {
-    if (!scenarioResult.success || chatMutation.isPending) return;
+    if (!scenarioResult.success || !simulationReady || chatMutation.isPending) return;
     const prompt = content.trim();
     if (!prompt) return;
 
@@ -148,6 +148,9 @@ export default function TraderAIChat({ scenario }: { scenario: TraderAssistantSc
       {!scenarioIsValid && (
         <div className="trader-ai-invalid" role="status"><AlertTriangle size={14} /> Проверьте направление, вход, стоп и цель: пока уровни некорректны, отправка отключена.</div>
       )}
+      {scenarioIsValid && !simulationReady && (
+        <div className="trader-ai-pending" role="status"><Clock3 size={14} /> Пересчитываем синтетические результаты. Отправка возобновится, когда сценарий и доли исходов будут согласованы.</div>
+      )}
       {scenarioResetNotice && (
         <div className="trader-ai-context-reset" role="status">Параметры сценария изменились — история очищена, чтобы не смешивать разные расчёты.</div>
       )}
@@ -162,7 +165,7 @@ export default function TraderAIChat({ scenario }: { scenario: TraderAssistantSc
         messages={messages}
         onSendMessage={sendMessage}
         isLoading={chatMutation.isPending}
-        disabled={!scenarioIsValid}
+        disabled={!scenarioIsValid || !simulationReady}
         maxLength={1_200}
         height={420}
         className="trader-ai-box"
