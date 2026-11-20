@@ -231,6 +231,11 @@ h1 span { color: #a9b3be; font-weight: 430; }
 .scenario-svg { margin-top: 3px; }
 .scenario-path { fill: none; stroke: #8c95a4; stroke-width: 1; stroke-opacity: .22; }
 .scenario-path.highlighted { stroke: #76ddad; stroke-opacity: .55; }
+.scenario-trajectory-control { cursor: pointer; }
+.scenario-path-hitarea { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; }
+.scenario-path-muted { stroke-opacity: .055 !important; }
+.scenario-path-selected { stroke: #ffd166 !important; stroke-width: 2.35 !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 2px rgba(255,209,102,.62)); }
+.scenario-trajectory-control:focus-visible .scenario-path { stroke-width: 2; stroke-opacity: .95; }
 .scenario-median { fill: none; stroke: #b7f174; stroke-width: 2; stroke-dasharray: 5 3; }
 .uncertainty-band { stroke: rgba(165,242,76,.18); stroke-width: 1; }
 .scenario-entry { stroke: #ffbe63; }
@@ -240,6 +245,8 @@ h1 span { color: #a9b3be; font-weight: 430; }
 .scenario-legend { gap: 15px; }
 .median-legend { border-color: #b7f174; }
 .legend-band { width: 13px; height: 8px; background: rgba(165,242,76,.17); border: 1px solid rgba(165,242,76,.25); border-radius: 2px; }
+.scenario-path-selection { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; padding: 7px 8px; color: #a6afbb; background: rgba(255,209,102,.045); border: 1px solid rgba(255,209,102,.12); border-radius: 5px; font-size: 8px; line-height: 1.45; }
+.scenario-path-selection button { flex: 0 0 auto; padding: 4px 7px; color: #ffd166; background: rgba(255,209,102,.08); border: 1px solid rgba(255,209,102,.2); border-radius: 4px; font-size: 8px; cursor: pointer; }
 .scenario-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; padding: 7px 8px; color: #818b98; background: rgba(177,154,255,.04); border-radius: 5px; font-size: 8px; line-height: 1.4; }
 .note-dot { width: 5px; height: 5px; flex: 0 0 auto; margin-top: 3px; border-radius: 50%; background: var(--violet); }
 

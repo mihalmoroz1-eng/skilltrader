@@ -1,4 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, Clock3, Sparkles } from "lucide-react";
+import { useState } from "react";
 import type { ScenarioResult, Side } from "@/lib/simulation";
 
 type Props = {
@@ -17,6 +18,13 @@ const HEIGHT = 290;
 const PAD = { top: 22, right: 78, bottom: 30, left: 14 };
 
 export default function ScenarioChart({ result, entry, stop, target, side, formatPrice, isStale = false, levelsValid = true }: Props) {
+  const [selection, setSelection] = useState<{ result: ScenarioResult; index: number } | null>(null);
+  const selectedTrajectory = selection?.result === result ? selection.index : null;
+  const selectedPath = selectedTrajectory === null ? undefined : result.trajectories[selectedTrajectory];
+  const selectedFinalPrice = selectedPath?.[selectedPath.length - 1];
+  const toggleTrajectory = (index: number) => setSelection(current =>
+    current?.result === result && current.index === index ? null : { result, index }
+  );
   const values = [...result.lowerBand, ...result.upperBand, ...result.trajectories.flat(), stop, target, entry].filter(Number.isFinite);
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
@@ -59,7 +67,7 @@ export default function ScenarioChart({ result, entry, stop, target, side, forma
         </div>
       </div>
       <div className="svg-chart-wrap scenario-svg-wrap">
-        <svg className="scenario-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Веер возможных сценариев цены, созданных учебной симуляцией">
+        <svg className="scenario-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Учебные синтетические траектории цены. Выберите линию, чтобы выделить её; стрелками можно перейти к соседним.">
           <defs>
             <linearGradient id="fanFill" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stopColor="#a5f24c" stopOpacity="0.18" />
@@ -73,13 +81,39 @@ export default function ScenarioChart({ result, entry, stop, target, side, forma
             </g>
           ))}
           <path d={bandPath} fill="url(#fanFill)" className="uncertainty-band" />
-          {result.trajectories.map((path, index) => (
-            <polyline
-              key={`path-${index}`}
-              points={path.map((value, point) => `${x(point)} ${y(value)}`).join(" ")}
-              className={index % 4 === 0 ? "scenario-path highlighted" : "scenario-path"}
-            />
-          ))}
+          {result.trajectories.map((path, index) => {
+            const points = path.map((value, point) => `${x(point)} ${y(value)}`).join(" ");
+            const selected = selectedTrajectory === index;
+            const pathClass = `scenario-path${selected ? " scenario-path-selected" : selectedTrajectory !== null ? " scenario-path-muted" : index % 4 === 0 ? " highlighted" : ""}`;
+            const finalPrice = path[path.length - 1];
+            return (
+              <g
+                key={`path-${index}`}
+                id={`scenario-trajectory-${index}`}
+                className="scenario-trajectory-control"
+                role="button"
+                tabIndex={selected || (selectedTrajectory === null && index === 0) ? 0 : -1}
+                aria-label={`Выбрать случайную траекторию ${index + 1}; конечная условная цена ${formatPrice(finalPrice)}`}
+                aria-pressed={selected}
+                onClick={() => toggleTrajectory(index)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    toggleTrajectory(index);
+                  } else if (["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) {
+                    event.preventDefault();
+                    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+                    const next = (index + step + result.trajectories.length) % result.trajectories.length;
+                    setSelection({ result, index: next });
+                    document.getElementById(`scenario-trajectory-${next}`)?.focus();
+                  }
+                }}
+              >
+                <polyline points={points} className="scenario-path-hitarea" />
+                <polyline points={points} className={pathClass} pointerEvents="none" />
+              </g>
+            );
+          })}
           <polyline points={result.median.map((value, index) => `${x(index)} ${y(value)}`).join(" ")} className="scenario-median" />
           {levels.map((level) => (
             <g key={level.label}>
@@ -98,6 +132,12 @@ export default function ScenarioChart({ result, entry, stop, target, side, forma
         <span><i className="legend-band" />Диапазон 20–80%</span>
         <span><i className="legend-line target-legend" />Цель</span>
         <span><i className="legend-line stop-legend" />Стоп</span>
+      </div>
+      <div className="scenario-path-selection" role={selectedPath ? "status" : "note"} aria-live="polite">
+        <span>{selectedPath && selectedFinalPrice !== undefined
+          ? `Выбрана случайная траектория ${selectedTrajectory! + 1} · конечная условная цена ${formatPrice(selectedFinalPrice)}. Это не прогноз и не рейтинг.`
+          : "Нажмите линию, чтобы выделить один случайный путь; Tab + Enter и стрелки — с клавиатуры."}</span>
+        {selectedPath && <button type="button" onClick={() => setSelection(null)}>Сбросить</button>}
       </div>
       <p className="scenario-note"><span className="note-dot" />Учебная случайная модель на синтетических данных — не прогноз, не инвестиционная рекомендация.</p>
       </div>
