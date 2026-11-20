@@ -1,15 +1,42 @@
 import { describe, expect, it } from "vitest";
+import { CANDLE_INTERVALS_MS } from "../client/src/lib/candleTimer";
 import { buildCandles, simulateScenarios } from "../client/src/lib/simulation";
 
+const fixedNow = Date.UTC(2026, 10, 20, 12, 7);
+
 describe("synthetic market simulation", () => {
-  it("creates reproducible OHLC candles for a fixed seed", () => {
-    const first = buildCandles(2354.2, 64, 17);
-    const second = buildCandles(2354.2, 64, 17);
+  it("creates reproducible OHLC candles for a fixed seed, period and time", () => {
+    const first = buildCandles(2354.2, 64, 17, "15м", fixedNow);
+    const second = buildCandles(2354.2, 64, 17, "15м", fixedNow);
 
     expect(first).toEqual(second);
     expect(first).toHaveLength(64);
     expect(first.every((candle) => candle.high >= Math.max(candle.open, candle.close))).toBe(true);
     expect(first.every((candle) => candle.low <= Math.min(candle.open, candle.close))).toBe(true);
+  });
+
+  it.each([
+    ["15м", "12:00Z"],
+    ["1ч", "12:00Z"],
+    ["4ч", "11-20 12:00Z"],
+  ] as const)("aligns %s candles to their UTC boundary", (timeframe, expectedLabel) => {
+    const intervalMs = CANDLE_INTERVALS_MS[timeframe];
+    const candles = buildCandles(2354.2, 4, 17, timeframe, fixedNow);
+    const latest = candles[candles.length - 1];
+
+    expect(latest.timestamp).toBe(Math.floor(fixedNow / intervalMs) * intervalMs);
+    expect(latest.time).toBe(expectedLabel);
+    expect(candles.slice(1).every((candle, index) => candle.timestamp - candles[index].timestamp === intervalMs)).toBe(true);
+  });
+
+  it("scales the synthetic range with the square root of the selected duration", () => {
+    const quarterHour = buildCandles(2354.2, 8, 17, "15м", fixedNow)[0];
+    const oneHour = buildCandles(2354.2, 8, 17, "1ч", fixedNow)[0];
+    const fourHours = buildCandles(2354.2, 8, 17, "4ч", fixedNow)[0];
+    const range = (candle: typeof quarterHour) => candle.high - candle.low;
+
+    expect(range(oneHour) / range(quarterHour)).toBeCloseTo(2, 5);
+    expect(range(fourHours) / range(quarterHour)).toBeCloseTo(4, 5);
   });
 
   it("returns a probability distribution and sample paths for the requested trial count", () => {

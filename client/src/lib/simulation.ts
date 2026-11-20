@@ -1,7 +1,10 @@
+import { CANDLE_INTERVALS_MS, type CandleTimeframe } from "./candleTimer";
+
 export type Side = "long" | "short";
 
 export type PriceCandle = {
   time: string;
+  timestamp: number;
   open: number;
   high: number;
   low: number;
@@ -30,18 +33,38 @@ function createRandom(seed: number) {
   };
 }
 
-export function buildCandles(base: number, count = 64, seed = 13): PriceCandle[] {
-  const random = createRandom(seed);
-  const volatility = base * 0.00038;
-  let close = base - (count * volatility * 0.12);
+function formatCandleTime(timestamp: number, timeframe: CandleTimeframe) {
+  const iso = new Date(timestamp).toISOString();
+  const clock = iso.slice(11, 16);
+  return timeframe === "4ч" ? `${iso.slice(5, 10)} ${clock}Z` : `${clock}Z`;
+}
 
-  return Array.from({ length: count }, (_, index) => {
+export function buildCandles(
+  base: number,
+  count = 64,
+  seed = 13,
+  timeframe: CandleTimeframe = "15м",
+  nowMs = Date.now(),
+): PriceCandle[] {
+  const safeBase = Number.isFinite(base) && base > 0 ? base : 1;
+  const safeCount = Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));
+  const safeNow = Number.isFinite(nowMs) ? nowMs : 0;
+  const intervalMs = CANDLE_INTERVALS_MS[timeframe];
+  const intervalScale = Math.sqrt(intervalMs / CANDLE_INTERVALS_MS["15м"]);
+  const random = createRandom(seed);
+  const volatility = safeBase * 0.00038 * intervalScale;
+  let close = safeBase - safeCount * volatility * 0.12;
+  const currentBoundary = Math.floor(safeNow / intervalMs) * intervalMs;
+
+  return Array.from({ length: safeCount }, (_, index) => {
+    const timestamp = currentBoundary - (safeCount - index - 1) * intervalMs;
     const open = close;
     const drift = Math.sin(index * 0.31) * volatility * 0.23;
-    close = Math.max(base * 0.5, open + (random() - 0.49) * volatility * 2.8 + drift);
+    close = Math.max(safeBase * 0.5, open + (random() - 0.49) * volatility * 2.8 + drift);
     const wick = random() * volatility * 0.8;
     return {
-      time: String(index + 1).padStart(2, "0"),
+      time: formatCandleTime(timestamp, timeframe),
+      timestamp,
       open,
       close,
       high: Math.max(open, close) + wick,

@@ -85,7 +85,10 @@ export default function Home() {
   const validLevels = side === "long" ? stop < entry && target > entry : stop > entry && target < entry;
   const priceFormatter = (value: number) => formatPriceFor(market, value);
   const moneyFormatter = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(value);
-  const candles = useMemo(() => buildCandles(market.price, 64, MARKETS.indexOf(market) + 17), [market]);
+  const candles = useMemo(
+    () => buildCandles(market.price, 64, MARKETS.indexOf(market) + 17, timeframe),
+    [market, timeframe],
+  );
   const quote = market.price;
 
   const setTimeframe = (nextTimeframe: CandleTimeframe) => setDraft((current) => ({ ...current, timeframe: nextTimeframe }));

@@ -43,6 +43,11 @@ export default function PriceChart({ candles, symbol, entry, stop, target, side,
   const step = plotWidth / Math.max(visibleCandles.length, 1);
   const candleWidth = Math.max(3, Math.min(9, step * 0.56));
   const gridLevels = Array.from({ length: 5 }, (_, index) => max - ((max - min) * index) / 4);
+  const timeMarkers = [
+    { index: 0, anchor: "start" as const },
+    { index: Math.floor((visibleCandles.length - 1) / 2), anchor: "middle" as const },
+    { index: visibleCandles.length - 1, anchor: "end" as const },
+  ];
   const levels = [
     { label: "ЦЕЛЬ", value: target, className: "level-target" },
     { label: "ВХОД", value: entry, className: "level-entry" },
@@ -81,7 +86,7 @@ export default function PriceChart({ candles, symbol, entry, stop, target, side,
         </div>
       </div>
       <div className="svg-chart-wrap">
-        <svg className="price-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${symbol}: учебные свечи и уровни сделки`}>
+        <svg className="price-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${symbol}, ${timeframe}: учебные свечи и уровни сделки`}>
           <defs>
             <linearGradient id="priceFade" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stopColor="#a5f24c" stopOpacity="0.06" />
@@ -105,6 +110,7 @@ export default function PriceChart({ candles, symbol, entry, stop, target, side,
             const bodyHeight = Math.max(2, Math.abs(y(candle.open) - y(candle.close)));
             return (
               <g key={`${candle.time}-${index}`} className={isUp ? "candle-up" : "candle-down"}>
+                <title>{`${candle.time} · O ${formatPrice(candle.open)} · H ${formatPrice(candle.high)} · L ${formatPrice(candle.low)} · C ${formatPrice(candle.close)}`}</title>
                 <line x1={centerX} x2={centerX} y1={y(candle.high)} y2={y(candle.low)} className="candle-wick" />
                 <rect x={centerX - candleWidth / 2} y={top} width={candleWidth} height={bodyHeight} rx="1" className="candle-body" />
               </g>
@@ -117,8 +123,12 @@ export default function PriceChart({ candles, symbol, entry, stop, target, side,
               <text x={WIDTH - PAD.right + 9} y={y(level.value) + 3.5} className="price-tag-text">{level.label} {formatPrice(level.value)}</text>
             </g>
           ))}
-          <text x={PAD.left} y={HEIGHT - 7} className="chart-time-label">{timeframe} назад</text>
-          <text x={WIDTH - PAD.right} y={HEIGHT - 7} textAnchor="end" className="chart-time-label">СЕЙЧАС</text>
+          {timeMarkers.map(({ index, anchor }, markerIndex) => {
+            const candle = visibleCandles[index];
+            if (!candle) return null;
+            const x = PAD.left + index * step + step / 2;
+            return <text key={`time-${markerIndex}`} x={x} y={HEIGHT - 7} textAnchor={anchor} className="chart-time-label">{candle.time}</text>;
+          })}
         </svg>
       </div>
       <div className="chart-legend">
