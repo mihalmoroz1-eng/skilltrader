@@ -49,9 +49,9 @@ describe("Express request-body limits", () => {
         headers: { "content-type": contentType },
         body,
       });
-      await response.text();
 
       expect(response.status).toBe(413);
+      expect(await response.json()).toEqual({ error: "Тело запроса превышает допустимый размер." });
       expect(wasRouteReached()).toBe(false);
     });
   });
