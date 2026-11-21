@@ -3,7 +3,6 @@ import { AlertTriangle, Bot, Clock3, RotateCcw, ShieldCheck, Trash2 } from "luci
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import {
   TRADER_ASSISTANT_MODEL,
-  TRADER_ASSISTANT_PIPELINE_STAGES,
   limitTraderAssistantHistory,
   getTraderAssistantScenarioKey,
   traderAssistantScenarioSchema,
@@ -12,6 +11,7 @@ import {
   type TraderAssistantScenario,
 } from "@shared/traderAssistant";
 import { trpc } from "@/lib/trpc";
+import TraderAICommandCenter from "@/components/trader/TraderAICommandCenter";
 
 type ConversationMessage = { role: "user" | "assistant"; content: string };
 type PipelineReceipt = { modelCalls: number; completedStages: TraderAssistantPipelineStageId[] };
@@ -159,18 +159,18 @@ export default function TraderAIChat({ scenario, simulationReady }: { scenario: 
         </div>
       </div>
 
-      <ol className="trader-ai-pipeline" aria-label="Три последовательных этапа Skill Trader AI">
-        {TRADER_ASSISTANT_PIPELINE_STAGES.map((stage, index) => {
-          const completed = pipelineReceipt?.completedStages.includes(stage.id) ?? false;
-          return (
-            <li key={stage.id} className={completed ? "is-complete" : ""}>
-              <span className="trader-ai-pipeline-number" aria-hidden="true">0{index + 1}</span>
-              <span>{stage.label}</span>
-            </li>
-          );
-        })}
-        <li className="trader-ai-pipeline-count">до 3 вызовов / ответ</li>
-      </ol>
+      <TraderAICommandCenter
+        completedStages={pipelineReceipt?.completedStages ?? null}
+        isBusy={chatMutation.isPending}
+        hasError={Boolean(requestError)}
+        disabled={!scenarioIsValid || !simulationReady}
+        prompts={[
+          { label: "Разобрать риск и результат", prompt: SUGGESTED_PROMPTS[0] },
+          { label: "Понять исходы симуляции", prompt: SUGGESTED_PROMPTS[1] },
+          { label: "Проверить отношение цель / риск", prompt: SUGGESTED_PROMPTS[2] },
+        ]}
+        onRunCommand={sendMessage}
+      />
 
       {chatMutation.isPending && (
         <div className="trader-ai-pipeline-status" role="status">

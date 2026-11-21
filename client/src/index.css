@@ -650,3 +650,82 @@ h1 span { color: #a9b3be; font-weight: 430; }
 .trader-ai-pipeline-status { padding: 7px 9px; color: #b7add7; background: rgba(177,154,255,.04); border: 1px solid rgba(177,154,255,.12); border-radius: 5px; font-size: 9px; line-height: 1.45; }
 .trader-ai-pipeline-status.is-complete { color: #c6e3a6; background: rgba(165,242,76,.035); border-color: rgba(165,242,76,.13); }
 @media (max-width: 680px) { .scenario-stale-overlay { inset: 72px 10px 28px; font-size: 9px; } }
+
+
+/* Skill Trader AI command center: one truthful pipeline, explicit manual commands */
+.trader-ai-command-center { margin: 0 0 13px; overflow: hidden; background: linear-gradient(145deg, #101720, #0e141b); border: 1px solid #27323e; border-radius: 8px; }
+.trader-ai-command-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 10px; }
+.trader-ai-command-kicker, .trader-ai-tab-intro > span { color: #718091; font-size: 8px; font-weight: 700; letter-spacing: .14em; }
+.trader-ai-command-header h3 { display: flex; align-items: center; gap: 7px; margin-top: 5px; color: #e1e8e4; font-size: 13px; font-weight: 620; }
+.trader-ai-command-header h3 svg { color: var(--lime); }
+.trader-ai-architecture-badge { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 5px 7px; color: #b4d89a; background: rgba(165,242,76,.055); border: 1px solid rgba(165,242,76,.13); border-radius: 4px; font-size: 7px; font-weight: 700; letter-spacing: .07em; }
+.trader-ai-architecture-badge > span { width: 5px; height: 5px; background: var(--lime); border-radius: 50%; }
+.trader-ai-command-tabs { display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid #222c37; }
+.trader-ai-command-tab { position: relative; display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 9px; color: #82909f; background: transparent; border: 0; font-size: 9px; }
+.trader-ai-command-tab:hover { color: #dce5e0; }
+.trader-ai-command-tab.is-active { color: var(--lime); }
+.trader-ai-command-tab.is-active::after { position: absolute; right: 7px; bottom: -1px; left: 7px; height: 2px; background: var(--lime); content: ""; }
+.trader-ai-command-tab small { color: #647181; font-size: 7px; font-variant-numeric: tabular-nums; }
+.trader-ai-team-content, .trader-ai-skills-content, .trader-ai-commands-content { padding: 12px; }
+.trader-ai-team-notice { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 10px; padding: 8px 9px; color: #8e9d8a; background: rgba(165,242,76,.035); border: 1px solid rgba(165,242,76,.09); border-radius: 5px; font-size: 8px; line-height: 1.45; }
+.trader-ai-team-notice svg { flex: 0 0 auto; color: #9bd466; }
+.trader-ai-team-notice.is-busy { color: #9da9b4; background: rgba(117,168,255,.035); border-color: rgba(117,168,255,.1); }
+.trader-ai-team-notice.is-busy svg { color: var(--blue); }
+.trader-ai-team-notice.is-error { color: #b8a49a; background: rgba(255,117,111,.04); border-color: rgba(255,117,111,.12); }
+.trader-ai-team-notice.is-error svg { color: var(--amber); }
+.trader-ai-role-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.trader-ai-role-card { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; min-height: 148px; padding: 10px; background: linear-gradient(145deg, #151d27, #111820); border: 1px solid #28323d; border-radius: 6px; }
+.trader-ai-role-top { width: 100%; display: flex; align-items: center; justify-content: space-between; color: #6e7b8a; }
+.trader-ai-role-number { color: #738294; font-size: 8px; font-weight: 700; letter-spacing: .1em; }
+.trader-ai-role-name { margin-top: 9px; color: #788898; font-size: 7px; font-weight: 700; letter-spacing: .09em; }
+.trader-ai-role-card h4 { margin: 4px 0 0; color: #dfe5e2; font-size: 10px; font-weight: 620; }
+.trader-ai-role-card p { margin-top: 5px; color: #7e8997; font-size: 8px; line-height: 1.45; }
+.trader-ai-role-status { display: inline-flex; margin-top: auto; padding: 4px 5px 0 0; color: #8895a2; font-size: 7px; line-height: 1.35; }
+.trader-ai-role-status.status-complete { color: var(--lime); }
+.trader-ai-role-status.status-stopped { color: var(--amber); }
+.trader-ai-role-status.status-unknown { color: #ff9a8f; }
+.trader-ai-role-status.status-pending { color: #89b7fa; }
+.trader-ai-one-model-note { margin-top: 9px; color: #677383; font-size: 7px; line-height: 1.45; }
+.trader-ai-tab-intro { margin: 0 0 10px; }
+.trader-ai-tab-intro p { margin-top: 4px; color: #83909e; font-size: 8px; line-height: 1.45; }
+.trader-ai-skill-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
+.trader-ai-skill-card { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 9px; background: #131a22; border: 1px solid #252f3a; border-radius: 5px; }
+.trader-ai-skill-index { padding-top: 1px; color: #85956d; font-size: 8px; font-weight: 700; }
+.trader-ai-skill-card > div { min-width: 0; flex: 1; }
+.trader-ai-skill-card h4 { color: #d7dfdb; font-size: 9px; font-weight: 600; }
+.trader-ai-skill-card p { margin-top: 3px; color: #788594; font-size: 7px; line-height: 1.4; }
+.trader-ai-skill-card code { display: inline-block; margin-top: 5px; color: #a6c988; font-size: 7px; }
+.trader-ai-skill-card > svg { flex: 0 0 auto; margin-top: 1px; color: #92c766; }
+.trader-ai-command-list { display: grid; gap: 6px; }
+.trader-ai-command-row { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 7px 9px; text-align: left; background: #131a22; border: 1px solid #29333e; border-radius: 5px; transition: border-color .15s, background .15s; }
+.trader-ai-command-row:hover:not(:disabled) { background: #18212a; border-color: #536c3e; }
+.trader-ai-command-row:disabled { opacity: .52; cursor: not-allowed; }
+.trader-ai-command-index { color: #8ca46c; font-size: 8px; font-weight: 700; }
+.trader-ai-command-copy { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.trader-ai-command-copy strong { color: #dce4df; font-size: 9px; font-weight: 600; }
+.trader-ai-command-copy small { overflow: hidden; color: #778493; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.trader-ai-command-action { display: inline-flex; align-items: center; gap: 5px; color: #a8d780; font-size: 7px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.trader-ai-command-cost { display: flex; align-items: flex-start; gap: 7px; margin-top: 9px; padding: 8px; color: #8994a1; background: rgba(255,190,99,.04); border: 1px solid rgba(255,190,99,.11); border-radius: 5px; font-size: 7px; line-height: 1.5; }
+.trader-ai-command-cost svg { flex: 0 0 auto; color: var(--amber); }
+@media (max-width: 700px) {
+  .trader-ai-command-header { align-items: flex-start; padding: 11px 10px 9px; }
+  .trader-ai-architecture-badge { margin-top: 12px; font-size: 6px; }
+  .trader-ai-command-tabs { padding: 0 7px; }
+  .trader-ai-command-tab { gap: 4px; min-height: 35px; padding: 0 7px; font-size: 8px; }
+  .trader-ai-team-content, .trader-ai-skills-content, .trader-ai-commands-content { padding: 9px; }
+  .trader-ai-role-grid { grid-template-columns: 1fr; gap: 6px; }
+  .trader-ai-role-card { display: grid; grid-template-columns: 24px 1fr auto; align-items: start; min-height: 0; column-gap: 7px; padding: 9px; }
+  .trader-ai-role-top { grid-row: 1 / span 3; width: 24px; height: 28px; align-items: flex-start; }
+  .trader-ai-role-top svg { display: none; }
+  .trader-ai-role-name { grid-column: 2; margin-top: 0; }
+  .trader-ai-role-card h4 { grid-column: 2; }
+  .trader-ai-role-card p { grid-column: 2 / 4; margin-top: 4px; }
+  .trader-ai-role-status { grid-column: 3; grid-row: 1 / span 2; justify-self: end; margin-top: 0; padding: 0; text-align: right; }
+  .trader-ai-skill-grid { grid-template-columns: 1fr; }
+  .trader-ai-command-action { font-size: 6px; }
+}
+@media (max-width: 380px) {
+  .trader-ai-architecture-badge { max-width: 126px; line-height: 1.3; white-space: normal; }
+  .trader-ai-command-copy small { max-width: 175px; }
+  .trader-ai-command-action { width: 48px; justify-content: flex-end; white-space: normal; }
+}
