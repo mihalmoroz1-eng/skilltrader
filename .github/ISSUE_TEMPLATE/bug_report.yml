@@ -1,0 +1,45 @@
+name: Сообщить об ошибке
+description: Сообщите о воспроизводимой проблеме в демо
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Не указывайте пароли, API-ключи, персональные данные или сведения о реальных счетах. В Skill Trader используйте только синтетические сценарии.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Что произошло?
+      description: Опишите наблюдаемое поведение.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести?
+      description: Перечислите шаги и укажите параметры синтетического сценария, если они важны.
+      placeholder: "1. Откройте ...\n2. Измените ...\n3. Наблюдайте ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что вы ожидали увидеть?
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Среда
+      description: Версия браузера и способ запуска, если известны.
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Перед отправкой
+      options:
+        - label: Я проверил, что не добавил секреты, персональные данные или информацию о реальных финансовых операциях.
+          required: true

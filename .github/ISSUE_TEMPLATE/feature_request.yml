@@ -1,0 +1,36 @@
+name: Предложить улучшение
+description: Предложите улучшение учебного демо
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Проект ограничен учебными сценариями на синтетических данных. Не прикладывайте секреты, персональные данные или реальные финансовые сведения.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую проблему решит предложение?
+      description: Опишите потребность пользователя.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Какое решение вы предлагаете?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Рассмотренные альтернативы
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Границы проекта
+      options:
+        - label: Предложение сохраняет учебное назначение и не требует реальных котировок, брокерских ордеров или персональных торговых рекомендаций.
+          required: true
