@@ -1,10 +1,14 @@
 import { useState } from "react";
 import {
+  ArrowRight,
   BookOpen,
+  BrainCircuit,
   CheckCircle2,
   CircleHelp,
   Command,
   Layers3,
+  MessageSquareText,
+  Server,
   ShieldCheck,
   Sparkles,
   Users,
@@ -128,6 +132,38 @@ export default function TraderAICommandCenter({
                     : "Ожидает вопроса. Полный учебный ответ использует этапы по порядку; безопасный отказ может остановиться раньше."}
             </span>
           </div>
+          <figure className="trader-ai-flow-map">
+            <figcaption className="trader-ai-flow-caption">
+              <span>КАРТА КОНВЕЙЕРА</span>
+              <small>Архитектура · не текущий прогресс</small>
+            </figcaption>
+            <div className="trader-ai-flow-track">
+              <div className="trader-ai-flow-endpoint is-input">
+                <span className="trader-ai-flow-label">ВХОД</span>
+                <MessageSquareText size={16} />
+                <strong>Вопрос / команда</strong>
+                <small>быстрая команда → обычный запрос</small>
+              </div>
+              <ArrowRight className="trader-ai-flow-arrow" size={17} aria-hidden="true" />
+              <div className="trader-ai-flow-model">
+                <div className="trader-ai-flow-model-head"><BrainCircuit size={15} /><span><strong>gpt-6-luna</strong><small>ОДНА МОДЕЛЬ · ПОСЛЕДОВАТЕЛЬНО</small></span></div>
+                <p className="trader-ai-flow-scope">6 учебных тем · серверный allow-list ограничивает область ответа</p>
+                <ol className="trader-ai-flow-stages">
+                  {TRADER_ASSISTANT_PIPELINE_STAGES.map((stage, index) => (
+                    <li key={stage.id}><span>0{index + 1}</span><strong>{stage.label}</strong></li>
+                  ))}
+                </ol>
+              </div>
+              <ArrowRight className="trader-ai-flow-arrow" size={17} aria-hidden="true" />
+              <div className="trader-ai-flow-endpoint is-output">
+                <span className="trader-ai-flow-label">ВЫХОД</span>
+                <Server size={16} />
+                <strong>Ответ сервера</strong>
+                <small>русский фиксированный шаблон</small>
+              </div>
+            </div>
+            <p className="trader-ai-flow-footnote">Быстрые команды идут в тот же конвейер. Без отдельных агентов, скрытых вызовов и передачи внутренних JSON в браузер.</p>
+          </figure>
           <div className="trader-ai-role-grid">
             {ROLES.map(({ id, title, role, description, icon: Icon }, index) => {
               const status = stageStatus(id, completedStages, isBusy, hasError);
