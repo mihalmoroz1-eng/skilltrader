@@ -31,7 +31,7 @@ import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
 import RiskPanel from "@/components/trader/RiskPanel";
 import CandleTimer from "@/components/trader/CandleTimer";
-import TraderAIChat from "@/components/trader/TraderAIChat";
+import DeferredTraderAIChat from "@/components/trader/DeferredTraderAIChat";
 import AccountSettingsModal from "@/components/trader/AccountSettingsModal";
 import type { CandleTimeframe } from "@/lib/candleTimer";
 import { readDemoAccountSettings, writeDemoAccountSettings, type DemoAccountSettings } from "@/lib/demoAccountSettings";
@@ -340,7 +340,7 @@ export default function Home() {
             onDelete={deleteDemoTrade}
           />
 
-          <TraderAIChat
+          <DeferredTraderAIChat
             simulationReady={simulationIsReady}
             scenario={{
               symbol: market.symbol,
