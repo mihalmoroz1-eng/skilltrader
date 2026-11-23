@@ -415,15 +415,6 @@ export async function askTraderAssistant(
   );
   const analysis = parseStructuredOutput(analysisResponse, analysisOutputSchema, "analysis");
   completedStages.push(TRADER_ASSISTANT_PIPELINE_STAGES[0].id);
-  if (analysis.intent !== "educational") {
-    return {
-      text: SAFE_SCOPE_REFUSAL,
-      model: analysisResponse.model || TRADER_ASSISTANT_MODEL,
-      modelCalls: completedStages.length,
-      completedStages,
-    };
-  }
-
   const riskCheckResponse = await invokeStage(
     modelCall,
     buildTraderAssistantRiskCheckMessages(input.scenario, analysis),
@@ -432,6 +423,15 @@ export async function askTraderAssistant(
   );
   const riskCheck = parseStructuredOutput(riskCheckResponse, riskCheckOutputSchema, "risk_check");
   completedStages.push(TRADER_ASSISTANT_PIPELINE_STAGES[1].id);
+  if (analysis.intent !== "educational") {
+    return {
+      text: SAFE_SCOPE_REFUSAL,
+      model: riskCheckResponse.model || TRADER_ASSISTANT_MODEL,
+      modelCalls: completedStages.length,
+      completedStages,
+    };
+  }
+
   if (
     riskCheck.arithmeticStatus !== "consistent"
     || riskCheck.syntheticScope !== "synthetic_only"

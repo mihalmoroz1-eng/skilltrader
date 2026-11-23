@@ -200,14 +200,15 @@ describe("Skill Trader AI three-stage pipeline", () => {
     expect(result).not.toHaveProperty("riskCheck");
   });
 
-  it("stops after analysis and returns a deterministic refusal for disallowed intent", async () => {
+  it("runs the risk check before returning a deterministic refusal for disallowed intent", async () => {
     const disallowedAnalysis = JSON.stringify({ intent: "personalized_advice", relevantFactIds: [] });
     const { calls, modelCall } = mockPipeline([disallowedAnalysis, riskCheckOutput, explanationOutput]);
     const result = await askTraderAssistant(validInput, modelCall);
 
-    expect(calls).toHaveLength(1);
-    expect(result.modelCalls).toBe(1);
-    expect(result.completedStages).toEqual(["analysis"]);
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(calls[1].messages)).toContain("personalized_advice");
+    expect(result.modelCalls).toBe(2);
+    expect(result.completedStages).toEqual(["analysis", "risk_check"]);
     expect(result.text).toContain("Персональные торговые рекомендации");
   });
 
