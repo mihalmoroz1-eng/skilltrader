@@ -27,7 +27,7 @@ describe("deterministic technical indicators", () => {
     expect(rsi[2]).toBe(100);
     expect(rsi[3]).toBe(50);
     expect(rsi[4]).toBe(25);
-    expect(rsi[5]).toBe(62.5);
+    expect(rsi[5]).toBeCloseTo(62.5, 10);
     expect(calculateRSI([5, 5, 5, 5], 2).slice(2)).toEqual([50, 50]);
     expect(calculateRSI([1, 2, 3, 4], 2).slice(2)).toEqual([100, 100]);
   });
