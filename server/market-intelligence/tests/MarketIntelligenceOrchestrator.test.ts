@@ -49,8 +49,8 @@ function createProcessed(now: number, includeFormingCandle = false): ProcessedMa
     indicators: candles.map((candle) => ({
       openTime: candle.openTime,
       closeTime: candle.closeTime,
-      ema20: 104,
-      ema50: 102,
+      ema20: 105.5,
+      ema50: 103.5,
       rsi14: 60,
       macdLine: 1,
       macdSignal: 0.7,
