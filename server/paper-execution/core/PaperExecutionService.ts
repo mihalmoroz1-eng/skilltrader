@@ -3,7 +3,7 @@ import type { PaperAccountInitializeInput, PaperOpenPositionInput } from "@share
 import type { FuturesMarketProvider } from "../../futures-intelligence/core/FuturesLiquidityTypes";
 import type { PaperInstrumentRulesProvider } from "../providers/BinanceUsdMInstrumentRulesProvider";
 import {
-  calculatePaperUnrealizedPnl, closePaperPosition, PaperExecutionError,
+  calculatePaperMarkedNotional, calculatePaperUnrealizedPnl, closePaperPosition, PaperExecutionError,
   preparePaperPosition, sumPaperDecimals,
   type PaperAccountConfig, type PaperAccountSnapshot, type PaperSignalRecord,
 } from "./PaperExecutionEngine";
@@ -96,11 +96,12 @@ export class PaperExecutionService {
     riskDailyLoss: string;
     realizedDailyLossForToday: string;
     currentOpenNotional: string;
+    storedOpenNotional: string;
   }> {
     const account = await this.store.getAccount(userOpenId);
     if (!account) throw new PaperExecutionError("PAPER account is not initialized");
     const openPositions = await this.store.getOpenPositions(userOpenId);
-    const currentOpenNotional = sumPaperDecimals(openPositions.map(position => position.notional));
+    const storedOpenNotional = sumPaperDecimals(openPositions.map(position => position.notional));
     const day = utcDate(now);
     const dailyLossForToday = account.dailyLossDate === day ? account.realizedDailyLoss : "0";
     const marks = await Promise.all([...new Set(openPositions.map(position => position.symbol))].map(async symbol => {
@@ -108,6 +109,10 @@ export class PaperExecutionService {
       return [symbol, snapshot.markPrice] as const;
     }));
     const markBySymbol = new Map(marks);
+    const markedNotionals = openPositions.map(position => calculatePaperMarkedNotional(
+      position, markBySymbol.get(position.symbol)!,
+    ));
+    const currentOpenNotional = sumPaperDecimals(markedNotionals);
     const unrealized = openPositions.map(position => calculatePaperUnrealizedPnl(
       position, markBySymbol.get(position.symbol)!, account.feeBps, account.slippageBps,
     ).netUnrealizedPnl);
@@ -122,7 +127,7 @@ export class PaperExecutionService {
       currentOpenNotional, openPositions: openPositions.length, snapshotAt: now,
     };
     if (parseScaled(equity) <= 0n) throw new PaperExecutionError("PAPER account equity is exhausted");
-    return { account, openPositions, snapshot, riskDailyLoss, realizedDailyLossForToday: dailyLossForToday, currentOpenNotional };
+    return { account, openPositions, snapshot, riskDailyLoss, realizedDailyLossForToday: dailyLossForToday, currentOpenNotional, storedOpenNotional };
   }
 
   async openPosition(userOpenId: string, input: PaperOpenPositionInput) {
@@ -164,7 +169,7 @@ export class PaperExecutionService {
       expectedCashBalance: account.cashBalance,
       expectedDailyLoss: account.realizedDailyLoss,
       expectedDailyLossDate: account.dailyLossDate,
-      expectedOpenNotional: snapshot.currentOpenNotional,
+      expectedOpenNotional: snapshot.storedOpenNotional,
       expectedOpenPositions: snapshot.openPositions.length,
       newCashBalance: result.accountCashBalanceAfter,
       newDailyLoss: snapshot.realizedDailyLossForToday,
