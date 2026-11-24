@@ -7,6 +7,7 @@ import {
   Bell,
   Check,
   ClipboardList,
+  Database,
   ChevronDown,
   CircleHelp,
   Clock3,
@@ -29,6 +30,7 @@ import PriceChart from "@/components/trader/PriceChart";
 import LiveMarketDataPanel from "@/components/trader/LiveMarketDataPanel";
 import MarketIntelligencePanel from "@/components/trader/MarketIntelligencePanel";
 import PaperExecutionPanel from "@/components/trader/PaperExecutionPanel";
+import HistoricalBacktestPanel from "@/components/trader/HistoricalBacktestPanel";
 import ScenarioChart from "@/components/trader/ScenarioChart";
 import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
@@ -60,6 +62,7 @@ const NAV_ITEMS = [
   { label: "Журнал", icon: ClipboardList, anchor: "demo-journal" },
   { label: "Skill Trader AI", icon: Sparkles, anchor: "skill-trader-ai" },
   { label: "PAPER Execution", icon: ShieldCheck, anchor: "paper-execution" },
+  { label: "История и Backtest", icon: Database, anchor: "historical-backtesting" },
 ];
 
 const FUTURE_MODULES = [
@@ -320,6 +323,7 @@ export default function Home() {
               <LiveMarketDataPanel />
               <MarketIntelligencePanel />
               <PaperExecutionPanel />
+              <HistoricalBacktestPanel />
               <PriceChart candles={candles} symbol={market.symbol} entry={entry} stop={stop} target={target} side={side} timeframe={timeframe} onTimeframeChange={setTimeframe} formatPrice={priceFormatter} />
               <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} isStale={!simulationIsReady} levelsValid={validLevels} />
             </div>
