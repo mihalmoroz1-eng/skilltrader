@@ -135,6 +135,7 @@ export default function MarketIntelligencePanel() {
   const [auditStorageAvailable, setAuditStorageAvailable] = useState<boolean | null>(null);
   const [auditFeedback, setAuditFeedback] = useState("");
   const [manualReviewBusy, setManualReviewBusy] = useState(false);
+  const utils = trpc.useUtils();
   const acceptPaperSignal = trpc.paper.acceptSignal.useMutation();
   const dismissPaperSignal = trpc.paper.dismissSignal.useMutation();
   const auth = trpc.auth.me.useQuery(undefined, {
@@ -178,6 +179,7 @@ export default function MarketIntelligencePanel() {
     try {
       if (accepted) await acceptPaperSignal.mutateAsync({ signalId: signalCandidate.signalId });
       else await dismissPaperSignal.mutateAsync({ signalId: signalCandidate.signalId });
+      await utils.paper.portfolio.invalidate();
       const stored = appendSignalAuditEvent({
         signalId: signalCandidate.signalId,
         marketRunId: signalCandidate.marketRunId,
