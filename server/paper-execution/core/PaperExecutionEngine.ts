@@ -3,16 +3,21 @@ import type { AccountRiskResult } from "@shared/accountRisk";
 
 const SCALE = 100_000_000n;
 function parse(value: string): bigint {
-  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})?$/.test(value) || value.length > 40) {
+  if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})?$/.test(value) || value.length > 40) {
     throw new PaperExecutionError("Invalid fixed-point decimal");
   }
-  const [whole, fraction = ""] = value.split(".");
-  return BigInt(whole) * SCALE + BigInt(fraction.padEnd(8, "0"));
+  const negative = value.startsWith("-");
+  const normalized = negative ? value.slice(1) : value;
+  const [whole, fraction = ""] = normalized.split(".");
+  const scaled = BigInt(whole) * SCALE + BigInt(fraction.padEnd(8, "0"));
+  return negative ? -scaled : scaled;
 }
 function format(value: bigint): string {
-  const whole = value / SCALE;
-  const fraction = (value % SCALE).toString().padStart(8, "0").replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : whole.toString();
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  const whole = absolute / SCALE;
+  const fraction = (absolute % SCALE).toString().padStart(8, "0").replace(/0+$/, "");
+  return `${negative ? "-" : ""}${whole}${fraction ? `.${fraction}` : ""}`;
 }
 function mul(left: bigint, right: bigint): bigint { return left * right / SCALE; }
 function bps(value: bigint, rate: number): bigint { return value * BigInt(rate) / 10_000n; }
