@@ -20,7 +20,7 @@ The API never accepts a client-created candidate as proof of validation. It look
 ## Risk checks and ledger
 Before opening, the Account Risk Engine calculates quantity using fixed-point arithmetic and checks snapshot freshness, position count, daily loss budget, per-trade risk, gross exposure and instrument minimum quantity. Instrument tick and quantity rules are read from public Binance USD-M exchange information.
 
-The account snapshot includes current open notional and mark-to-market unrealized PnL. Adverse unrealized losses consume daily risk budget; profitable unrealized PnL does not offset accumulated daily losses. Daily loss accounting resets on UTC date change.
+The account snapshot calculates gross exposure from current mark price × quantity × contract multiplier using fixed-point arithmetic, not the original entry notional. It also includes mark-to-market unrealized PnL. Adverse unrealized losses consume daily risk budget; profitable unrealized PnL does not offset accumulated daily losses. Daily loss accounting resets on UTC date change.
 
 The database transaction locks the PAPER account, accepted signal and open positions, verifies that the state used for risk calculation has not changed, then updates the account, consumes the signal, inserts the virtual position and appends an audit event. Concurrent state changes fail closed and require a fresh calculation.
 
