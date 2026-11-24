@@ -69,7 +69,7 @@ export const appRouter = router({
         try {
           return await paperExecutionService.initializeAccount(ctx.user.openId, input);
         } catch (error) {
-          if (error instanceof PaperExecutionError) throw new TRPCError({ code: "CONFLICT", message: error.message });
+          if (error instanceof PaperExecutionError || error instanceof PaperStateConflictError) throw new TRPCError({ code: "CONFLICT", message: error.message });
           console.error("[PAPER] Account initialization failed", error instanceof Error ? error.name : "unknown");
           throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "PAPER-счёт временно недоступен." });
         }
