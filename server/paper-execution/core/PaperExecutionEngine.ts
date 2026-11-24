@@ -63,6 +63,7 @@ export type PaperSignalRecord = {
   interval: string;
   direction: "LONG" | "SHORT";
   thesisCodes: string[];
+  createdAt: number;
   status: "pending" | "accepted" | "dismissed" | "consumed";
 };
 
