@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculatePaperUnrealizedPnl, closePaperPosition, PaperExecutionError, preparePaperPosition, sumPaperDecimals } from "../core/PaperExecutionEngine";
+import { calculatePaperMarkedNotional, calculatePaperUnrealizedPnl, closePaperPosition, PaperExecutionError, preparePaperPosition, sumPaperDecimals } from "../core/PaperExecutionEngine";
 import type { PaperAccountSnapshot, PaperInstrumentRules, PaperSignalRecord } from "../core/PaperExecutionEngine";
 
 const now = 1_800_000_000_000;
@@ -67,6 +67,18 @@ describe("PAPER execution engine", () => {
       markPrice: "100.0", stopPrice: "98.05", targetPrice: "104.0",
       currentOpenPositions: 0, now,
     })).toThrow(/tick size/);
+  });
+
+  it("uses current mark notional rather than entry notional for gross exposure", () => {
+    const opened = preparePaperPosition({
+      userOpenId: "user-1", account, signal, instrument,
+      markPrice: "100.0", stopPrice: "98.0", targetPrice: "104.0",
+      currentOpenPositions: 0, now,
+    });
+    const position = opened.position!;
+    const marked = calculatePaperMarkedNotional(position, "110.0");
+    expect(Number(marked)).toBeGreaterThan(Number(position.notional));
+    expect(calculatePaperMarkedNotional(position, "90.0")).toBeLessThan(position.notional);
   });
 
   it("marks open positions to market and preserves signed losses in fixed-point sums", () => {
