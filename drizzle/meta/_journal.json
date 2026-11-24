@@ -2,12 +2,7 @@
   "version": "7",
   "dialect": "mysql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "5",
-      "when": 1788785580464,
-      "tag": "0000_initial_users",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "5", "when": 1788785580464, "tag": "0000_initial_users", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1795551600000, "tag": "0001_historical_candles", "breakpoints": true }
   ]
 }
