@@ -39,6 +39,26 @@ describe("historical data ingestion", () => {
     expect(result.quality.gaps).toHaveLength(1);
     expect(result.quality.complete).toBe(false);
   });
+  it("rejects a page that repeats candles before the next pagination cursor", async () => {
+    const start = 1_700_000_000_000;
+    const p = provider(async (_s, _i, from) =>
+      from === start ? [candle(start), candle(start + minute)] : [candle(start + minute), candle(start + 2 * minute)],
+    );
+    const service = new HistoricalDataIngestionService(p, new MemoryStore(), () => start + 4 * minute);
+    await expect(service.ingest({
+      symbol: "BTCUSDT", interval: "1m", startTime: start, endTime: start + 2 * minute, pageLimit: 2,
+    })).rejects.toThrow(/pagination cursor/);
+  });
+
+  it("rejects provider candles outside the requested time range", async () => {
+    const start = 1_700_000_000_000;
+    const p = provider(async () => [candle(start - minute), candle(start)]);
+    const service = new HistoricalDataIngestionService(p, new MemoryStore(), () => start + 2 * minute);
+    await expect(service.ingest({
+      symbol: "BTCUSDT", interval: "1m", startTime: start, endTime: start,
+    })).rejects.toThrow(/outside the requested time range/);
+  });
+
   it("rejects invalid ranges before provider access", async () => {
     const p = provider(async () => []);
     const service = new HistoricalDataIngestionService(p, new MemoryStore());
