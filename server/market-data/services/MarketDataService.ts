@@ -41,7 +41,7 @@ export class MarketDataService {
     const interval: BinanceInterval = intervalInput;
     const cacheKey = `${this.provider.id}:${symbol}:${interval}:${limit}`;
     const cached = this.cache.get(cacheKey, this.now());
-    if (cached) return cached;
+    if (cached) return { ...cached, freshness: "cached" };
 
     const raw = await this.provider.fetchCandles(symbol, interval, limit);
     const candles = normalizeBinanceKlines(raw, symbol, interval);
