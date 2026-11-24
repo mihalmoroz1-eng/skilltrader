@@ -54,6 +54,8 @@ describe("Binance Spot historical provider", () => {
     const provider = new BinanceSpotHistoricalProvider(fetchMock as typeof fetch);
     await expect(provider.fetchCandles("BTCUSDT", "1m", 20, 10, 100))
       .rejects.toMatchObject({ kind: "invalid-request" });
+    await expect(provider.fetchCandles("BTCUSDT", "2w" as never, 1_700_000_000_000, 1_700_000_060_000, 100))
+      .rejects.toMatchObject({ kind: "invalid-request" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
