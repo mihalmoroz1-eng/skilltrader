@@ -196,6 +196,12 @@ export function processMarketData(
   if (typeof snapshot.source !== "string" || snapshot.source.trim().length === 0) {
     throw new MarketDataProcessingError("Snapshot source metadata is missing");
   }
+  if (!Number.isSafeInteger(snapshot.fetchedAt) || snapshot.fetchedAt < 0) {
+    throw new MarketDataProcessingError("Snapshot fetch timestamp is invalid");
+  }
+  if (snapshot.freshness !== "live" && snapshot.freshness !== "cached") {
+    throw new MarketDataProcessingError("Snapshot freshness metadata is invalid");
+  }
   if (!Number.isSafeInteger(processedAt) || processedAt < 0) {
     throw new MarketDataProcessingError("Processing timestamp must be a non-negative safe integer");
   }
@@ -207,6 +213,15 @@ export function processMarketData(
   }
 
   validateCandles(snapshot.candles);
+  snapshot.candles.forEach((candle, index) => {
+    if (candle.openTime > processedAt) {
+      throw new MarketDataProcessingError(`candle[${index}] is dated in the future`);
+    }
+    const expectedCloseTime = expectedNextOpenTime(candle.openTime, snapshot.interval) - 1;
+    if (candle.closeTime !== expectedCloseTime) {
+      throw new MarketDataProcessingError(`candle[${index}] close time does not match the requested interval`);
+    }
+  });
 
   const closedCandles = snapshot.candles.filter((candle) => candle.closeTime < processedAt);
   const incompleteCandleCount = snapshot.candles.length - closedCandles.length;
