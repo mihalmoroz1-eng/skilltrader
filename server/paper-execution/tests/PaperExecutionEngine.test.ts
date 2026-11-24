@@ -43,6 +43,16 @@ describe("PAPER execution engine", () => {
     })).toThrow(PaperExecutionError);
   });
 
+  it("rounds a non-tick mark reference to an adverse tick-aligned simulated fill", () => {
+    const result = preparePaperPosition({
+      userOpenId: "user-1", account, signal, instrument,
+      markPrice: "100.05", stopPrice: "98.0", targetPrice: "104.0",
+      currentOpenPositions: 0, now,
+    });
+    expect(result.status).toBe("opened");
+    expect(result.position?.entryPrice).toBe("100.2");
+  });
+
   it("rejects incorrect stop and target direction", () => {
     expect(() => preparePaperPosition({
       userOpenId: "user-1", account, signal, instrument,
@@ -54,7 +64,7 @@ describe("PAPER execution engine", () => {
   it("rejects prices that do not align to exchange tick size", () => {
     expect(() => preparePaperPosition({
       userOpenId: "user-1", account, signal, instrument,
-      markPrice: "100.05", stopPrice: "98.0", targetPrice: "104.0",
+      markPrice: "100.0", stopPrice: "98.05", targetPrice: "104.0",
       currentOpenPositions: 0, now,
     })).toThrow(/tick size/);
   });
