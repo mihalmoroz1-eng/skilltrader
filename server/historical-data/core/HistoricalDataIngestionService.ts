@@ -65,6 +65,7 @@ export class HistoricalDataIngestionService {
     }
 
     const byOpenTime = new Map<number, HistoricalCandleRecord>();
+    let duplicatesRemoved = 0;
     let cursor = input.startTime;
     let pagesFetched = 0;
     const maxPages = Math.ceil((input.endTime - input.startTime) / 60_000) + 1;
@@ -91,6 +92,7 @@ export class HistoricalDataIngestionService {
           source: this.provider.id, fetchedAt,
         };
         const previous = byOpenTime.get(candle.openTime);
+        if (previous) duplicatesRemoved += 1;
         if (previous && JSON.stringify(previous) !== JSON.stringify(record)) {
           throw new HistoricalDataRequestError("Conflicting duplicate candle returned by provider");
         }
@@ -130,7 +132,7 @@ export class HistoricalDataIngestionService {
       fetchedAt, candlesStored: candles.length, pagesFetched,
       quality: {
         requested: { startTime: input.startTime, endTime: input.endTime },
-        returned: candles.length, duplicatesRemoved: 0, gaps,
+        returned: candles.length, duplicatesRemoved, gaps,
         firstOpenTime: expectedFirst, lastOpenTime: expectedLast,
         complete: candles.length > 0 && gaps.length === 0 &&
           candles[0].openTime <= input.startTime + intervalStep(input.interval, input.startTime) &&
