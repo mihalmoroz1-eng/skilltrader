@@ -116,7 +116,7 @@ export class BinanceSpotProvider implements MarketDataProvider {
   readonly id = "binance-spot";
 
   constructor(
-    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly fetchImpl: typeof fetch = (...args) => globalThis.fetch(...args),
     private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
     private readonly maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
   ) {
