@@ -46,6 +46,7 @@ export function validateCandles(candles: MarketCandle[]): void {
   }
 
   let previousOpenTime: number | null = null;
+  let previousCloseTime: number | null = null;
   candles.forEach((candle, index) => {
     const prefix = `candle[${index}]`;
     if (!candle || typeof candle !== "object") {
@@ -63,8 +64,14 @@ export function validateCandles(candles: MarketCandle[]): void {
       previousOpenTime = candle.openTime;
     }
 
-    if (!Number.isSafeInteger(candle.closeTime) || candle.closeTime < candle.openTime) {
+    const validCloseTime = Number.isSafeInteger(candle.closeTime) && candle.closeTime >= candle.openTime;
+    if (!validCloseTime) {
       issues.push(`${prefix}.closeTime must be a safe integer not earlier than openTime`);
+    } else {
+      if (previousCloseTime !== null && candle.openTime <= previousCloseTime) {
+        issues.push(`${prefix} overlaps the previous candle time range`);
+      }
+      previousCloseTime = candle.closeTime;
     }
     if (!Number.isSafeInteger(candle.tradeCount) || candle.tradeCount < 0) {
       issues.push(`${prefix}.tradeCount must be a non-negative safe integer`);
