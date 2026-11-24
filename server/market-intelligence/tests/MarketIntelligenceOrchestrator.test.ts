@@ -95,7 +95,7 @@ function result(payload: unknown, model: string): InvokeResult {
 
 function responseForAgent(agent: string): unknown {
   if (agent.includes("Market Agent")) {
-    return { regime: "uptrend", momentum: "positive", evidenceCodes: ["ema20_above_ema50", "trend_structure_up"] };
+    return { regime: "uptrend", momentum: "positive", evidenceCodes: ["ema20_above_ema50", "trend_structure_up", "macd_histogram_positive"] };
   }
   if (agent.includes("Strategy Context Agent")) {
     return { context: "trend_context", evidenceCodes: ["ema20_above_ema50", "trend_structure_up"] };
