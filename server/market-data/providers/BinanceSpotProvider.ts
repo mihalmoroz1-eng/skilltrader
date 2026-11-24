@@ -1,4 +1,4 @@
-import { isMarketInterval, type MarketCandle, type MarketDataProvider } from "../core/MarketDataTypes";
+import { isMarketInterval, type MarketCandle, type MarketDataProvider, type MarketInterval } from "../core/MarketDataTypes";
 import { normalizeBinanceKlines } from "../core/MarketDataNormalizer";
 
 export type MarketDataProviderErrorKind =
@@ -109,7 +109,7 @@ export class BinanceSpotProvider implements MarketDataProvider {
     }
   }
 
-  async fetchCandles(symbol: string, interval: MarketCandle extends never ? never : Parameters<MarketDataProvider["fetchCandles"]>[1], limit: number): Promise<MarketCandle[]> {
+  async fetchCandles(symbol: string, interval: MarketInterval, limit: number): Promise<MarketCandle[]> {
     if (!/^[A-Z0-9]{2,20}$/.test(symbol)) {
       throw new MarketDataProviderError("Invalid market symbol", "http");
     }
