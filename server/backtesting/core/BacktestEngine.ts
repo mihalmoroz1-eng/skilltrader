@@ -33,6 +33,7 @@ export type BacktestTrade = {
 
 export type BacktestResult = {
   runId: string;
+  dataDigest: string;
   symbol: string;
   interval: MarketInterval;
   strategy: "ema_crossover";
@@ -243,13 +244,13 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   const grossWins = wins.reduce((sum, trade) => sum + trade.netPnl, 0);
   const grossLosses = Math.abs(losses.reduce((sum, trade) => sum + trade.netPnl, 0));
   const profitFactor = grossLosses === 0 ? (grossWins > 0 ? null : 0) : grossWins / grossLosses;
+  const dataDigest = createHash("sha256").update(JSON.stringify(candles)).digest("hex");
   const runId = createHash("sha256").update(JSON.stringify({
-    config, firstOpenTime: candles[0].openTime, lastOpenTime: candles[candles.length - 1].openTime,
-    count: candles.length,
+    config, dataDigest,
   })).digest("hex").slice(0, 24);
 
   return {
-    runId, symbol: config.symbol, interval: config.interval, strategy: "ema_crossover",
+    runId, dataDigest, symbol: config.symbol, interval: config.interval, strategy: "ema_crossover",
     candlesProcessed: candles.length, trades,
     metrics: {
       startingCapital: config.startingCapital, finalEquity, netProfit,
