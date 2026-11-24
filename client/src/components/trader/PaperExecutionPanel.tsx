@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Lock, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
+import { Activity, CheckCircle2, Lock, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import "./PaperExecutionPanel.css";
 
@@ -74,7 +74,6 @@ export default function PaperExecutionPanel() {
   const [maxOpenPositions, setMaxOpenPositions] = useState("3");
   const [feeBps, setFeeBps] = useState("5");
   const [slippageBps, setSlippageBps] = useState("5");
-  const [feedback, setFeedback] = useState("");
 
   const account = portfolio.data?.account;
   const signals = portfolio.data?.signals ?? [];
@@ -176,7 +175,6 @@ export default function PaperExecutionPanel() {
         {close.error && <p className="paper-inline-error">{safeError(close.error)}</p>}
       </div>
 
-      {feedback && <p className="paper-panel-note" role="status">{feedback}</p>}
     </section>
   );
 }
