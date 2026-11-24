@@ -37,7 +37,7 @@ describe("Binance kline normalizer", () => {
   });
 
   it("rejects malformed decimal strings and unsafe timestamps", () => {
-    expect(() => normalizeBinanceKlines([[...row.slice(0, 1), " 1.2", ...row.slice(2)]))
+    expect(() => normalizeBinanceKlines([[...row.slice(0, 1), " 1.2", ...row.slice(2)]]))
       .toThrow("Invalid Binance decimal field: open");
     expect(() => normalizeBinanceKlines([[Number.MAX_SAFE_INTEGER + 1, ...row.slice(1)]]))
       .toThrow("Invalid Binance integer field: openTime");
