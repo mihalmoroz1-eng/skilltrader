@@ -116,7 +116,7 @@ export class PaperExecutionService {
     const unrealized = openPositions.map(position => calculatePaperUnrealizedPnl(
       position, markBySymbol.get(position.symbol)!, account.feeBps, account.slippageBps,
     ).netUnrealizedPnl);
-    const equity = addDecimals(addDecimals(account.cashBalance, currentOpenNotional), sumPaperDecimals(unrealized));
+    const equity = addDecimals(addDecimals(account.cashBalance, storedOpenNotional), sumPaperDecimals(unrealized));
     const adverseOpenLoss = sumPaperDecimals(unrealized.map(value => {
       const scaled = parseScaled(value);
       return scaled < 0n ? formatScaled(-scaled) : "0";
