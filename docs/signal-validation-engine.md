@@ -116,3 +116,8 @@ This is a device-local convenience journal only. Browser storage can be cleared 
 - Independent cross-provider model review.
 
 No signal is executed by this stage. PAPER execution and LIVE execution remain separate future stages, with LIVE requiring separate explicit user approval.
+
+
+## Boundary between AI analysis and signal validation
+
+The Market Intelligence result still carries `noTradeSignalGenerated: true` and `noOrderExecuted: true`: specialist agents and the Critic do not emit executable trade signals. The protected route then passes this completed analysis to the separate deterministic Signal Validation Engine. That validator may produce a directional candidate for manual review, or reject/withhold it. The candidate is not an agent-generated signal and is never an order. The UI labels these as two distinct stages.
