@@ -1,27 +1,65 @@
 import { describe, expect, it, vi } from "vitest";
-import { BinanceSpotProvider, MarketDataProviderError } from "../providers/BinanceSpotProvider";
+import { BinanceSpotProvider } from "../providers/BinanceSpotProvider";
+
+const binanceRow = [
+  1_700_000_000_000, "100.000000000000000001", "105", "99", "103", "12.5",
+  1_700_000_059_999, "1287.5", 42,
+];
 
 describe("Binance Spot public provider", () => {
-  it("requests public klines without credentials", async () => {
-    const fetchMock = vi.fn(async (input: string | URL | Request) => {
-      expect(String(input)).toContain("/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=2");
-      return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
-    });
+  it("requests public klines without credentials and preserves decimal fields", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([binanceRow]), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
     const provider = new BinanceSpotProvider(fetchMock as typeof fetch);
-    await expect(provider.fetchCandles("BTCUSDT", "1m", 2)).resolves.toEqual([]);
+    const candles = await provider.fetchCandles("BTCUSDT", "1m", 2);
+
+    expect(candles[0].open).toBe("100.000000000000000001");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ Accept: "application/json" });
+
+    const [input, init] = fetchMock.mock.calls[0];
+    expect(String(input)).toContain("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=2");
+    expect(init?.method).toBe("GET");
+    expect(init?.headers).toEqual({ Accept: "application/json" });
   });
 
-  it("surfaces rate limiting as a typed provider error", async () => {
+  it("surfaces Binance rate limiting as a typed provider error", async () => {
     const provider = new BinanceSpotProvider(
       vi.fn(async () => new Response("", { status: 429 })) as typeof fetch,
     );
     await expect(provider.fetchCandles("BTCUSDT", "1m", 2))
-      .rejects.toMatchObject({ name: "MarketDataProviderError", status: 429 });
+      .rejects.toMatchObject({ name: "MarketDataProviderError", kind: "rate-limit", status: 429 });
   });
 
-  it("rejects non-HTTPS provider endpoints outside localhost", () => {
-    expect(() => new BinanceSpotProvider(fetch, "http://api.binance.com")).toThrow(/requires HTTPS/);
+  it("rejects malformed JSON responses", async () => {
+    const provider = new BinanceSpotProvider(
+      vi.fn(async () => new Response("not-json", { status: 200 })) as typeof fetch,
+    );
+    await expect(provider.fetchCandles("BTCUSDT", "1m", 2))
+      .rejects.toMatchObject({ kind: "invalid-json" });
+  });
+
+  it("rejects oversized response bodies before parsing", async () => {
+    const provider = new BinanceSpotProvider(
+      vi.fn(async () => new Response("12345", {
+        status: 200,
+        headers: { "Content-Length": "5" },
+      })) as typeof fetch,
+      1_000,
+      4,
+    );
+    await expect(provider.fetchCandles("BTCUSDT", "1m", 2))
+      .rejects.toMatchObject({ kind: "response-too-large" });
+  });
+
+  it("validates direct provider calls before making a request", async () => {
+    const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
+    const provider = new BinanceSpotProvider(fetchMock as typeof fetch);
+
+    await expect(provider.fetchCandles("BTC/USDT", "1m", 2)).rejects.toMatchObject({ kind: "http" });
+    await expect(provider.fetchCandles("BTCUSDT", "2w" as never, 2)).rejects.toMatchObject({ kind: "http" });
+    await expect(provider.fetchCandles("BTCUSDT", "1m", 1_001)).rejects.toMatchObject({ kind: "http" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
