@@ -18,6 +18,8 @@ The shared Zod request schema validates and normalizes symbol, interval, and can
 - TTL cache: `server/market-data/core/MarketDataCache.ts`
 - Provider-independent orchestration: `server/market-data/services/MarketDataService.ts`
 - Per-user query limiter: `server/market-data/services/MarketDataRateLimiter.ts`
+- Deterministic indicator functions: `server/market-data/core/TechnicalIndicators.ts`
+- Closed-candle and series-quality processor: `server/market-data/core/MarketDataProcessor.ts`
 - tRPC integration: `server/routers.ts`
 
 A future source implements `MarketDataProvider` and returns canonical `MarketCandle[]`; it does not expose its wire format to the service.
@@ -46,6 +48,26 @@ The in-memory cache defaults to a 5-second TTL and 100 entries. Cache hits are e
 
 Cache entries and the per-user limiter are process-local, are lost on restart, and are not shared across server instances.
 
+## Deterministic processing
+
+The authenticated `marketData.analysis` query uses the same source, request validation, TTL cache and per-user rate limit as `marketData.candles`. It returns the original raw candle strings plus timestamp-aligned indicator values and a data-quality report.
+
+The current fixed indicator parameters are:
+
+- EMA 20 and EMA 50: exponential moving averages seeded with the simple average of the first complete period.
+- RSI 14: Wilder's smoothed relative-strength calculation. A flat series returns 50; gain-only and loss-only series return 100 and 0 respectively.
+- MACD 12/26/9: EMA(12) minus EMA(26), with an EMA(9) signal and histogram.
+- ATR 14: Wilder average true range using the current high/low and previous close.
+- VWAP: cumulative typical-price weighted average, anchored to the beginning of each continuous input segment.
+
+Indicators use JavaScript floating-point numbers for calculation and presentation; the original exchange decimals remain strings and are not rewritten. This is appropriate for technical indicator analysis, but it is not an exact-decimal accounting or position-sizing engine. Do not reuse these indicator values for monetary settlement or risk sizing.
+
+Only fully closed candles are included. A candle is considered closed when `closeTime < processedAt`. Future-dated candles and candles whose close boundary does not match the requested interval are rejected. Missing intervals split the series into independent segments; recursive indicators restart after each gap rather than calculating across fabricated prices. Warm-up values are `null`, never synthetic zeros.
+
+The quality status is `ready` when at least 50 consecutive closed candles are available without gaps, `degraded` when the longest segment supports the full EMA 50 but gaps exist, and `insufficient` when no segment contains 50 consecutive closed candles. The report includes incomplete candle count, gap locations, estimated missing intervals, continuous segment count and warnings.
+
+The VWAP value is window/segment anchored, not an exchange-session VWAP. Its anchor resets at a detected data gap. The UI labels it `VWAP WINDOW` to make that distinction explicit.
+
 ## Limitations and safety
 
 - Public market-data access is subject to Binance availability, geographic restrictions and rate limits.
@@ -57,7 +79,7 @@ Cache entries and the per-user limiter are process-local, are lost on restart, a
 
 ## Verification
 
-Unit tests cover exact decimal normalization, OHLC validation, provider-independent service behavior, cache TTL/defensive copies/eviction, Binance request shape, HTTP rate limits, malformed JSON, response-size limits, timeouts, request-schema validation, per-user throttling, authentication and tRPC error mapping.
+Unit tests cover exact decimal normalization, OHLC and interval-boundary validation, provider-independent service behavior, cache TTL/defensive copies/eviction, Binance request shape, HTTP rate limits, malformed JSON, response-size limits, timeouts, request-schema validation, per-user throttling, authenticated analysis queries, EMA/RSI/MACD/ATR/VWAP formulas, candle gaps, incomplete candles, warm-up handling and calendar-month intervals.
 
 Run the repository checks from the project root:
 
