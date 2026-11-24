@@ -120,7 +120,6 @@ export class PaperExecutionService {
   }
 
   async openPosition(userOpenId: string, input: PaperOpenPositionInput) {
-    const now = this.now();
     const [account, signal] = await Promise.all([
       this.store.getAccount(userOpenId),
       this.store.getSignal(userOpenId, input.signalId),
