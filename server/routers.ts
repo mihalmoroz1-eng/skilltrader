@@ -1,11 +1,19 @@
 import { COOKIE_NAME } from "@shared/const";
 import { traderAssistantInputSchema } from "@shared/traderAssistant";
+import { marketDataRequestSchema } from "@shared/marketData";
 import { TRPCError } from "@trpc/server";
 import { assertLLMConfigured, LlmConfigurationError, LlmInvocationError } from "./_core/llm";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { askTraderAssistant, TraderAssistantPipelineOutputError, traderAssistantRateLimiter } from "./traderAssistant";
+import { BinanceSpotProvider, MarketDataProviderError } from "./market-data/providers/BinanceSpotProvider";
+import { MarketDataNormalizationError } from "./market-data/core/MarketDataNormalizer";
+import { MarketDataValidationError } from "./market-data/core/MarketDataValidator";
+import { MarketDataRequestError, MarketDataService } from "./market-data/services/MarketDataService";
+import { marketDataRateLimiter } from "./market-data/services/MarketDataRateLimiter";
+
+const marketDataService = new MarketDataService(new BinanceSpotProvider());
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -19,6 +27,51 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+
+  marketData: router({
+    candles: protectedProcedure
+      .input(marketDataRequestSchema)
+      .query(async ({ ctx, input }) => {
+        const limit = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!limit.allowed) {
+          const scopeText = limit.scope === "capacity"
+            ? "Сервис временно ограничил новые пользовательские сессии."
+            : "Достигнут лимит запросов рыночных данных.";
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `${scopeText} Повторите запрос через ${limit.retryAfterSeconds} сек.`,
+          });
+        }
+
+        try {
+          return await marketDataService.getCandles(input.symbol, input.interval, input.limit);
+        } catch (error) {
+          if (error instanceof MarketDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Параметры запроса рыночных данных некорректны." });
+          }
+          if (error instanceof MarketDataProviderError) {
+            if (error.kind === "rate-limit") {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Биржа ограничила частоту запросов. Повторите позже." });
+            }
+            if (error.kind === "invalid-request" || error.status === 400 || error.status === 404 || error.status === 422) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Биржа не приняла запрошенный торговый символ или интервал." });
+            }
+            if (error.kind === "timeout" || error.kind === "network" || (error.status !== undefined && error.status >= 500)) {
+              console.warn("[Market Data] Provider temporarily unavailable", error.kind, error.status ?? "no-status");
+              throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Источник рыночных данных временно недоступен." });
+            }
+            console.error("[Market Data] Provider response rejected", error.kind, error.status ?? "no-status");
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Источник рыночных данных вернул неподходящий ответ." });
+          }
+          if (error instanceof MarketDataNormalizationError || error instanceof MarketDataValidationError) {
+            console.error("[Market Data] Invalid provider payload", error.name);
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Источник рыночных данных вернул некорректные данные." });
+          }
+          console.error("[Market Data] Request failed", error instanceof Error ? error.name : "unknown error");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Не удалось получить рыночные данные." });
+        }
+      }),
   }),
 
   traderAssistant: router({
