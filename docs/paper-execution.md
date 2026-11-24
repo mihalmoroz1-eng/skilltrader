@@ -12,7 +12,7 @@ Risk settings include per-trade risk, daily loss cap, maximum gross exposure, ma
 1. The server runs Market Intelligence and Signal Validation.
 2. Only a reviewable server-generated candidate is persisted to paper_signal_reviews as pending.
 3. The authenticated user must explicitly accept or dismiss the pending signal.
-4. A signal can open at most one PAPER position. Opening consumes the accepted signal inside a database transaction.
+4. Signal approvals expire after five minutes. A signal can open at most one PAPER position. Opening consumes the accepted signal inside a database transaction.
 5. PAPER opening requires user-supplied stop and target prices. Entry reference price comes from the public USD-M Futures mark price; the engine applies adverse slippage and rounds simulated fills to the public instrument tick size.
 
 The API never accepts a client-created candidate as proof of validation. It looks up the server-persisted signal record scoped to the authenticated user.
