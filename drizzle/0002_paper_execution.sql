@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS `paper_positions` (
   `stopPrice` varchar(40) NOT NULL,
   `targetPrice` varchar(40),
   `contractMultiplier` varchar(40) NOT NULL,
+  `tickSize` varchar(40) NOT NULL,
   `entryFee` varchar(40) NOT NULL,
   `status` enum('open','closed') NOT NULL DEFAULT 'open',
   `openedAt` bigint NOT NULL,
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS `paper_positions` (
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `paper_positions_user_signal_unique` (`userOpenId`, `signalId`),
   KEY `paper_positions_user_status_idx` (`userOpenId`, `status`),
   KEY `paper_positions_user_symbol_idx` (`userOpenId`, `symbol`)
 );
