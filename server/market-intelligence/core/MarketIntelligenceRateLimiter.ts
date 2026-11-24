@@ -5,7 +5,6 @@ export type MarketIntelligenceRateLimitDecision =
 type DailyState = { day: string; count: number };
 
 const WINDOW_MS = 60_000;
-const DAY_MS = 86_400_000;
 const CLEANUP_INTERVAL_MS = WINDOW_MS;
 
 /** Process-local guard for expensive multi-agent calls; not a distributed quota. */
@@ -51,7 +50,7 @@ export class MarketIntelligenceRateLimiter {
 
   consume(userKey: string, nowMs = Date.now()): MarketIntelligenceRateLimitDecision {
     const key = typeof userKey === "string" ? userKey.trim() : "";
-    if (!key || !Number.isSafeInteger(nowMs) || nowMs < 0) {
+    if (!key || !Number.isSafeInteger(nowMs) || nowMs < 0 || !Number.isFinite(new Date(nowMs).getTime())) {
       return { allowed: false, scope: "minute", retryAfterSeconds: 60 };
     }
 
