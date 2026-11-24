@@ -258,10 +258,19 @@ export class DrizzlePaperExecutionStore {
     });
   }
 
+
+  async listSignals(userOpenId: string, limit = 50): Promise<PaperSignalRecord[]> {
+    const db = await getDb();
+    if (!db) throw new Error("PAPER database is unavailable");
+    const rows = await db.select().from(paperSignalReviews).where(eq(paperSignalReviews.userOpenId, userOpenId))
+      .orderBy(asc(paperSignalReviews.createdAt)).limit(limit);
+    return rows.map(mapSignal);
+  }
+
   async getPortfolio(userOpenId: string) {
-    const [account, positions] = await Promise.all([
-      this.getAccount(userOpenId), this.listPositions(userOpenId),
+    const [account, positions, signals] = await Promise.all([
+      this.getAccount(userOpenId), this.listPositions(userOpenId), this.listSignals(userOpenId),
     ]);
-    return { account, positions };
+    return { account, positions, signals };
   }
 }
