@@ -109,11 +109,12 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       config.fastEmaPeriod < 2 || config.slowEmaPeriod <= config.fastEmaPeriod || config.slowEmaPeriod > 300) {
     throw new BacktestInputError("EMA periods are invalid");
   }
-  if (!Number.isInteger(config.riskBps) || config.riskBps < 1 || config.riskBps >= config.stopLossBps ||
-      !Number.isInteger(config.stopLossBps) || config.stopLossBps < 10 ||
-      !Number.isInteger(config.takeProfitBps) || config.takeProfitBps < 10 ||
-      !Number.isInteger(config.feeBps) || config.feeBps < 0 ||
-      !Number.isInteger(config.slippageBps) || config.slippageBps < 0) {
+  if (!/^[A-Z0-9]{2,20}$/.test(config.symbol) ||
+      !Number.isInteger(config.riskBps) || config.riskBps < 1 || config.riskBps > 1_000 || config.riskBps >= config.stopLossBps ||
+      !Number.isInteger(config.stopLossBps) || config.stopLossBps < 10 || config.stopLossBps > 5_000 ||
+      !Number.isInteger(config.takeProfitBps) || config.takeProfitBps < 10 || config.takeProfitBps > 10_000 ||
+      !Number.isInteger(config.feeBps) || config.feeBps < 0 || config.feeBps > 100 ||
+      !Number.isInteger(config.slippageBps) || config.slippageBps < 0 || config.slippageBps > 100) {
     throw new BacktestInputError("Risk, stop, target, fee or slippage parameters are invalid");
   }
   if (candles.length > 50_000) throw new BacktestInputError("Backtest is limited to 50,000 candles");
@@ -232,6 +233,8 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   }
 
   if (position) closePosition(candles[candles.length - 1], Number(candles[candles.length - 1].close), candles[candles.length - 1].closeTime, "end_of_data");
+  peakEquity = Math.max(peakEquity, equity);
+  if (peakEquity > 0) maxDrawdownPct = Math.max(maxDrawdownPct, (peakEquity - equity) / peakEquity * 100);
 
   const finalEquity = equity;
   const netProfit = finalEquity - config.startingCapital;
