@@ -11,12 +11,12 @@ const snapshot: MarketDataSnapshot = {
   candles: [{
     openTime: 1,
     closeTime: 60_000,
-    open: 100,
-    high: 101,
-    low: 99,
-    close: 100.5,
-    volume: 1,
-    quoteVolume: 100.5,
+    open: "100",
+    high: "101",
+    low: "99",
+    close: "100.5",
+    volume: "1",
+    quoteVolume: "100.5",
     tradeCount: 2,
   }],
 };
@@ -33,11 +33,11 @@ describe("market data cache", () => {
     const cache = new MarketDataCache();
     cache.set("btc", snapshot, 1_000);
     const result = cache.get("btc", 1_001)!;
-    result.candles[0].close = 1;
-    expect(cache.get("btc", 1_002)?.candles[0].close).toBe(100.5);
+    result.candles[0].close = "1";
+    expect(cache.get("btc", 1_002)?.candles[0].close).toBe("100.5");
   });
 
-  it("evicts the oldest entry when capacity is reached", () => {
+  it("evicts the oldest inserted entry when capacity is reached", () => {
     const cache = new MarketDataCache(1_000, 1);
     cache.set("btc", snapshot, 1_000);
     cache.set("eth", { ...snapshot, symbol: "ETHUSDT" }, 1_000);
