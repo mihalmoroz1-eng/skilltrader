@@ -449,21 +449,45 @@ async function invokeAgent(
 
   if (agent === "market") {
     const output = parseOutput(response, marketAgentOutputSchema, agent);
-    if (output.evidenceCodes.some((code) => !facts.availableEvidenceCodes.includes(code))) {
+    if (
+      output.evidenceCodes.length === 0 ||
+      output.evidenceCodes.some((code) => !facts.availableEvidenceCodes.includes(code)) ||
+      (output.regime === "uptrend" && !output.evidenceCodes.includes("trend_structure_up")) ||
+      (output.regime === "downtrend" && !output.evidenceCodes.includes("trend_structure_down")) ||
+      (output.momentum === "positive" && !output.evidenceCodes.includes("macd_histogram_positive")) ||
+      (output.momentum === "negative" && !output.evidenceCodes.includes("macd_histogram_negative"))
+    ) {
       throw new MarketIntelligenceAgentOutputError(agent);
     }
     return { output, model: response.model || TRADER_ASSISTANT_MODEL };
   }
   if (agent === "strategy") {
     const output = parseOutput(response, strategyAgentOutputSchema, agent);
-    if (output.evidenceCodes.some((code) => !facts.availableEvidenceCodes.includes(code))) {
+    if (
+      output.evidenceCodes.length === 0 ||
+      output.evidenceCodes.some((code) => !facts.availableEvidenceCodes.includes(code)) ||
+      (output.context === "trend_context" &&
+        !output.evidenceCodes.some((code) => code === "trend_structure_up" || code === "trend_structure_down")) ||
+      (output.context === "mean_reversion_context" &&
+        !output.evidenceCodes.some((code) => code === "rsi_overbought" || code === "rsi_oversold"))
+    ) {
       throw new MarketIntelligenceAgentOutputError(agent);
     }
     return { output, model: response.model || TRADER_ASSISTANT_MODEL };
   }
 
   const output = parseOutput(response, riskAgentOutputSchema, agent);
-  if (output.riskEvidenceCodes.some((code) => !facts.availableRiskEvidenceCodes.includes(code))) {
+  if (
+    output.riskEvidenceCodes.length === 0 ||
+    output.riskEvidenceCodes.some((code) => !facts.availableRiskEvidenceCodes.includes(code)) ||
+    (output.regime === "elevated" &&
+      !output.riskEvidenceCodes.some((code) =>
+        code === "atr_ratio_above_2_percent" ||
+        code === "rsi_extreme" ||
+        code === "price_extension_from_ema20" ||
+        code === "indicator_disagreement",
+      ))
+  ) {
     throw new MarketIntelligenceAgentOutputError(agent);
   }
   return { output, model: response.model || TRADER_ASSISTANT_MODEL };
@@ -518,7 +542,11 @@ async function invokeCritic(
 }
 
 function sha256(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  const serialized = JSON.stringify(value);
+  if (typeof serialized !== "string") {
+    throw new Error("Market intelligence audit payload is not serializable");
+  }
+  return createHash("sha256").update(serialized).digest("hex");
 }
 
 export class MarketIntelligenceOrchestrator {
