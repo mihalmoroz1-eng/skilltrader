@@ -87,7 +87,8 @@ export class HistoricalDataIngestionService {
           throw new HistoricalDataRequestError("Provider page is not strictly ordered");
         }
         lastOpenTime = candle.openTime;
-        if (candle.closeTime >= fetchedAt) continue;\n        const record: HistoricalCandleRecord = {
+        if (candle.closeTime >= fetchedAt) continue;
+        const record: HistoricalCandleRecord = {
           ...candle, symbol: input.symbol, interval: input.interval,
           source: this.provider.id, fetchedAt,
         };
