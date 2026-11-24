@@ -481,8 +481,8 @@ async function invokeAgent(
 
   const output = parseOutput(response, riskAgentOutputSchema, agent);
   if (
-    output.riskEvidenceCodes.length === 0 ||
-    output.riskEvidenceCodes.some((code) => !facts.availableRiskEvidenceCodes.includes(code)) ||
+    output.riskEvidenceCodes.length !== facts.availableRiskEvidenceCodes.length ||
+    facts.availableRiskEvidenceCodes.some((code) => !output.riskEvidenceCodes.includes(code)) ||
     (output.regime === "elevated" &&
       !output.riskEvidenceCodes.some((code) =>
         code === "atr_ratio_above_2_percent" ||
@@ -583,11 +583,32 @@ export class MarketIntelligenceOrchestrator {
     );
 
     const consistent = critic.output.verdict === "consistent" && critic.output.conflictCodes.length === 0;
+    const blockingRiskCodes: RiskEvidence[] = [
+      "atr_ratio_above_2_percent",
+      "rsi_extreme",
+      "price_extension_from_ema20",
+      "indicator_disagreement",
+    ];
+    const blockedBy = facts.availableRiskEvidenceCodes.filter((code) => blockingRiskCodes.includes(code));
+    const technicalRiskGate = {
+      status: blockedBy.length === 0 ? "clear" as const : "blocked" as const,
+      atrToClosePercent: facts.indicators.atrToClosePercent,
+      evidenceCodes: facts.availableRiskEvidenceCodes,
+      blockingCodes: blockedBy,
+    };
+    const serverEvidence = {
+      marketEvidenceCodes: facts.availableEvidenceCodes,
+      riskEvidenceCodes: facts.availableRiskEvidenceCodes,
+      latestClosedCandleOpenTime: facts.latestClosedCandle.openTime,
+      latestClosedCandleCloseTime: facts.latestClosedCandle.closeTime,
+    };
     const resultBody = {
       market: marketOutput,
       strategy: strategyOutput,
       risk: riskOutput,
       critic: critic.output,
+      serverEvidence,
+      technicalRiskGate,
       facts,
       promptVersion: MARKET_INTELLIGENCE_PROMPT_VERSION,
       modelByAgent: {
@@ -613,6 +634,8 @@ export class MarketIntelligenceOrchestrator {
     return {
       runId: this.createRunId(),
       status: consistent ? "reviewable" : "inconclusive",
+      serverEvidence,
+      technicalRiskGate,
       market: marketOutput,
       strategy: strategyOutput,
       risk: riskOutput,
