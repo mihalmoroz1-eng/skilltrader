@@ -68,7 +68,7 @@ export class HistoricalDataIngestionService {
     let duplicatesRemoved = 0;
     let cursor = input.startTime;
     let pagesFetched = 0;
-    const maxPages = Math.ceil((input.endTime - input.startTime) / 60_000) + 1;
+    const maxPages = Math.min(2_000, Math.ceil((input.endTime - input.startTime) / 60_000) + 1);
 
     while (cursor <= input.endTime && pagesFetched < maxPages) {
       const page = await this.provider.fetchCandles(
@@ -87,7 +87,7 @@ export class HistoricalDataIngestionService {
           throw new HistoricalDataRequestError("Provider page is not strictly ordered");
         }
         lastOpenTime = candle.openTime;
-        const record: HistoricalCandleRecord = {
+        if (candle.closeTime >= fetchedAt) continue;\n        const record: HistoricalCandleRecord = {
           ...candle, symbol: input.symbol, interval: input.interval,
           source: this.provider.id, fetchedAt,
         };
