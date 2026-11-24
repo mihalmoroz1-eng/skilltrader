@@ -173,6 +173,10 @@ describe("trust-gated market intelligence orchestrator", () => {
     degraded.quality.status = "degraded";
     degraded.quality.gapCount = 1;
     await expect(orchestrator.analyze(degraded)).rejects.toBeInstanceOf(MarketIntelligenceTrustGateError);
+
+    const reversedTimestamps = createProcessed(now);
+    reversedTimestamps.fetchedAt = now + 1;
+    await expect(orchestrator.analyze(reversedTimestamps)).rejects.toBeInstanceOf(MarketIntelligenceTrustGateError);
     expect(call).not.toHaveBeenCalled();
   });
 
@@ -223,6 +227,16 @@ describe("trust-gated market intelligence orchestrator", () => {
     const now = Date.UTC(2026, 10, 24, 12, 0, 0);
     const call = fakeModelCall({
       market: { regime: "uptrend", momentum: "positive", evidenceCodes: ["rsi_overbought"] },
+    });
+    const orchestrator = new MarketIntelligenceOrchestrator(call, () => now);
+
+    await expect(orchestrator.analyze(createProcessed(now))).rejects.toBeInstanceOf(MarketIntelligenceAgentOutputError);
+  });
+
+  it("rejects regime labels without matching server-derived trend evidence", async () => {
+    const now = Date.UTC(2026, 10, 24, 12, 0, 0);
+    const call = fakeModelCall({
+      market: { regime: "uptrend", momentum: "positive", evidenceCodes: ["ema20_above_ema50", "macd_histogram_positive"] },
     });
     const orchestrator = new MarketIntelligenceOrchestrator(call, () => now);
 
