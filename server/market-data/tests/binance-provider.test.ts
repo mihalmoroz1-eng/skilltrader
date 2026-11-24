@@ -40,7 +40,7 @@ describe("Binance Spot public provider", () => {
       .rejects.toMatchObject({ kind: "invalid-json" });
   });
 
-  it("rejects oversized response bodies before parsing", async () => {
+  it("rejects oversized responses using the Content-Length header", async () => {
     const provider = new BinanceSpotProvider(
       vi.fn(async () => new Response("12345", {
         status: 200,
@@ -51,6 +51,28 @@ describe("Binance Spot public provider", () => {
     );
     await expect(provider.fetchCandles("BTCUSDT", "1m", 2))
       .rejects.toMatchObject({ kind: "response-too-large" });
+  });
+
+  it("enforces the response limit while streaming when Content-Length is absent", async () => {
+    const provider = new BinanceSpotProvider(
+      vi.fn(async () => new Response("12345", { status: 200 })) as typeof fetch,
+      1_000,
+      4,
+    );
+    await expect(provider.fetchCandles("BTCUSDT", "1m", 2))
+      .rejects.toMatchObject({ kind: "response-too-large" });
+  });
+
+  it("classifies a request timeout without retrying", async () => {
+    const fetchMock = vi.fn(async () => {
+      const error = new Error("Timed out");
+      error.name = "TimeoutError";
+      throw error;
+    });
+    const provider = new BinanceSpotProvider(fetchMock as typeof fetch);
+    await expect(provider.fetchCandles("BTCUSDT", "1m", 2))
+      .rejects.toMatchObject({ kind: "timeout" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("validates direct provider calls before making a request", async () => {
