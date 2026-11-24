@@ -570,19 +570,23 @@ export class MarketIntelligenceOrchestrator {
       invokeAgent("risk", SYSTEM_PROMPTS.risk, facts, responseFormatFor("risk"), this.modelCall),
     ]);
 
+    const marketOutput = market.output as MarketAgentOutput;
+    const strategyOutput = strategy.output as StrategyAgentOutput;
+    const riskOutput = risk.output as RiskAgentOutput;
+
     const critic = await invokeCritic(
       facts,
-      market.output as MarketAgentOutput,
-      strategy.output as StrategyAgentOutput,
-      risk.output as RiskAgentOutput,
+      marketOutput,
+      strategyOutput,
+      riskOutput,
       this.modelCall,
     );
 
     const consistent = critic.output.verdict === "consistent" && critic.output.conflictCodes.length === 0;
     const resultBody = {
-      market: market.output,
-      strategy: strategy.output,
-      risk: risk.output,
+      market: marketOutput,
+      strategy: strategyOutput,
+      risk: riskOutput,
       critic: critic.output,
       facts,
       promptVersion: MARKET_INTELLIGENCE_PROMPT_VERSION,
@@ -599,7 +603,7 @@ export class MarketIntelligenceOrchestrator {
       "This result is not financial advice and does not constitute a LONG/SHORT or buy/sell signal.",
       "Position sizing, loss limits, and execution remain outside the authority of AI agents.",
     ];
-    if (risk.output.regime === "elevated") {
+    if (riskOutput.regime === "elevated") {
       warnings.push("The Risk Agent classified the technical volatility context as elevated; this is not a position-size or risk-limit calculation.");
     }
     if (!consistent) {
@@ -609,9 +613,9 @@ export class MarketIntelligenceOrchestrator {
     return {
       runId: this.createRunId(),
       status: consistent ? "reviewable" : "inconclusive",
-      market: market.output as MarketAgentOutput,
-      strategy: strategy.output as StrategyAgentOutput,
-      risk: risk.output as RiskAgentOutput,
+      market: marketOutput,
+      strategy: strategyOutput,
+      risk: riskOutput,
       critic: critic.output,
       provenance: {
         source: processed.source,
