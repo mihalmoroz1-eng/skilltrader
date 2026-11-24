@@ -270,7 +270,11 @@ export const appRouter = router({
       }),
     candles: protectedProcedure
       .input(historicalDataQuerySchema)
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        const limit = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!limit.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${limit.retryAfterSeconds} сек.` });
+        }
         try {
           return await historicalDataService.query(input);
         } catch (error) {
