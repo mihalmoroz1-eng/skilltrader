@@ -55,9 +55,10 @@ export function calculateEMA(values: number[], period: number): Array<number | n
   const output: Array<number | null> = Array(values.length).fill(null);
   if (values.length < period) return output;
 
-  let seed = 0;
-  for (let index = 0; index < period; index += 1) seed += values[index];
-  let previous = seed / period;
+  let previous = values[0] / period;
+  for (let index = 1; index < period; index += 1) {
+    previous += values[index] / period;
+  }
   output[period - 1] = previous;
 
   const alpha = 2 / (period + 1);
@@ -84,11 +85,11 @@ export function calculateRSI(values: number[], period = 14): Array<number | null
   let averageLoss = 0;
   for (let index = 1; index <= period; index += 1) {
     const change = values[index] - values[index - 1];
-    if (change > 0) averageGain += change;
-    else averageLoss -= change;
+    const gain = Math.max(change, 0);
+    const loss = Math.max(-change, 0);
+    averageGain += gain / period;
+    averageLoss += loss / period;
   }
-  averageGain /= period;
-  averageLoss /= period;
 
   const rsiFromAverages = (gain: number, loss: number) => {
     if (loss === 0) return gain === 0 ? 50 : 100;
@@ -102,8 +103,8 @@ export function calculateRSI(values: number[], period = 14): Array<number | null
     const change = values[index] - values[index - 1];
     const gain = Math.max(change, 0);
     const loss = Math.max(-change, 0);
-    averageGain = (averageGain * (period - 1) + gain) / period;
-    averageLoss = (averageLoss * (period - 1) + loss) / period;
+    averageGain += (gain - averageGain) / period;
+    averageLoss += (loss - averageLoss) / period;
     output[index] = rsiFromAverages(averageGain, averageLoss);
   }
 
@@ -173,12 +174,11 @@ export function calculateATR(candles: NumericCandle[], period = 14): Array<numbe
   }
 
   let atr = 0;
-  for (let index = 0; index < period; index += 1) atr += trueRanges[index];
-  atr /= period;
+  for (let index = 0; index < period; index += 1) atr += trueRanges[index] / period;
   output[period] = atr;
 
   for (let index = period + 1; index < candles.length; index += 1) {
-    atr = (atr * (period - 1) + trueRanges[index - 1]) / period;
+    atr += (trueRanges[index - 1] - atr) / period;
     output[index] = atr;
   }
 
@@ -192,12 +192,41 @@ export function calculateATR(candles: NumericCandle[], period = 14): Array<numbe
 export function calculateVWAP(candles: NumericCandle[]): Array<number | null> {
   assertCandles(candles);
 
-  let cumulativePriceVolume = 0;
-  let cumulativeVolume = 0;
+  let volumeScale = 0;
+  let normalizedVolumeTotal = 0;
+  let weightedAverage = 0;
+
   return candles.map((candle) => {
+    if (candle.volume === 0) {
+      return normalizedVolumeTotal > 0 ? weightedAverage : null;
+    }
+
     const typicalPrice = (candle.high + candle.low + candle.close) / 3;
-    cumulativePriceVolume += typicalPrice * candle.volume;
-    cumulativeVolume += candle.volume;
-    return cumulativeVolume > 0 ? cumulativePriceVolume / cumulativeVolume : null;
+    if (volumeScale === 0) {
+      volumeScale = candle.volume;
+      normalizedVolumeTotal = 1;
+      weightedAverage = typicalPrice;
+      return weightedAverage;
+    }
+
+    let normalizedVolume: number;
+    if (candle.volume > volumeScale) {
+      const scaleRatio = volumeScale / candle.volume;
+      normalizedVolumeTotal *= scaleRatio;
+      volumeScale = candle.volume;
+      normalizedVolume = 1;
+    } else {
+      normalizedVolume = candle.volume / volumeScale;
+    }
+
+    const nextTotal = normalizedVolumeTotal + normalizedVolume;
+    const weight = normalizedVolume / nextTotal;
+    weightedAverage += (typicalPrice - weightedAverage) * weight;
+    normalizedVolumeTotal = nextTotal;
+
+    if (!Number.isFinite(weightedAverage) || !Number.isFinite(normalizedVolumeTotal)) {
+      throw new RangeError("VWAP calculation exceeded the numeric range");
+    }
+    return weightedAverage;
   });
 }
