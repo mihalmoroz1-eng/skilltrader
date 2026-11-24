@@ -152,7 +152,8 @@ export function preparePaperPosition(input: {
   const entryRaw = parse(input.markPrice);
   const stop = parse(input.stopPrice);
   const target = parse(input.targetPrice);
-  const tick = parse(instrument.tickSize);\n  const entry = slippagePrice(entryRaw, account.slippageBps, signal.direction === "LONG", tick);
+  const tick = parse(instrument.tickSize);
+  const entry = slippagePrice(entryRaw, account.slippageBps, signal.direction === "LONG", tick);
   if (signal.direction === "LONG" ? (stop >= entry || target <= entry) : (stop <= entry || target >= entry)) {
     throw new PaperExecutionError("Stop and target must be on the correct side of the PAPER entry price");
   }
