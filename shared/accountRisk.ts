@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const decimalStringSchema = z.string().regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,8})?$/);
+const decimalStringSchema = z.string().max(40).regex(/^(?:0|[1-9]\\d*)(?:\\.\\d{1,8})?$/);
 const positiveDecimalStringSchema = decimalStringSchema.refine((value) => Number(value) > 0);
 export const accountRiskInputSchema = z.object({
   account: z.object({
