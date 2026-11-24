@@ -57,10 +57,55 @@ export class BinanceSpotHistoricalProvider implements HistoricalCandleProvider {
       try { await response.body?.cancel(); } catch { /* ignore */ }
       throw new MarketDataProviderError("Historical response too large", "response-too-large", response.status);
     }
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-      throw new MarketDataProviderError("Historical response too large", "response-too-large", response.status);
+
+    let text: string;
+    if (!response.body) {
+      try {
+        text = await response.text();
+      } catch (error) {
+        const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+        throw new MarketDataProviderError(timeout ? "Historical response timed out" : "Historical response failed",
+          timeout ? "timeout" : "network", response.status);
+      }
+      if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
+        throw new MarketDataProviderError("Historical response too large", "response-too-large", response.status);
+      }
+    } else {
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          totalBytes += value.byteLength;
+          if (totalBytes > MAX_RESPONSE_BYTES) {
+            try { await reader.cancel(); } catch { /* preserve size error */ }
+            throw new MarketDataProviderError("Historical response too large", "response-too-large", response.status);
+          }
+          chunks.push(value);
+        }
+      } catch (error) {
+        if (error instanceof MarketDataProviderError) throw error;
+        const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+        throw new MarketDataProviderError(timeout ? "Historical response timed out" : "Historical response failed",
+          timeout ? "timeout" : "network", response.status);
+      } finally {
+        reader.releaseLock();
+      }
+      const body = new Uint8Array(totalBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        body.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+      } catch {
+        throw new MarketDataProviderError("Invalid historical response encoding", "invalid-json", response.status);
+      }
     }
+
     let payload: unknown;
     try { payload = JSON.parse(text) as unknown; }
     catch { throw new MarketDataProviderError("Invalid historical JSON", "invalid-json", response.status); }
