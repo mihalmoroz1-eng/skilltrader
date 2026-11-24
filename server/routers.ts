@@ -16,6 +16,7 @@ import { MarketDataRequestError, MarketDataService } from "./market-data/service
 import { marketDataRateLimiter } from "./market-data/services/MarketDataRateLimiter";
 import { MarketIntelligenceOrchestrator, MarketIntelligenceAgentCallError, MarketIntelligenceAgentOutputError, MarketIntelligenceTrustGateError } from "./market-intelligence/core/MarketIntelligenceOrchestrator";
 import { marketIntelligenceRateLimiter } from "./market-intelligence/core/MarketIntelligenceRateLimiter";
+import { validateSignalCandidate } from "./signal-validation/core/SignalValidationEngine";
 
 const marketDataService = new MarketDataService(new BinanceSpotProvider());
 const marketIntelligenceOrchestrator = new MarketIntelligenceOrchestrator();
@@ -145,7 +146,9 @@ export const appRouter = router({
         try {
           const snapshot = await marketDataService.getCandles(input.symbol, input.interval, input.limit);
           const processed = processMarketData(snapshot);
-          return await marketIntelligenceOrchestrator.analyze(processed);
+          const analysis = await marketIntelligenceOrchestrator.analyze(processed);
+          const signalValidation = validateSignalCandidate(analysis);
+          return { ...analysis, signalValidation };
         } catch (error) {
           if (error instanceof MarketIntelligenceTrustGateError) {
             console.info("[Market Intelligence] Trust gate blocked the run", error.reason);
