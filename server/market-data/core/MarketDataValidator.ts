@@ -10,6 +10,34 @@ export class MarketDataValidationError extends Error {
   }
 }
 
+const DECIMAL_PATTERN = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
+const MAX_DECIMAL_LENGTH = 128;
+
+type ScaledDecimal = { coefficient: bigint; scale: number };
+
+function parseDecimal(value: unknown): ScaledDecimal | null {
+  if (
+    typeof value !== "string" ||
+    value.length > MAX_DECIMAL_LENGTH ||
+    !DECIMAL_PATTERN.test(value)
+  ) {
+    return null;
+  }
+
+  const [whole, fraction = ""] = value.split(".");
+  return {
+    coefficient: BigInt(whole + fraction),
+    scale: fraction.length,
+  };
+}
+
+function compareDecimals(left: ScaledDecimal, right: ScaledDecimal): number {
+  const scale = Math.max(left.scale, right.scale);
+  const a = left.coefficient * 10n ** BigInt(scale - left.scale);
+  const b = right.coefficient * 10n ** BigInt(scale - right.scale);
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function validateCandles(candles: MarketCandle[]): void {
   const issues: string[] = [];
 
@@ -17,43 +45,61 @@ export function validateCandles(candles: MarketCandle[]): void {
     throw new MarketDataValidationError(["candle list is empty"]);
   }
 
-  let previousOpenTime = -1;
+  let previousOpenTime: number | null = null;
   candles.forEach((candle, index) => {
     const prefix = `candle[${index}]`;
-    const numericFields: (keyof MarketCandle)[] = [
-      "openTime", "closeTime", "open", "high", "low", "close",
-      "volume", "quoteVolume", "tradeCount",
-    ];
-
-    for (const field of numericFields) {
-      if (!Number.isFinite(candle[field])) issues.push(`${prefix}.${field} must be finite`);
+    if (!candle || typeof candle !== "object") {
+      issues.push(`${prefix} must be an object`);
+      return;
     }
 
-    if (candle.openTime < 0 || !Number.isInteger(candle.openTime)) {
-      issues.push(`${prefix}.openTime must be a non-negative integer`);
+    const validOpenTime = Number.isSafeInteger(candle.openTime) && candle.openTime >= 0;
+    if (!validOpenTime) {
+      issues.push(`${prefix}.openTime must be a non-negative safe integer`);
+    } else {
+      if (previousOpenTime !== null && candle.openTime <= previousOpenTime) {
+        issues.push(`${prefix}.openTime is duplicated or out of order`);
+      }
+      previousOpenTime = candle.openTime;
     }
-    if (candle.closeTime < candle.openTime) {
-      issues.push(`${prefix}.closeTime precedes openTime`);
+
+    if (!Number.isSafeInteger(candle.closeTime) || candle.closeTime < candle.openTime) {
+      issues.push(`${prefix}.closeTime must be a safe integer not earlier than openTime`);
     }
-    if ([candle.open, candle.high, candle.low, candle.close].some((value) => value <= 0)) {
-      issues.push(`${prefix} prices must be positive`);
+    if (!Number.isSafeInteger(candle.tradeCount) || candle.tradeCount < 0) {
+      issues.push(`${prefix}.tradeCount must be a non-negative safe integer`);
     }
-    if (candle.volume < 0 || candle.quoteVolume < 0 || candle.tradeCount < 0) {
-      issues.push(`${prefix} volume and trade count cannot be negative`);
+
+    const decimals: Partial<Record<"open" | "high" | "low" | "close" | "volume" | "quoteVolume", ScaledDecimal>> = {};
+    for (const field of ["open", "high", "low", "close", "volume", "quoteVolume"] as const) {
+      const parsed = parseDecimal(candle[field]);
+      if (!parsed) {
+        issues.push(`${prefix}.${field} must be a plain decimal string of at most ${MAX_DECIMAL_LENGTH} characters`);
+      } else {
+        decimals[field] = parsed;
+      }
     }
-    if (!Number.isInteger(candle.tradeCount)) {
-      issues.push(`${prefix}.tradeCount must be an integer`);
+
+    const { open, high, low, close } = decimals;
+    if (open && high && low && close) {
+      if ([open, high, low, close].some((value) => value.coefficient <= 0n)) {
+        issues.push(`${prefix} prices must be positive`);
+      }
+      if (
+        compareDecimals(high, open) < 0 ||
+        compareDecimals(high, close) < 0 ||
+        compareDecimals(high, low) < 0
+      ) {
+        issues.push(`${prefix}.high is below an OHLC value`);
+      }
+      if (
+        compareDecimals(low, open) > 0 ||
+        compareDecimals(low, close) > 0 ||
+        compareDecimals(low, high) > 0
+      ) {
+        issues.push(`${prefix}.low is above an OHLC value`);
+      }
     }
-    if (candle.high < Math.max(candle.open, candle.close, candle.low)) {
-      issues.push(`${prefix}.high is below an OHLC value`);
-    }
-    if (candle.low > Math.min(candle.open, candle.close, candle.high)) {
-      issues.push(`${prefix}.low is above an OHLC value`);
-    }
-    if (index > 0 && candle.openTime <= previousOpenTime) {
-      issues.push(`${prefix}.openTime is duplicated or out of order`);
-    }
-    previousOpenTime = candle.openTime;
   });
 
   if (issues.length > 0) throw new MarketDataValidationError(issues);
