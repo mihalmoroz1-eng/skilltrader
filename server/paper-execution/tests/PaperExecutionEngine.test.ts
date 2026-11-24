@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closePaperPosition, PaperExecutionError, preparePaperPosition } from "../core/PaperExecutionEngine";
+import { calculatePaperUnrealizedPnl, closePaperPosition, PaperExecutionError, preparePaperPosition, sumPaperDecimals } from "../core/PaperExecutionEngine";
 import type { PaperAccountSnapshot, PaperInstrumentRules, PaperSignalRecord } from "../core/PaperExecutionEngine";
 
 const now = 1_800_000_000_000;
@@ -57,6 +57,17 @@ describe("PAPER execution engine", () => {
       markPrice: "100.05", stopPrice: "98.0", targetPrice: "104.0",
       currentOpenPositions: 0, now,
     })).toThrow(/tick size/);
+  });
+
+  it("marks open positions to market and preserves signed losses in fixed-point sums", () => {
+    const opened = preparePaperPosition({
+      userOpenId: "user-1", account, signal, instrument,
+      markPrice: "100.0", stopPrice: "98.0", targetPrice: "104.0",
+      currentOpenPositions: 0, now,
+    });
+    const mark = calculatePaperUnrealizedPnl(opened.position!, "95.0", account.feeBps, account.slippageBps);
+    expect(Number(mark.netUnrealizedPnl)).toBeLessThan(0);
+    expect(sumPaperDecimals(["100", "-25.5"])).toBe("74.5");
   });
 
   it("closes a virtual position and accounts for PnL and fees", () => {
