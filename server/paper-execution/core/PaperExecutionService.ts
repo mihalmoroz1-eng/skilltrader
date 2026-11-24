@@ -216,18 +216,38 @@ export class PaperExecutionService {
   async getPortfolio(userOpenId: string) {
     const now = this.now();
     const portfolio = await this.store.getPortfolio(userOpenId);
-    if (!portfolio.account) return { ...portfolio, equity: null, currentOpenNotional: "0", executionMode: "PAPER" as const };
-    const snapshot = await this.accountSnapshot(userOpenId, now);
-    return {
-      account: snapshot.account,
-      positions: portfolio.positions,
-      signals: portfolio.signals,
-      equity: snapshot.snapshot.equity,
-      currentOpenNotional: snapshot.currentOpenNotional,
-      openPositions: snapshot.openPositions.length,
-      executionMode: "PAPER" as const,
-      exchangeOrderSent: false as const,
-      executionEligible: false as const,
-    };
+    if (!portfolio.account) {
+      return { ...portfolio, equity: null, currentOpenNotional: "0", markToMarketAvailable: false, executionMode: "PAPER" as const };
+    }
+    const openPositions = portfolio.positions.filter(position => position.status === "open");
+    const currentOpenNotional = sumPaperDecimals(openPositions.map(position => position.notional));
+    try {
+      const snapshot = await this.accountSnapshot(userOpenId, now);
+      return {
+        account: snapshot.account,
+        positions: portfolio.positions,
+        signals: portfolio.signals,
+        equity: snapshot.snapshot.equity,
+        currentOpenNotional: snapshot.currentOpenNotional,
+        openPositions: snapshot.openPositions.length,
+        markToMarketAvailable: true,
+        executionMode: "PAPER" as const,
+        exchangeOrderSent: false as const,
+        executionEligible: false as const,
+      };
+    } catch {
+      return {
+        account: portfolio.account,
+        positions: portfolio.positions,
+        signals: portfolio.signals,
+        equity: null,
+        currentOpenNotional,
+        openPositions: openPositions.length,
+        markToMarketAvailable: false,
+        executionMode: "PAPER" as const,
+        exchangeOrderSent: false as const,
+        executionEligible: false as const,
+      };
+    }
   }
 }
