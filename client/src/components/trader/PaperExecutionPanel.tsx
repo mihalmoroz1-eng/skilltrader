@@ -75,9 +75,10 @@ export default function PaperExecutionPanel() {
   const [feeBps, setFeeBps] = useState("5");
   const [slippageBps, setSlippageBps] = useState("5");
 
-  const account = portfolio.data?.account;
-  const signals = portfolio.data?.signals ?? [];
-  const positions = portfolio.data?.positions ?? [];
+  const portfolioData = portfolio.data;
+  const account = portfolioData?.account;
+  const signals = portfolioData?.signals ?? [];
+  const positions = portfolioData?.positions ?? [];
   const openPositions = positions.filter(position => position.status === "open");
 
   const createAccount = (event: FormEvent) => {
@@ -117,7 +118,7 @@ export default function PaperExecutionPanel() {
       {portfolio.isLoading && <p className="paper-panel-note">Загрузка PAPER-портфеля…</p>}
       {portfolio.error && <p className="paper-inline-error">{safeError(portfolio.error)}</p>}
 
-      {auth.data && portfolio.data && !account && (
+      {auth.data && portfolioData && !account && (
         <form className="paper-account-form" onSubmit={createAccount}>
           <div className="paper-section-title"><Wallet size={16} /><strong>Создать виртуальный счёт</strong></div>
           <p>Укажите стартовый учебный капитал. Он не связан с балансом Binance или банковским счётом.</p>
@@ -135,12 +136,12 @@ export default function PaperExecutionPanel() {
         </form>
       )}
 
-      {auth.data && account && (
+      {auth.data && portfolioData && account && (
         <>
           <div className="paper-account-summary">
-            <div><span>Виртуальная equity</span><strong>{money(portfolio.data.equity)}</strong></div>
+            <div><span>Виртуальная equity</span><strong>{money(portfolioData.equity)}</strong></div>
             <div><span>Свободные средства</span><strong>{money(account.cashBalance)}</strong></div>
-            <div><span>Открытая экспозиция</span><strong>{money(portfolio.data.currentOpenNotional)}</strong></div>
+            <div><span>Открытая экспозиция</span><strong>{money(portfolioData.currentOpenNotional)}</strong></div>
             <div><span>Открытые позиции</span><strong>{openPositions.length} / {account.maxOpenPositions}</strong></div>
           </div>
           <div className="paper-toolbar">
