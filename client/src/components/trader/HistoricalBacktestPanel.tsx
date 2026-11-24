@@ -53,10 +53,6 @@ export default function HistoricalBacktestPanel() {
     limit: 50_001,
   }), [symbol, interval, startTime, endTime]);
 
-  useEffect(() => {
-    setQueryEnabled(false);
-  }, [symbol, interval, startDate, endDate]);
-
   const candles = trpc.historicalData.candles.useQuery(rangeInput, {
     enabled: !OFFLINE_MODE && !!auth.data && queryEnabled && rangeValid,
     retry: false, refetchOnWindowFocus: false, staleTime: 0,
@@ -65,6 +61,12 @@ export default function HistoricalBacktestPanel() {
     onSuccess: () => setQueryEnabled(true),
   });
   const backtest = trpc.backtesting.run.useMutation();
+
+  useEffect(() => {
+    setQueryEnabled(false);
+    ingest.reset();
+    backtest.reset();
+  }, [symbol, interval, startDate, endDate]);
 
   const loadedCandles = candles.data ?? [];
   const canBacktest = rangeValid && loadedCandles.length > 0 && loadedCandles.length <= 50_000 &&
