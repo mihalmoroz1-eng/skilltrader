@@ -14,7 +14,7 @@ const signal: PaperSignalRecord = {
   userOpenId: "user-1", signalId: "a".repeat(24), marketRunId: "market-run",
   validationDigest: "b".repeat(64), marketEvidenceDigest: "c".repeat(64),
   symbol: "BTCUSDT", interval: "15m", direction: "LONG",
-  thesisCodes: ["close_above_ema20", "ema20_above_ema50", "trend_structure_up"], status: "accepted",
+  thesisCodes: ["close_above_ema20", "ema20_above_ema50", "trend_structure_up"], createdAt: now - 60_000, status: "accepted",
 };
 const instrument: PaperInstrumentRules = {
   symbol: "BTCUSDT", contractMultiplier: "1", quantityStep: "0.001",
