@@ -134,6 +134,9 @@ export default function MarketIntelligencePanel() {
   const [auditEvents, setAuditEvents] = useState<SignalAuditEvent[]>(() => readSignalAuditJournal());
   const [auditStorageAvailable, setAuditStorageAvailable] = useState<boolean | null>(null);
   const [auditFeedback, setAuditFeedback] = useState("");
+  const [manualReviewBusy, setManualReviewBusy] = useState(false);
+  const acceptPaperSignal = trpc.paper.acceptSignal.useMutation();
+  const dismissPaperSignal = trpc.paper.dismissSignal.useMutation();
   const auth = trpc.auth.me.useQuery(undefined, {
     enabled: !OFFLINE_MODE,
     retry: false,
@@ -169,20 +172,27 @@ export default function MarketIntelligencePanel() {
     setAuditStorageAvailable(stored);
   }, [signalCandidate?.signalId]);
 
-  const recordManualDecision = (accepted: boolean) => {
-    if (!signalCandidate || !signalValidation) return;
-    const stored = appendSignalAuditEvent({
-      signalId: signalCandidate.signalId,
-      marketRunId: signalCandidate.marketRunId,
-      validationDigest: signalValidation.provenance.validationDigest,
-      eventType: accepted ? "accepted_for_further_review" : "dismissed",
-      noteCode: accepted ? "manual_review_accepted" : "manual_review_dismissed",
-    });
-    setAuditEvents(readSignalAuditJournal());
-    setAuditStorageAvailable(stored);
-    setAuditFeedback(stored
-      ? accepted ? "Решение записано в локальный журнал." : "Отклонение записано в локальный журнал."
-      : "Не удалось сохранить событие в локальный журнал устройства.");
+  const recordManualDecision = async (accepted: boolean) => {
+    if (!signalCandidate || !signalValidation || !data?.paperReviewRecordStored || manualReviewBusy) return;
+    setManualReviewBusy(true);
+    try {
+      if (accepted) await acceptPaperSignal.mutateAsync({ signalId: signalCandidate.signalId });
+      else await dismissPaperSignal.mutateAsync({ signalId: signalCandidate.signalId });
+      const stored = appendSignalAuditEvent({
+        signalId: signalCandidate.signalId,
+        marketRunId: signalCandidate.marketRunId,
+        validationDigest: signalValidation.provenance.validationDigest,
+        eventType: accepted ? "accepted_for_further_review" : "dismissed",
+        noteCode: accepted ? "manual_review_accepted" : "manual_review_dismissed",
+      });
+      setAuditEvents(readSignalAuditJournal());
+      setAuditStorageAvailable(stored);
+      setAuditFeedback(accepted ? "Сервер подтвердил принятие сигнала. Он доступен в PAPER-панели." : "Сервер подтвердил отклонение сигнала.");
+    } catch {
+      setAuditFeedback("Сервер не подтвердил решение. Сигнал не переведён в принятый статус.");
+    } finally {
+      setManualReviewBusy(false);
+    }
   };
 
   if (OFFLINE_MODE) {
@@ -337,13 +347,16 @@ export default function MarketIntelligencePanel() {
 
               {data.signalValidation.status === "reviewable" && data.signalValidation.candidate && (
                 <div className="market-signal-review-actions">
-                  <button type="button" onClick={() => recordManualDecision(true)}>
-                    Принять для дальнейшей проверки
+                  <button type="button" onClick={() => void recordManualDecision(true)} disabled={manualReviewBusy || !data.paperReviewRecordStored}>
+                    {manualReviewBusy ? "Сохранение…" : "Принять для PAPER"}
                   </button>
-                  <button type="button" className="is-dismiss" onClick={() => recordManualDecision(false)}>
+                  <button type="button" className="is-dismiss" onClick={() => void recordManualDecision(false)} disabled={manualReviewBusy || !data.paperReviewRecordStored}>
                     Отклонить кандидат
                   </button>
                 </div>
+              )}
+              {!data.paperReviewRecordStored && data.signalValidation.status === "reviewable" && (
+                <p className="market-intelligence-note">Сервер не сохранил кандидата для PAPER-проверки. Повторите анализ позже.</p>
               )}
               {auditFeedback && <p className="market-intelligence-note" role="status">{auditFeedback}</p>}
 
