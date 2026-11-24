@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { bigint, int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, index } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -6,12 +6,7 @@ import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-or
  * Columns use camelCase to match both database fields and generated types.
  */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +20,25 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+/** Decimal exchange values are strings; no floating-point conversion is performed. */
+export const historicalCandles = mysqlTable("historical_candles", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  symbol: varchar("symbol", { length: 20 }).notNull(),
+  interval: varchar("interval", { length: 4 }).notNull(),
+  openTime: bigint("openTime", { mode: "number" }).notNull(),
+  closeTime: bigint("closeTime", { mode: "number" }).notNull(),
+  open: varchar("open", { length: 80 }).notNull(),
+  high: varchar("high", { length: 80 }).notNull(),
+  low: varchar("low", { length: 80 }).notNull(),
+  close: varchar("close", { length: 80 }).notNull(),
+  volume: varchar("volume", { length: 80 }).notNull(),
+  quoteVolume: varchar("quoteVolume", { length: 80 }).notNull(),
+  tradeCount: int("tradeCount", { unsigned: true }).notNull(),
+  source: varchar("source", { length: 40 }).notNull(),
+  fetchedAt: bigint("fetchedAt", { mode: "number" }).notNull(),
+}, table => ({
+  candleUnique: uniqueIndex("historical_candles_symbol_interval_openTime_unique")
+    .on(table.symbol, table.interval, table.openTime),
+  rangeIndex: index("historical_candles_symbol_interval_time_idx")
+    .on(table.symbol, table.interval, table.openTime),
+}));
