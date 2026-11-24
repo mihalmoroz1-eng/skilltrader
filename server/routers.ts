@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { traderAssistantInputSchema } from "@shared/traderAssistant";
 import { marketDataRequestSchema } from "@shared/marketData";
+import { marketIntelligenceRequestSchema } from "@shared/marketIntelligence";
 import { TRPCError } from "@trpc/server";
 import { assertLLMConfigured, LlmConfigurationError, LlmInvocationError } from "./_core/llm";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -13,8 +14,11 @@ import { MarketDataValidationError } from "./market-data/core/MarketDataValidato
 import { MarketDataProcessingError, processMarketData } from "./market-data/core/MarketDataProcessor";
 import { MarketDataRequestError, MarketDataService } from "./market-data/services/MarketDataService";
 import { marketDataRateLimiter } from "./market-data/services/MarketDataRateLimiter";
+import { MarketIntelligenceOrchestrator, MarketIntelligenceAgentCallError, MarketIntelligenceAgentOutputError, MarketIntelligenceTrustGateError } from "./market-intelligence/core/MarketIntelligenceOrchestrator";
+import { marketIntelligenceRateLimiter } from "./market-intelligence/core/MarketIntelligenceRateLimiter";
 
 const marketDataService = new MarketDataService(new BinanceSpotProvider());
+const marketIntelligenceOrchestrator = new MarketIntelligenceOrchestrator();
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -107,6 +111,88 @@ export const appRouter = router({
           }
           console.error("[Market Data] Analysis failed", error instanceof Error ? error.name : "unknown error");
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Не удалось рассчитать технические индикаторы." });
+        }
+      }),
+  }),
+
+
+  marketIntelligence: router({
+    analyze: protectedProcedure
+      .input(marketIntelligenceRequestSchema)
+      .query(async ({ ctx, input }) => {
+        try {
+          assertLLMConfigured();
+        } catch (error) {
+          if (error instanceof LlmConfigurationError) {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Служебная конфигурация AI требует проверки владельцем проекта." });
+          }
+          throw error;
+        }
+
+        const limit = marketIntelligenceRateLimiter.consume(ctx.user.openId);
+        if (!limit.allowed) {
+          const retryMessage = limit.scope === "day"
+            ? "Дневной лимит мультиагентного анализа достигнут."
+            : limit.scope === "capacity"
+              ? "Сервис временно ограничил новые пользовательские сессии."
+              : "Слишком много запусков мультиагентного анализа.";
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `${retryMessage} Повторите запрос через ${limit.retryAfterSeconds} сек.`,
+          });
+        }
+
+        try {
+          const snapshot = await marketDataService.getCandles(input.symbol, input.interval, input.limit);
+          const processed = processMarketData(snapshot);
+          return await marketIntelligenceOrchestrator.analyze(processed);
+        } catch (error) {
+          if (error instanceof MarketIntelligenceTrustGateError) {
+            console.info("[Market Intelligence] Trust gate blocked the run", error.reason);
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "Рыночные данные пока не прошли требования качества или свежести. Анализ не запускался.",
+            });
+          }
+          if (error instanceof MarketIntelligenceAgentOutputError) {
+            console.warn("[Market Intelligence] Agent output rejected", error.agent);
+            throw new TRPCError({
+              code: "BAD_GATEWAY",
+              message: "Один из AI-агентов вернул неподходящий структурированный результат. Анализ остановлен.",
+            });
+          }
+          if (error instanceof MarketIntelligenceAgentCallError) {
+            if (error.cause instanceof LlmConfigurationError) {
+              throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Служебная конфигурация AI требует проверки владельцем проекта." });
+            }
+            if (error.cause instanceof LlmInvocationError) {
+              const upstream = error.cause;
+              if (upstream.status === 429) {
+                throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Поставщик AI ограничил частоту запросов. Повторите позже." });
+              }
+              console.warn("[Market Intelligence] Agent model call failed", error.agent, upstream.status, upstream.upstreamCode ?? "unknown");
+              throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Один из AI-агентов временно недоступен. Частичный анализ не показан." });
+            }
+            console.warn("[Market Intelligence] Agent execution failed", error.agent);
+            throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Не удалось завершить все этапы мультиагентного анализа." });
+          }
+          if (error instanceof MarketDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Параметры запроса рыночных данных некорректны." });
+          }
+          if (error instanceof MarketDataProviderError) {
+            if (error.kind === "rate-limit") {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Биржа ограничила частоту запросов. Повторите позже." });
+            }
+            if (error.kind === "timeout" || error.kind === "network" || (error.status !== undefined && error.status >= 500)) {
+              throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Источник рыночных данных временно недоступен." });
+            }
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Источник рыночных данных вернул неподходящий ответ." });
+          }
+          if (error instanceof MarketDataNormalizationError || error instanceof MarketDataValidationError || error instanceof MarketDataProcessingError) {
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Данные не прошли проверку перед AI-анализом." });
+          }
+          console.error("[Market Intelligence] Run failed", error instanceof Error ? error.name : "unknown error");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Не удалось завершить мультиагентный анализ." });
         }
       }),
   }),
