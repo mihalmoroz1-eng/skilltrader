@@ -7,7 +7,8 @@ export type MarketDataProviderErrorKind =
   | "http"
   | "rate-limit"
   | "response-too-large"
-  | "invalid-json";
+  | "invalid-json"
+  | "invalid-request";
 
 export class MarketDataProviderError extends Error {
   constructor(
@@ -65,7 +66,7 @@ async function readJsonBody(response: Response, maxBytes: number): Promise<unkno
       if (done) break;
       totalBytes += value.byteLength;
       if (totalBytes > maxBytes) {
-        await reader.cancel();
+        try { await reader.cancel(); } catch { /* Ignore stream cancellation errors. */ }
         throw new MarketDataProviderError(
           "Binance response exceeded the configured size limit",
           "response-too-large",
@@ -101,7 +102,7 @@ export class BinanceSpotProvider implements MarketDataProvider {
     private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
     private readonly maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
   ) {
-    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647) {
       throw new Error("timeoutMs must be positive");
     }
     if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1) {
@@ -111,13 +112,13 @@ export class BinanceSpotProvider implements MarketDataProvider {
 
   async fetchCandles(symbol: string, interval: MarketInterval, limit: number): Promise<MarketCandle[]> {
     if (!/^[A-Z0-9]{2,20}$/.test(symbol)) {
-      throw new MarketDataProviderError("Invalid market symbol", "http");
+      throw new MarketDataProviderError("Invalid market symbol", "invalid-request");
     }
     if (!isMarketInterval(interval)) {
-      throw new MarketDataProviderError("Unsupported candle interval", "http");
+      throw new MarketDataProviderError("Unsupported candle interval", "invalid-request");
     }
     if (!Number.isInteger(limit) || limit < 1 || limit > 1000) {
-      throw new MarketDataProviderError("Invalid candle limit", "http");
+      throw new MarketDataProviderError("Invalid candle limit", "invalid-request");
     }
 
     const url = new URL("/api/v3/klines", BINANCE_SPOT_BASE_URL);
