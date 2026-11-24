@@ -212,6 +212,7 @@ export function preparePaperPosition(input: {
     stopPrice: format(stop),
     targetPrice: format(target),
     contractMultiplier: instrument.contractMultiplier,
+    tickSize: instrument.tickSize,
     entryFee: format(entryFee),
     status: "open",
     openedAt: input.now,
