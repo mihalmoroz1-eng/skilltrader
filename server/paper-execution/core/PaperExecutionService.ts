@@ -210,6 +210,7 @@ export class PaperExecutionService {
     return {
       account: snapshot.account,
       positions: portfolio.positions,
+      signals: portfolio.signals,
       equity: snapshot.snapshot.equity,
       currentOpenNotional: snapshot.currentOpenNotional,
       openPositions: snapshot.openPositions.length,
