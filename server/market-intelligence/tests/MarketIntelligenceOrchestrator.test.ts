@@ -176,6 +176,25 @@ describe("trust-gated market intelligence orchestrator", () => {
     expect(call).not.toHaveBeenCalled();
   });
 
+  it("rejects unapproved sources, insufficient history and misaligned indicator arrays", async () => {
+    const now = Date.UTC(2026, 10, 24, 12, 0, 0);
+    const call = fakeModelCall();
+    const orchestrator = new MarketIntelligenceOrchestrator(call, () => now);
+
+    const unapproved = createProcessed(now);
+    unapproved.source = "unverified-provider";
+    await expect(orchestrator.analyze(unapproved)).rejects.toBeInstanceOf(MarketIntelligenceTrustGateError);
+
+    const insufficient = createProcessed(now);
+    insufficient.quality.closedCandleCount = 49;
+    await expect(orchestrator.analyze(insufficient)).rejects.toBeInstanceOf(MarketIntelligenceTrustGateError);
+
+    const misaligned = createProcessed(now);
+    misaligned.indicators.pop();
+    await expect(orchestrator.analyze(misaligned)).rejects.toBeInstanceOf(MarketIntelligenceTrustGateError);
+    expect(call).not.toHaveBeenCalled();
+  });
+
   it("marks critic disagreements as inconclusive rather than manufacturing a consensus", async () => {
     const now = Date.UTC(2026, 10, 24, 12, 0, 0);
     const call = fakeModelCall({
