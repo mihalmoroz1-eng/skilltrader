@@ -2,32 +2,44 @@ import { describe, expect, it } from "vitest";
 import { normalizeBinanceKlines, MarketDataNormalizationError } from "../core/MarketDataNormalizer";
 
 const row = [
-  1_700_000_000_000, "100", "105", "99", "103", "12.5",
-  1_700_000_899_999, "1287.5", 42, "0", "0", "0",
+  1_700_000_000_000,
+  "100.000000000000000001",
+  "105.000000000000000003",
+  "99.000000000000000001",
+  "103.000000000000000002",
+  "12.500000000000000001",
+  1_700_000_899_999,
+  "1287.500000000000000025",
+  42,
+  "0",
+  "0",
+  "0",
 ];
 
 describe("Binance kline normalizer", () => {
-  it("maps the public REST kline tuple into canonical candle fields", () => {
-    expect(normalizeBinanceKlines([row], "BTCUSDT", "15m")).toEqual([{
+  it("maps REST kline tuples and preserves exact decimal strings", () => {
+    expect(normalizeBinanceKlines([row])).toEqual([{
       openTime: 1_700_000_000_000,
       closeTime: 1_700_000_899_999,
-      open: 100,
-      high: 105,
-      low: 99,
-      close: 103,
-      volume: 12.5,
-      quoteVolume: 1287.5,
+      open: "100.000000000000000001",
+      high: "105.000000000000000003",
+      low: "99.000000000000000001",
+      close: "103.000000000000000002",
+      volume: "12.500000000000000001",
+      quoteVolume: "1287.500000000000000025",
       tradeCount: 42,
     }]);
   });
 
   it("rejects non-array payloads and malformed rows", () => {
-    expect(() => normalizeBinanceKlines({}, "BTCUSDT", "15m")).toThrow(MarketDataNormalizationError);
-    expect(() => normalizeBinanceKlines([[1, "2"]], "BTCUSDT", "15m")).toThrow(MarketDataNormalizationError);
+    expect(() => normalizeBinanceKlines({})).toThrow(MarketDataNormalizationError);
+    expect(() => normalizeBinanceKlines([[1, "2"]])).toThrow(MarketDataNormalizationError);
   });
 
-  it("rejects non-finite numeric fields", () => {
-    expect(() => normalizeBinanceKlines([[...row.slice(0, 1), "NaN", ...row.slice(2)], "BTCUSDT", "15m"))
-      .toThrow("Invalid Binance field: open");
+  it("rejects malformed decimal strings and unsafe timestamps", () => {
+    expect(() => normalizeBinanceKlines([[...row.slice(0, 1), " 1.2", ...row.slice(2)]))
+      .toThrow("Invalid Binance decimal field: open");
+    expect(() => normalizeBinanceKlines([[Number.MAX_SAFE_INTEGER + 1, ...row.slice(1)]]))
+      .toThrow("Invalid Binance integer field: openTime");
   });
 });
