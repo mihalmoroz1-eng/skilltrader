@@ -130,6 +130,7 @@ export function validateSignalCandidate(
     provenance.qualityStatus === "ready" &&
     dataAgeMs >= 0 &&
     dataAgeMs <= MAX_DATA_AGE_MS &&
+    Number.isSafeInteger(provenance.closedCandleCount) &&
     provenance.closedCandleCount >= MIN_CLOSED_CANDLES &&
     provenance.gapCount === 0;
 
@@ -139,6 +140,11 @@ export function validateSignalCandidate(
     "price_extension_from_ema20",
     "indicator_disagreement",
   ] as const;
+  const expectedAtrCode = analysis.technicalRiskGate.atrToClosePercent < 0.5
+    ? "atr_ratio_below_0_5_percent"
+    : analysis.technicalRiskGate.atrToClosePercent <= 2
+      ? "atr_ratio_0_5_to_2_percent"
+      : "atr_ratio_above_2_percent";
   const expectedBlockingCodes = analysis.serverEvidence.riskEvidenceCodes
     .filter((code) => deterministicBlockingCodes.includes(code as typeof deterministicBlockingCodes[number]));
   const technicalRiskMetadataValid =
@@ -148,7 +154,13 @@ export function validateSignalCandidate(
     expectedBlockingCodes.every((code) => analysis.technicalRiskGate.blockingCodes.includes(code)) &&
     analysis.technicalRiskGate.status === (expectedBlockingCodes.length === 0 ? "clear" : "blocked") &&
     Number.isFinite(analysis.technicalRiskGate.atrToClosePercent) &&
-    analysis.technicalRiskGate.atrToClosePercent >= 0;
+    analysis.technicalRiskGate.atrToClosePercent >= 0 &&
+    analysis.serverEvidence.riskEvidenceCodes.includes(expectedAtrCode) &&
+    analysis.serverEvidence.riskEvidenceCodes.filter((code) =>
+      code === "atr_ratio_below_0_5_percent" ||
+      code === "atr_ratio_0_5_to_2_percent" ||
+      code === "atr_ratio_above_2_percent",
+    ).length === 1;
 
   const evidenceValid =
     hasOnlyServerEvidence(analysis.market.evidenceCodes, analysis.serverEvidence.marketEvidenceCodes) &&
