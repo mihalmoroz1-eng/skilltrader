@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AccountRiskInput } from "@shared/accountRisk";
+import { accountRiskInputSchema, type AccountRiskInput } from "@shared/accountRisk";
 import { evaluateAccountRisk } from "../core/AccountRiskEngine";
 
 const NOW = 1_800_000_000_000;
@@ -76,6 +76,29 @@ describe("AccountRiskEngine", () => {
     const result = evaluateAccountRisk(makeInput({ account: { currentOpenNotional: "500000" } }));
     expect(result.status).toBe("rejected");
     expect(result.sizing.quantity).toBeNull();
+  });
+
+  it("compares stop direction exactly for large decimal strings", () => {
+    const parsed = accountRiskInputSchema.parse(makeInput({
+      candidate: {
+        entryPrice: "1000000000000000000000000000000",
+        stopPrice: "999999999999999999999999999999",
+      },
+    }));
+    expect(parsed.candidate.stopPrice).toBe("999999999999999999999999999999");
+  });
+
+  it("rejects fixed-point underflow without throwing or producing sizing", () => {
+    const result = evaluateAccountRisk(makeInput({
+      candidate: {
+        entryPrice: "0.00000002",
+        stopPrice: "0.00000001",
+        contractMultiplier: "0.00000001",
+      },
+    }));
+    expect(result.status).toBe("rejected");
+    expect(result.sizing.quantity).toBeNull();
+    expect(result.executionEligible).toBe(false);
   });
 
   it("rejects future timestamps and malformed decimal values", () => {
