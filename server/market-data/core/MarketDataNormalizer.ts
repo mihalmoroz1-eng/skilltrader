@@ -17,11 +17,10 @@ function decimalString(value: unknown, field: string): string {
 }
 
 function safeInteger(value: unknown, field: string): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new MarketDataNormalizationError(`Invalid Binance integer field: ${field}`);
   }
-  return parsed;
+  return value;
 }
 
 /**
