@@ -17,9 +17,14 @@ describe("market intelligence rate limiter", () => {
   it("enforces a daily request limit", () => {
     const limiter = new MarketIntelligenceRateLimiter(100, 2, 5);
     const day = Date.UTC(2026, 10, 24);
-    expect(limiter.consume("user-a", day + 1)).toEqual({ allowed: true });
-    expect(limiter.consume("user-a", day + 2)).toEqual({ allowed: true });
-    expect(limiter.consume("user-a", day + 3)).toMatchObject({ allowed: false, scope: "day" });
+    const midday = day + 43_200_001;
+    expect(limiter.consume("user-a", midday)).toEqual({ allowed: true });
+    expect(limiter.consume("user-a", midday + 1)).toEqual({ allowed: true });
+    expect(limiter.consume("user-a", midday + 2)).toMatchObject({
+      allowed: false,
+      scope: "day",
+      retryAfterSeconds: 43_200,
+    });
     expect(limiter.consume("user-a", day + 86_400_000 + 1)).toEqual({ allowed: true });
   });
 
