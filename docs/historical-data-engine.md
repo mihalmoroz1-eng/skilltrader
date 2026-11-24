@@ -14,7 +14,7 @@ The initial engine ingests Binance Spot OHLCV candles into the shared MySQL data
 Every provider page is validated by the existing OHLCV validator. The ingestion service checks page ordering, strict pagination cursor boundaries, requested-range boundaries, pagination progress, duplicate conflicts, and missing interval gaps. Provider response bodies are capped while streaming, not only after full buffering. Gaps are reported, not synthesized. The complete flag is false when a gap is detected or the returned range does not cover the requested edges.
 
 ## Storage
-The historical_candles table is defined in drizzle/schema.ts and created by migration 0001_historical_candles.sql. Decimal values are stored as VARCHAR to preserve source representation. Database writes are idempotent on the unique candle key.
+The historical_candles table is defined in drizzle/schema.ts and created by migration 0001_historical_candles.sql. Decimal values are stored as VARCHAR to preserve source representation. Database writes are idempotent on the unique candle key and are wrapped in a transaction so a failed batch does not leave a partial ingest. Protected ingestion and historical query routes share the per-user market-data rate limiter.
 
 ## Safety and limitations
 - Public Binance Spot market data only; no API keys or private account endpoints.
