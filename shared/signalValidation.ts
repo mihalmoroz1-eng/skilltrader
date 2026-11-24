@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MARKET_EVIDENCE_CODES, RISK_EVIDENCE_CODES } from "./marketIntelligence";
+import { MARKET_EVIDENCE_CODES } from "./marketIntelligence";
 
 export const SIGNAL_VALIDATION_STATUSES = [
   "reviewable",
