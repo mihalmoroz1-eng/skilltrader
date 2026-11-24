@@ -72,6 +72,18 @@ export type CriticAgentOutput = z.infer<typeof criticAgentOutputSchema>;
 
 export type MarketIntelligenceResult = {
   runId: string;
+  serverEvidence: {
+    marketEvidenceCodes: MarketAgentOutput["evidenceCodes"];
+    riskEvidenceCodes: RiskAgentOutput["riskEvidenceCodes"];
+    latestClosedCandleOpenTime: number;
+    latestClosedCandleCloseTime: number;
+  };
+  technicalRiskGate: {
+    status: "clear" | "blocked";
+    atrToClosePercent: number;
+    evidenceCodes: RiskAgentOutput["riskEvidenceCodes"];
+    blockingCodes: RiskAgentOutput["riskEvidenceCodes"];
+  };
   status: "reviewable" | "inconclusive";
   market: MarketAgentOutput;
   strategy: StrategyAgentOutput;
