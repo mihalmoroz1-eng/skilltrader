@@ -397,7 +397,7 @@ export default function MarketIntelligencePanel() {
 
           <div className="market-intelligence-safety">
             <ShieldCheck size={15} />
-            <span>Сигнал LONG/SHORT не создан. Объём позиции не рассчитан. Ордеры не отправлялись.</span>
+            <span>AI-агенты не создают сигналы. Кандидат направления формирует отдельный Signal Validation Engine. Объём позиции не рассчитан; ордеры не отправлялись.</span>
           </div>
         </>
       )}
