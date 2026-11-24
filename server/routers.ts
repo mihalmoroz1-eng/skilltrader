@@ -23,6 +23,9 @@ import { DrizzleHistoricalCandleStore } from "./historical-data/core/DrizzleHist
 import { HistoricalDataIngestionService, HistoricalDataRequestError } from "./historical-data/core/HistoricalDataIngestionService";
 import { backtestRequestSchema } from "@shared/backtest";
 import { BacktestInputError, runBacktest } from "./backtesting/core/BacktestEngine";
+import { futuresIntelligenceRequestSchema } from "@shared/futuresIntelligence";
+import { BinanceUsdMFuturesProvider, FuturesProviderError } from "./futures-intelligence/providers/BinanceUsdMFuturesProvider";
+import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futures-intelligence/core/FuturesLiquidityService";
 
 
 const marketDataService = new MarketDataService(new BinanceSpotProvider());
@@ -30,6 +33,7 @@ const historicalDataService = new HistoricalDataIngestionService(
   new BinanceSpotHistoricalProvider(), new DrizzleHistoricalCandleStore(),
 );
 const marketIntelligenceOrchestrator = new MarketIntelligenceOrchestrator();
+const futuresLiquidityService = new FuturesLiquidityService(new BinanceUsdMFuturesProvider());
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -43,6 +47,35 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+
+  futuresIntelligence: router({
+    analyze: protectedProcedure
+      .input(futuresIntelligenceRequestSchema)
+      .query(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        }
+        try {
+          return await futuresLiquidityService.analyze(input.symbol, input.depthLimit);
+        } catch (error) {
+          if (error instanceof FuturesLiquidityValidationError) {
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Данные стакана или фьючерсного рынка не прошли проверку." });
+          }
+          if (error instanceof FuturesProviderError) {
+            if (error.kind === "rate-limit") {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Binance Futures ограничила частоту запросов." });
+            }
+            if (error.kind === "timeout" || error.kind === "network" || (error.status !== undefined && error.status >= 500)) {
+              throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Источник Futures временно недоступен." });
+            }
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Источник Futures вернул неподходящий ответ." });
+          }
+          console.error("[Futures Intelligence] Analysis failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Анализ ликвидности временно недоступен." });
+        }
+      }),
   }),
 
   backtesting: router({
