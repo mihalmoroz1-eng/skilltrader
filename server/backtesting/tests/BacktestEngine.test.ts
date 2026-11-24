@@ -49,7 +49,7 @@ describe("historical backtesting engine", () => {
 
   it("rejects historical gaps rather than calculating across missing candles", () => {
     const candles = series([10, 10, 10, 12, 14, 16, 18, 20]);
-    candles[5] = { ...candles[5], openTime: candles[5].openTime + 60_000, closeTime: candles[5].closeTime + 60_000 };
+    candles.splice(5, 1);
     expect(() => runBacktest(candles, config)).toThrow(BacktestInputError);
   });
 
