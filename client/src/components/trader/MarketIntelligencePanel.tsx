@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, BrainCircuit, CheckCircle2, CircleAlert, Play, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { appendSignalAuditEvent, readSignalAuditJournal } from "@/lib/signalAuditJournal";
+import type { SignalAuditEvent } from "@shared/signalValidation";
 import "./MarketIntelligencePanel.css";
 
 const OFFLINE_MODE = import.meta.env.VITE_APP_MODE === "android-demo";
@@ -58,6 +60,31 @@ const RISK_EVIDENCE_LABELS: Record<string, string> = {
   price_extension_from_ema20: "Отклонение цены от EMA 20 не менее 1,5%",
   indicator_disagreement: "Часть индикаторов расходится",
 };
+const SIGNAL_STATUS_LABELS: Record<string, string> = {
+  reviewable: "Готов к аналитическому просмотру",
+  rejected: "Отклонён проверками",
+  inconclusive: "Недостаточно подтверждений",
+  no_candidate: "Кандидат не сформирован",
+};
+const CHECK_LABELS: Record<string, string> = {
+  market_data_integrity: "Качество и свежесть данных",
+  agent_consensus: "Согласованность AI-агентов",
+  directional_evidence: "Подтверждение направления",
+  strategy_alignment: "Соответствие контексту стратегии",
+  technical_risk_gate: "Детерминированный технический фильтр риска",
+  account_risk_engine: "Серверный расчёт денежного риска и размера позиции",
+};
+const CHECK_STATE_LABELS: Record<string, string> = {
+  passed: "Пройдено",
+  failed: "Не пройдено",
+  inconclusive: "Не подтверждено",
+  not_connected: "Не подключён",
+};
+const AUDIT_EVENT_LABELS: Record<SignalAuditEvent["eventType"], string> = {
+  candidate_recorded: "Кандидат записан",
+  accepted_for_further_review: "Принят для дальнейшей проверки",
+  dismissed: "Отклонён при ручном просмотре",
+};
 const CONFLICT_LABELS: Record<string, string> = {
   market_strategy_disagreement: "Расхождение Market и Strategy Context",
   market_risk_disagreement: "Расхождение Market и Risk Context",
@@ -104,6 +131,9 @@ function AgentCard({
 
 export default function MarketIntelligencePanel() {
   const [started, setStarted] = useState(false);
+  const [auditEvents, setAuditEvents] = useState<SignalAuditEvent[]>(() => readSignalAuditJournal());
+  const [auditStorageAvailable, setAuditStorageAvailable] = useState<boolean | null>(null);
+  const [auditFeedback, setAuditFeedback] = useState("");
   const auth = trpc.auth.me.useQuery(undefined, {
     enabled: !OFFLINE_MODE,
     retry: false,
@@ -122,6 +152,39 @@ export default function MarketIntelligencePanel() {
     void query.refetch();
   };
 
+  const data = query.data;
+  const signalValidation = data?.signalValidation;
+  const signalCandidate = signalValidation?.candidate;
+
+  useEffect(() => {
+    if (!signalCandidate || !signalValidation) return;
+    const stored = appendSignalAuditEvent({
+      signalId: signalCandidate.signalId,
+      marketRunId: signalCandidate.marketRunId,
+      validationDigest: signalValidation.provenance.validationDigest,
+      eventType: "candidate_recorded",
+      noteCode: "automatic_record",
+    }, signalCandidate.createdAt);
+    setAuditEvents(readSignalAuditJournal());
+    setAuditStorageAvailable(stored);
+  }, [signalCandidate?.signalId]);
+
+  const recordManualDecision = (accepted: boolean) => {
+    if (!signalCandidate || !signalValidation) return;
+    const stored = appendSignalAuditEvent({
+      signalId: signalCandidate.signalId,
+      marketRunId: signalCandidate.marketRunId,
+      validationDigest: signalValidation.provenance.validationDigest,
+      eventType: accepted ? "accepted_for_further_review" : "dismissed",
+      noteCode: accepted ? "manual_review_accepted" : "manual_review_dismissed",
+    });
+    setAuditEvents(readSignalAuditJournal());
+    setAuditStorageAvailable(stored);
+    setAuditFeedback(stored
+      ? accepted ? "Решение записано в локальный журнал." : "Отклонение записано в локальный журнал."
+      : "Не удалось сохранить событие в локальный журнал устройства.");
+  };
+
   if (OFFLINE_MODE) {
     return (
       <section className="panel market-intelligence-panel">
@@ -133,8 +196,6 @@ export default function MarketIntelligencePanel() {
       </section>
     );
   }
-
-  const data = query.data;
 
   return (
     <section className="panel market-intelligence-panel" aria-labelledby="market-intelligence-title">
@@ -219,6 +280,101 @@ export default function MarketIntelligencePanel() {
                 : <span className="market-intelligence-none">Конфликтные коды не возвращены</span>}
             </AgentCard>
           </div>
+
+          {data.signalValidation && (
+            <section className="market-signal-validation" aria-labelledby="market-signal-title">
+              <div className="market-signal-heading">
+                <div>
+                  <div className="eyebrow">SIGNAL VALIDATION ENGINE</div>
+                  <h3 id="market-signal-title">Проверка кандидата сигнала</h3>
+                </div>
+                <span className={`market-signal-status is-${data.signalValidation.status}`}>
+                  {SIGNAL_STATUS_LABELS[data.signalValidation.status] ?? data.signalValidation.status}
+                </span>
+              </div>
+
+              {data.signalValidation.candidate ? (
+                <div className="market-signal-candidate">
+                  <div className="market-signal-direction">
+                    <span>КАНДИДАТ НАПРАВЛЕНИЯ</span>
+                    <strong className={data.signalValidation.candidate.direction === "LONG" ? "is-long" : "is-short"}>
+                      {data.signalValidation.candidate.direction}
+                    </strong>
+                    <small>{data.signalValidation.candidate.symbol} · {data.signalValidation.candidate.interval}</small>
+                  </div>
+                  <div className="market-signal-thesis">
+                    <strong>Подтверждающие свидетельства</strong>
+                    <EvidenceList codes={data.signalValidation.candidate.thesisCodes} labels={EVIDENCE_LABELS} />
+                  </div>
+                </div>
+              ) : (
+                <p className="market-intelligence-note">По текущим правилам подтверждённый кандидат направления не сформирован.</p>
+              )}
+
+              <div className="market-signal-checks">
+                {data.signalValidation.checks.map((check) => (
+                  <div className="market-signal-check" key={check.key}>
+                    <span>{CHECK_LABELS[check.key] ?? check.key}</span>
+                    <strong className={`is-${check.state}`}>{CHECK_STATE_LABELS[check.state] ?? check.state}</strong>
+                  </div>
+                ))}
+              </div>
+
+              {data.signalValidation.rejectedReasonCodes.length > 0 && (
+                <div className="market-signal-reasons">
+                  <strong>Причины и ограничения</strong>
+                  <ul>
+                    {data.signalValidation.rejectedReasonCodes.map((code, index) => (
+                      <li key={`${code}-${index}`}>{code.replace(/_/g, " ")}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {data.signalValidation.warnings.map((warning) => (
+                <p className="market-signal-warning" key={warning}>{warning}</p>
+              ))}
+
+              {data.signalValidation.status === "reviewable" && data.signalValidation.candidate && (
+                <div className="market-signal-review-actions">
+                  <button type="button" onClick={() => recordManualDecision(true)}>
+                    Принять для дальнейшей проверки
+                  </button>
+                  <button type="button" className="is-dismiss" onClick={() => recordManualDecision(false)}>
+                    Отклонить кандидат
+                  </button>
+                </div>
+              )}
+              {auditFeedback && <p className="market-intelligence-note" role="status">{auditFeedback}</p>}
+
+              <details className="market-signal-audit">
+                <summary>Локальный журнал происхождения · {auditEvents.length} событий</summary>
+                <p>
+                  {auditStorageAvailable === false
+                    ? "Хранилище устройства недоступно. События не были сохранены."
+                    : "Журнал находится только в хранилище этого браузера и не является защищённым серверным аудитом."}
+                </p>
+                {auditEvents.length === 0
+                  ? <span className="market-intelligence-none">Пока нет записей</span>
+                  : (
+                    <ul>
+                      {auditEvents.slice(-8).reverse().map((event) => (
+                        <li key={event.eventId}>
+                          <strong>{AUDIT_EVENT_LABELS[event.eventType]}</strong>
+                          <span>{new Date(event.occurredAt).toLocaleString("ru-RU")}</span>
+                          <code>{event.signalId}</code>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+              </details>
+
+              <div className="market-signal-no-execution">
+                <ShieldCheck size={15} />
+                <span>Только ручной аналитический просмотр. Исполнение заблокировано: серверный Account Risk Engine не подключён. Ордеры не отправляются.</span>
+              </div>
+            </section>
+          )}
 
           {data.warnings.length > 0 && (
             <ul className="market-intelligence-warnings">
