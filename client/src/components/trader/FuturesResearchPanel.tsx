@@ -114,7 +114,7 @@ export default function FuturesResearchPanel() {
             </label>
           </div>
           <div className="futures-actions">
-            <button type="button" onClick={() => setFuturesEnabled(true)} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || futures.isFetching}>
+            <button type="button" onClick={() => { if (futuresEnabled) void futures.refetch(); else setFuturesEnabled(true); }} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || futures.isFetching}>
               <RefreshCw size={14} /> {futures.isFetching ? "Загрузка…" : "Получить Futures контекст"}
             </button>
             <button type="button" className="futures-research-button" onClick={() => research.mutate({ symbol: symbol.trim().toUpperCase(), interval, limit: 96 })} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || research.isPending}>
