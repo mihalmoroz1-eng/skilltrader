@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import PriceChart from "@/components/trader/PriceChart";
+import LiveMarketDataPanel from "@/components/trader/LiveMarketDataPanel";
 import ScenarioChart from "@/components/trader/ScenarioChart";
 import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
@@ -313,6 +314,7 @@ export default function Home() {
 
           <div className="main-grid">
             <div className="chart-column">
+              <LiveMarketDataPanel />
               <PriceChart candles={candles} symbol={market.symbol} entry={entry} stop={stop} target={target} side={side} timeframe={timeframe} onTimeframeChange={setTimeframe} formatPrice={priceFormatter} />
               <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} isStale={!simulationIsReady} levelsValid={validLevels} />
             </div>
