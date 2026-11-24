@@ -79,10 +79,15 @@ export class HistoricalDataIngestionService {
       if (page.length > pageLimit) throw new HistoricalDataRequestError("Provider exceeded requested page limit");
       if (page.length === 0) break;
       validateCandles(page);
+      if (page[0].openTime < cursor) {
+        throw new HistoricalDataRequestError("Provider page starts before the requested pagination cursor");
+      }
+      if (page.some(candle => candle.openTime < input.startTime || candle.openTime > input.endTime)) {
+        throw new HistoricalDataRequestError("Provider returned candles outside the requested time range");
+      }
 
       let lastOpenTime = -1;
       for (const candle of page) {
-        if (candle.openTime < input.startTime || candle.openTime > input.endTime) continue;
         if (candle.openTime <= lastOpenTime) {
           throw new HistoricalDataRequestError("Provider page is not strictly ordered");
         }
