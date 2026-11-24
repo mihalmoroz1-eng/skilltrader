@@ -37,6 +37,16 @@ describe("historical backtesting engine", () => {
     expect(result.trades[0].entryTime).toBeGreaterThan(candles[config.slowEmaPeriod].openTime);
   });
 
+  it("assumes stop-loss first when stop and target are both touched in one candle", () => {
+    const candles = series([10, 10, 10, 12, 14, 16, 18, 20, 18, 16, 14, 12]);
+    const entryCandle = candles[4];
+    candles[4] = { ...entryCandle, high: "20", low: "1" };
+    const result = runBacktest(candles, config);
+    expect(result.trades[0]?.entryTime).toBe(candles[4].openTime);
+    expect(result.trades[0]?.exitReason).toBe("stop_loss");
+    expect(result.trades[0]?.exitTime).toBe(candles[4].closeTime);
+  });
+
   it("rejects historical gaps rather than calculating across missing candles", () => {
     const candles = series([10, 10, 10, 12, 14, 16, 18, 20]);
     candles[5] = { ...candles[5], openTime: candles[5].openTime + 60_000, closeTime: candles[5].closeTime + 60_000 };
