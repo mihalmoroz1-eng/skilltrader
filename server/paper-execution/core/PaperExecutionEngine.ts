@@ -16,9 +16,12 @@ function format(value: bigint): string {
 }
 function mul(left: bigint, right: bigint): bigint { return left * right / SCALE; }
 function bps(value: bigint, rate: number): bigint { return value * BigInt(rate) / 10_000n; }
-function slippagePrice(price: bigint, rate: number, adverseUp: boolean): bigint {
+function slippagePrice(price: bigint, rate: number, adverseUp: boolean, tick: bigint): bigint {
   const factor = BigInt(10_000 + (adverseUp ? rate : -rate));
-  return price * factor / 10_000n;
+  const slipped = price * factor / 10_000n;
+  const remainder = slipped % tick;
+  if (remainder === 0n) return slipped;
+  return adverseUp ? slipped + tick - remainder : slipped - remainder;
 }
 function alignToTick(price: string, tick: string): boolean {
   const p = parse(price), t = parse(tick);
@@ -144,7 +147,7 @@ export function preparePaperPosition(input: {
   const entryRaw = parse(input.markPrice);
   const stop = parse(input.stopPrice);
   const target = parse(input.targetPrice);
-  const entry = slippagePrice(entryRaw, account.slippageBps, signal.direction === "LONG");
+  const tick = parse(instrument.tickSize);\n  const entry = slippagePrice(entryRaw, account.slippageBps, signal.direction === "LONG", tick);
   if (signal.direction === "LONG" ? (stop >= entry || target <= entry) : (stop <= entry || target >= entry)) {
     throw new PaperExecutionError("Stop and target must be on the correct side of the PAPER entry price");
   }
@@ -231,7 +234,7 @@ export function closePaperPosition(input: {
     throw new PaperExecutionError("PAPER close time is invalid");
   }
   const mark = parse(input.markPrice);
-  const exit = slippagePrice(mark, input.slippageBps, position.side === "SHORT");
+  const exit = slippagePrice(mark, input.slippageBps, position.side === "SHORT", parse(position.tickSize));
   const entry = parse(position.entryPrice);
   const quantity = parse(position.quantity);
   const multiplier = parse(position.contractMultiplier);
