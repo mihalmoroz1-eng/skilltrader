@@ -78,7 +78,7 @@ describe("PAPER execution engine", () => {
     const position = opened.position!;
     const marked = calculatePaperMarkedNotional(position, "110.0");
     expect(Number(marked)).toBeGreaterThan(Number(position.notional));
-    expect(calculatePaperMarkedNotional(position, "90.0")).toBeLessThan(position.notional);
+    expect(Number(calculatePaperMarkedNotional(position, "90.0"))).toBeLessThan(Number(position.notional));
   });
 
   it("marks open positions to market and preserves signed losses in fixed-point sums", () => {
