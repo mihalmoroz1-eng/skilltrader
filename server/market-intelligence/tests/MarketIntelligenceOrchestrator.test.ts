@@ -208,6 +208,17 @@ describe("trust-gated market intelligence orchestrator", () => {
     expect(output.warnings.some((warning) => warning.includes("inconclusive"))).toBe(true);
   });
 
+  it("treats insufficient critic evidence as inconclusive", async () => {
+    const now = Date.UTC(2026, 10, 24, 12, 0, 0);
+    const call = fakeModelCall({
+      critic: { verdict: "insufficient_evidence", conflictCodes: [] },
+    });
+    const orchestrator = new MarketIntelligenceOrchestrator(call, () => now);
+    const output = await orchestrator.analyze(createProcessed(now));
+    expect(output.status).toBe("inconclusive");
+    expect(output.critic.verdict).toBe("insufficient_evidence");
+  });
+
   it("rejects model evidence codes not present in server-derived evidence", async () => {
     const now = Date.UTC(2026, 10, 24, 12, 0, 0);
     const call = fakeModelCall({
