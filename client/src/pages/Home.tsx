@@ -32,6 +32,7 @@ import DemoJournal from "@/components/trader/DemoJournal";
 import RiskPanel from "@/components/trader/RiskPanel";
 import CandleTimer from "@/components/trader/CandleTimer";
 import DeferredTraderAIChat from "@/components/trader/DeferredTraderAIChat";
+import OfflineAIUnavailable from "@/components/trader/OfflineAIUnavailable";
 import AccountSettingsModal from "@/components/trader/AccountSettingsModal";
 import type { CandleTimeframe } from "@/lib/candleTimer";
 import { readDemoAccountSettings, writeDemoAccountSettings, type DemoAccountSettings } from "@/lib/demoAccountSettings";
@@ -61,6 +62,10 @@ const FUTURE_MODULES = [
   { label: "Монитор новостей", icon: Newspaper },
   { label: "Таймер входа", icon: Clock3 },
 ];
+
+const TraderAISection = import.meta.env.VITE_APP_MODE === "android-demo"
+  ? OfflineAIUnavailable
+  : DeferredTraderAIChat;
 
 function formatPriceFor(market: Market, value: number) {
   return value.toLocaleString("en-US", { minimumFractionDigits: market.decimals, maximumFractionDigits: market.decimals });
@@ -340,7 +345,7 @@ export default function Home() {
             onDelete={deleteDemoTrade}
           />
 
-          <DeferredTraderAIChat
+          <TraderAISection
             simulationReady={simulationIsReady}
             scenario={{
               symbol: market.symbol,

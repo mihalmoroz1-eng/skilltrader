@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Skill Trader Demo</string>
+    <string name="title_activity_main">Skill Trader Demo</string>
+    <string name="package_name">com.skilltrader.demo</string>
+    <string name="custom_url_scheme">com.skilltrader.demo</string>
+</resources>

@@ -50,11 +50,25 @@
 - `server/traderAssistant.ts`: system policy, строгие JSON-схемы трёх этапов, серверные intent/risk gates, сериализация истории как недоверенных данных, серверные расчёты, ограниченный final-output screen/fallback и in-memory rate limits.
 - `server/_core/llm.ts`: `invokeLLM` с поддержкой ограниченного per-call `maxRetries`, сохранением прежнего значения по умолчанию и GPT `max_completion_tokens`; credentials никогда не отправляются в браузер.
 - `server/*.test.ts`: mock-тесты проверяют порядок трёх этапов, JSON schema/payload, границы данных, остановку на некорректном output, отсутствие автоматического retry и максимум три model calls без платных model-запросов в unit suite.
-- `README.md`, `TODO.md`, `docs/demo/`, `docs/trader-ai-model-notes.md`: ограничения, фактическое число вызовов, credits/latency, проверки и актуальные снимки.
+- `README.md`, `TODO.md`, `docs/demo/`, `docs/trader-ai-model-notes.md`, `docs/mobile-apk-tradingview-research.md`, `docs/offline-demo-apk.md`, `docs/ai-backend-mobile-architecture.md`, `docs/tradingview-mobile-bridge.md`: ограничения, фактическое число вызовов, credits/latency, проверки и мобильные интеграционные ограничения.
 
 ## Однонаправленная инфраструктура
 
 Владелец подтвердил включение server backend. Не включать Database и не запускать Publish; оставить `auto_publish=false`. Перед общедоступной публикацией отдельно добавить долговременное управление пользователями/ролями и распределённые ограничения API: stateless session role mapping и in-memory limiter сейчас рассчитаны только на закрытый прототип.
+
+## Android APK и внешние интеграции
+
+### Офлайн демо-APK
+
+Существующий React/Vite-клиент упакован в Android через Capacitor, копируя собранные `dist/public` assets в приложение. Используется существующий мобильный дизайн; синтетические графики, сценарные расчёты и локальный журнал/настройки остаются доступны. Офлайн APK не содержит Express/tRPC backend: AI-панель ясно сообщает об офлайн-режиме, не отправляет запросы и не имитирует ответы модели. Android Manifest удаляет INTERNET permission, включая декларации библиотек. Реальные котировки, ордера и автоматические действия отключены. Debug APK не публикуется в Play Store; сайт/API не публикуются.
+
+### AI-backend для Android
+
+Полноценный AI в APK возможен только при доступном по HTTPS API. Для Android потребуется отдельный configurable API origin, проверка OAuth/CORS/cookies с Capacitor WebView и сохранение модельных credentials исключительно на сервере. Текущий relative `/api/trpc` адрес в упакованном WebView не указывает на Express server. Backend deployment/publication, Database/Redis и платные live model calls не разрешены данным этапом; сначала подготовить архитектуру и требования, сохраняя `auto_publish=false`.
+
+### TradingView MCP
+
+Desktop MCP из пользовательского видео использует `stdio` и CDP локального TradingView Desktop, поэтому напрямую из Android не вызывается. Не открывать CDP порт в сеть и не проксировать произвольные команды. Официальный hosted MCP — отдельная OAuth/Streamable HTTP интеграция, для которой поддержка произвольного стороннего APK не подтверждена; соблюдать условия по личному использованию и данным. Исследовать только интерактивный read-only режим; инструменты изменения графика/alert/watchlist/Pine, replay actions и любые ордера не включать. Пока нет подтверждённого supported client/authorization, в APK оставить TradingView отключённым; выдавать только синтетические данные.
 
 ## Подготовка к релизу без публикации
 
