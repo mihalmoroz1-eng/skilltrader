@@ -108,7 +108,7 @@ export class DrizzlePaperExecutionStore {
       userOpenId: signal.userOpenId, signalId: signal.signalId, marketRunId: signal.marketRunId,
       validationDigest: signal.validationDigest, marketEvidenceDigest: signal.marketEvidenceDigest,
       symbol: signal.symbol, interval: signal.interval, direction: signal.direction,
-      thesisCodes: JSON.stringify(signal.thesisCodes), status: "pending",
+      thesisCodes: JSON.stringify(signal.thesisCodes), status: "pending", createdAt: new Date(signal.createdAt),
     }).onDuplicateKeyUpdate({ set: { signalId: sql`signalId` } });
     await db.insert(paperEvents).values({
       userOpenId: signal.userOpenId, eventType: "signal_recorded", entityId: signal.signalId,
@@ -165,7 +165,8 @@ export class DrizzlePaperExecutionStore {
     userOpenId: string; signalId: string; position: PaperPosition;
     expectedCashBalance: string; expectedDailyLoss: string; expectedDailyLossDate: string;
     expectedOpenNotional: string; expectedOpenPositions: number;
-    newCashBalance: string; newDailyLoss: string; dailyLossDate: string; now: number;
+    newCashBalance: string; newDailyLoss: string; dailyLossDate: string;
+    expectedSignalCreatedAt: number; now: number;
   }): Promise<PaperPosition> {
     const db = await getDb();
     if (!db) throw new Error("PAPER database is unavailable");
@@ -182,6 +183,10 @@ export class DrizzlePaperExecutionStore {
       const openNotional = formatScaled(openRows.reduce((sum, row) => sum + parseScaled(row.notional), 0n));
       if (!account || !signal || signal.status !== "accepted") {
         throw new PaperStateConflictError("PAPER account or accepted signal changed before position open");
+      }
+      const signalCreatedAt = signal.createdAt.getTime();
+      if (signalCreatedAt !== input.expectedSignalCreatedAt || input.now < signalCreatedAt || input.now - signalCreatedAt > 5 * 60_000) {
+        throw new PaperStateConflictError("Signal approval expired before position open");
       }
       if (account.cashBalance !== input.expectedCashBalance ||
           account.realizedDailyLoss !== input.expectedDailyLoss ||
