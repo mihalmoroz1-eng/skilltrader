@@ -1,5 +1,5 @@
 import { normalizeBinanceKlines } from "../../market-data/core/MarketDataNormalizer";
-import type { MarketInterval } from "../../market-data/core/MarketDataTypes";
+import { isMarketInterval, type MarketInterval } from "../../market-data/core/MarketDataTypes";
 import { MarketDataProviderError } from "../../market-data/providers/BinanceSpotProvider";
 import type { HistoricalCandleProvider } from "../core/HistoricalDataTypes";
 
@@ -13,13 +13,13 @@ export class BinanceSpotHistoricalProvider implements HistoricalCandleProvider {
     private readonly fetchImpl: typeof fetch = (...args) => globalThis.fetch(...args),
     private readonly timeoutMs = 10_000,
   ) {
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new Error("timeoutMs must be positive");
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) throw new Error("timeoutMs must be a supported positive integer");
   }
 
   async fetchCandles(
     symbol: string, interval: MarketInterval, startTime: number, endTime: number, limit: number,
   ) {
-    if (!/^[A-Z0-9]{2,20}$/.test(symbol) ||
+    if (!/^[A-Z0-9]{2,20}$/.test(symbol) || !isMarketInterval(interval) ||
         !Number.isSafeInteger(startTime) || !Number.isSafeInteger(endTime) ||
         startTime < 0 || endTime <= startTime || !Number.isInteger(limit) || limit < 1 || limit > 1000) {
       throw new MarketDataProviderError("Invalid historical request", "invalid-request");
