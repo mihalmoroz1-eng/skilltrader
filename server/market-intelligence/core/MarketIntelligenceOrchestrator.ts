@@ -349,6 +349,9 @@ function assertTrustGate(processed: ProcessedMarketData, now: number): void {
   if (processed.freshness !== "live" && processed.freshness !== "cached") {
     throw new MarketIntelligenceTrustGateError("source_freshness_invalid");
   }
+  if (processed.fetchedAt > processed.processedAt) {
+    throw new MarketIntelligenceTrustGateError("source_fetch_after_processing");
+  }
   if (now - processed.fetchedAt > MAX_DATA_AGE_MS) {
     throw new MarketIntelligenceTrustGateError("source_data_stale");
   }
