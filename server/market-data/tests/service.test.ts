@@ -27,7 +27,7 @@ describe("market data service", () => {
     expect(first.source).toBe("binance-spot");
     expect(first.freshness).toBe("live");
     expect(first.candles[0].close).toBe(103);
-    expect(second).toEqual(first);
+    expect(second).toEqual({ ...first, freshness: "cached" });
     expect(provider.fetchCandles).toHaveBeenCalledTimes(1);
   });
 
