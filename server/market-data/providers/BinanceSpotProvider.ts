@@ -45,9 +45,19 @@ async function readJsonBody(response: Response, maxBytes: number): Promise<unkno
   }
 
   if (!response.body) {
-    const text = await response.text();
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (error) {
+      const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+      throw new MarketDataProviderError(
+        timedOut ? "Binance response body timed out" : "Binance response stream failed",
+        timedOut ? "timeout" : "network",
+        response.status,
+      );
+    }
     if (new TextEncoder().encode(text).byteLength > maxBytes) {
-      throw new MarketDataProviderError("Binance response exceeded the configured size limit", "response-too-large");
+      throw new MarketDataProviderError("Binance response exceeded the configured size limit", "response-too-large", response.status);
     }
     try {
       return JSON.parse(text) as unknown;
@@ -75,6 +85,14 @@ async function readJsonBody(response: Response, maxBytes: number): Promise<unkno
       }
       chunks.push(value);
     }
+  } catch (error) {
+    if (error instanceof MarketDataProviderError) throw error;
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new MarketDataProviderError(
+      timedOut ? "Binance response body timed out" : "Binance response stream failed",
+      timedOut ? "timeout" : "network",
+      response.status,
+    );
   } finally {
     reader.releaseLock();
   }
