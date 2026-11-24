@@ -218,6 +218,33 @@ export function preparePaperPosition(input: {
   };
 }
 
+export function sumPaperDecimals(values: string[]): string {
+  return format(values.reduce((sum, value) => sum + parse(value), 0n));
+}
+
+export function calculatePaperUnrealizedPnl(
+  position: PaperPosition,
+  markPrice: string,
+  feeBps: number,
+  slippageBps: number,
+): { grossPnl: string; estimatedExitFee: string; netUnrealizedPnl: string } {
+  if (position.status !== "open") throw new PaperExecutionError("Only open PAPER positions can be marked");
+  const mark = parse(markPrice);
+  const exit = slippagePrice(mark, slippageBps, position.side === "SHORT", parse(position.tickSize));
+  const entry = parse(position.entryPrice);
+  const quantity = parse(position.quantity);
+  const multiplier = parse(position.contractMultiplier);
+  const sign = position.side === "LONG" ? 1n : -1n;
+  const grossPnl = mul(mul(exit - entry, quantity), multiplier) * sign;
+  const exitNotional = mul(mul(exit, quantity), multiplier);
+  const estimatedExitFee = bps(exitNotional, feeBps);
+  return {
+    grossPnl: format(grossPnl),
+    estimatedExitFee: format(estimatedExitFee),
+    netUnrealizedPnl: format(grossPnl - estimatedExitFee),
+  };
+}
+
 export function closePaperPosition(input: {
   position: PaperPosition;
   markPrice: string;
