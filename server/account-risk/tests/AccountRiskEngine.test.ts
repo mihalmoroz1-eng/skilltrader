@@ -39,7 +39,7 @@ describe("AccountRiskEngine", () => {
     expect(result.status).toBe("approved_for_paper_review");
   });
   it("rejects when exposure cannot satisfy the minimum quantity", () => {
-    const result = evaluateAccountRisk(makeInput({ account: { currentOpenNotional: "499999" } }));
+    const result = evaluateAccountRisk(makeInput({ account: { currentOpenNotional: "500000" } }));
     expect(result.status).toBe("rejected");
     expect(result.sizing.quantity).toBeNull();
   });
