@@ -50,7 +50,7 @@ Cache entries and the per-user limiter are process-local, are lost on restart, a
 
 - Public market-data access is subject to Binance availability, geographic restrictions and rate limits.
 - The latest returned candle may still be forming. Consumers must inspect its close time and current time before treating it as final.
-- Historical backfill, WebSocket streaming, news, additional exchanges and UI integration are not included.
+- The UI panel currently displays only BTC/USDT Spot, with a 96-candle 15-minute window and 30-second polling. Historical backfill, WebSocket streaming, news, additional exchanges and integration into the existing demo chart are not included.
 - No account connection, AI-generated trade signal, paper order or live order is implemented here.
 - Provider data is market information, not an investment recommendation or guaranteed forecast.
 - The read-only endpoint does not make the existing offline APK online and does not authorize deployment or publication.
