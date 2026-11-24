@@ -98,6 +98,7 @@ export const paperPositions = mysqlTable("paper_positions", {
   stopPrice: varchar("stopPrice", { length: 40 }).notNull(),
   targetPrice: varchar("targetPrice", { length: 40 }),
   contractMultiplier: varchar("contractMultiplier", { length: 40 }).notNull(),
+  tickSize: varchar("tickSize", { length: 40 }).notNull(),
   entryFee: varchar("entryFee", { length: 40 }).notNull(),
   status: mysqlEnum("status", ["open", "closed"]).default("open").notNull(),
   openedAt: bigint("openedAt", { mode: "number" }).notNull(),
@@ -110,6 +111,7 @@ export const paperPositions = mysqlTable("paper_positions", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
+  userSignalUnique: uniqueIndex("paper_positions_user_signal_unique").on(table.userOpenId, table.signalId),
   userStatusIndex: index("paper_positions_user_status_idx").on(table.userOpenId, table.status),
   userSymbolIndex: index("paper_positions_user_symbol_idx").on(table.userOpenId, table.symbol),
 }));
