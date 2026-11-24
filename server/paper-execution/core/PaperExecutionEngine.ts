@@ -231,6 +231,16 @@ export function sumPaperDecimals(values: string[]): string {
   return format(values.reduce((sum, value) => sum + parse(value), 0n));
 }
 
+/** Current gross exposure at the public mark price, using fixed-point arithmetic. */
+export function calculatePaperMarkedNotional(position: PaperPosition, markPrice: string): string {
+  if (position.status !== "open") throw new PaperExecutionError("Only open PAPER positions have marked notional");
+  const mark = parse(markPrice);
+  if (mark <= 0n) throw new PaperExecutionError("Mark price must be positive");
+  const quantity = parse(position.quantity);
+  const multiplier = parse(position.contractMultiplier);
+  return format(mul(mul(mark, quantity), multiplier));
+}
+
 export function calculatePaperUnrealizedPnl(
   position: PaperPosition,
   markPrice: string,
