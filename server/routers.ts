@@ -28,6 +28,11 @@ import { BinanceUsdMFuturesProvider, FuturesProviderError } from "./futures-inte
 import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futures-intelligence/core/FuturesLiquidityService";
 import { researchAgentRequestSchema } from "@shared/researchAgent";
 import { ResearchAgent, ResearchAgentCallError, ResearchAgentOutputError, ResearchAgentTrustGateError } from "./research-agent/core/ResearchAgent";
+import { paperAccountInitializeSchema, paperSignalActionSchema, paperOpenPositionSchema, paperClosePositionSchema } from "@shared/paperExecution";
+import { PaperExecutionService } from "./paper-execution/core/PaperExecutionService";
+import { DrizzlePaperExecutionStore, PaperStateConflictError } from "./paper-execution/core/DrizzlePaperExecutionStore";
+import { PaperExecutionError } from "./paper-execution/core/PaperExecutionEngine";
+import { BinanceUsdMInstrumentRulesProvider } from "./paper-execution/providers/BinanceUsdMInstrumentRulesProvider";
 
 
 const marketDataService = new MarketDataService(new BinanceSpotProvider());
@@ -37,6 +42,11 @@ const historicalDataService = new HistoricalDataIngestionService(
 const marketIntelligenceOrchestrator = new MarketIntelligenceOrchestrator();
 const futuresLiquidityService = new FuturesLiquidityService(new BinanceUsdMFuturesProvider());
 const researchAgent = new ResearchAgent();
+const paperExecutionService = new PaperExecutionService(
+  new DrizzlePaperExecutionStore(),
+  new BinanceUsdMInstrumentRulesProvider(),
+  new BinanceUsdMFuturesProvider(),
+);
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -49,6 +59,91 @@ export const appRouter = router({
       return {
         success: true,
       } as const;
+    }),
+  }),
+
+  paper: router({
+    initialize: protectedProcedure
+      .input(paperAccountInitializeSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await paperExecutionService.initializeAccount(ctx.user.openId, input);
+        } catch (error) {
+          if (error instanceof PaperExecutionError) throw new TRPCError({ code: "CONFLICT", message: error.message });
+          console.error("[PAPER] Account initialization failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "PAPER-счёт временно недоступен." });
+        }
+      }),
+    portfolio: protectedProcedure.query(async ({ ctx }) => {
+      try {
+        return await paperExecutionService.getPortfolio(ctx.user.openId);
+      } catch (error) {
+        console.error("[PAPER] Portfolio read failed", error instanceof Error ? error.name : "unknown");
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "PAPER-портфель временно недоступен." });
+      }
+    }),
+    acceptSignal: protectedProcedure
+      .input(paperSignalActionSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await paperExecutionService.acceptSignal(ctx.user.openId, input.signalId);
+        } catch (error) {
+          if (error instanceof PaperStateConflictError) throw new TRPCError({ code: "CONFLICT", message: error.message });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Сигнал нельзя принять в текущем статусе." });
+        }
+      }),
+    dismissSignal: protectedProcedure
+      .input(paperSignalActionSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await paperExecutionService.dismissSignal(ctx.user.openId, input.signalId);
+        } catch (error) {
+          if (error instanceof PaperStateConflictError) throw new TRPCError({ code: "CONFLICT", message: error.message });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Сигнал нельзя отклонить в текущем статусе." });
+        }
+      }),
+    open: protectedProcedure
+      .input(paperOpenPositionSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много PAPER-операций. Повторите позже." });
+        try {
+          return await paperExecutionService.openPosition(ctx.user.openId, input);
+        } catch (error) {
+          if (error instanceof PaperStateConflictError) throw new TRPCError({ code: "CONFLICT", message: error.message });
+          if (error instanceof PaperExecutionError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
+          if (error instanceof FuturesProviderError) {
+            if (error.kind === "rate-limit") throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Binance Futures ограничила частоту запросов." });
+            throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Рыночная цена или правила инструмента временно недоступны." });
+          }
+          console.error("[PAPER] Position open failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Не удалось открыть виртуальную PAPER-позицию." });
+        }
+      }),
+    close: protectedProcedure
+      .input(paperClosePositionSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много PAPER-операций. Повторите позже." });
+        try {
+          return await paperExecutionService.closePosition(ctx.user.openId, input.positionId);
+        } catch (error) {
+          if (error instanceof PaperStateConflictError) throw new TRPCError({ code: "CONFLICT", message: error.message });
+          if (error instanceof PaperExecutionError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
+          if (error instanceof FuturesProviderError) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Текущая цена недоступна; позиция не закрыта." });
+          console.error("[PAPER] Position close failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Не удалось закрыть виртуальную PAPER-позицию." });
+        }
+      }),
+    sync: protectedProcedure.mutation(async ({ ctx }) => {
+      const rate = marketDataRateLimiter.consume(ctx.user.openId);
+      if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много PAPER-операций. Повторите позже." });
+      try {
+        return await paperExecutionService.syncPositions(ctx.user.openId);
+      } catch (error) {
+        console.error("[PAPER] Position sync failed", error instanceof Error ? error.name : "unknown");
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Не удалось обновить PAPER-позиции." });
+      }
     }),
   }),
 
@@ -301,7 +396,15 @@ export const appRouter = router({
           const processed = processMarketData(snapshot);
           const analysis = await marketIntelligenceOrchestrator.analyze(processed);
           const signalValidation = validateSignalCandidate(analysis);
-          return { ...analysis, signalValidation };
+          let paperReviewRecordStored = false;
+          if (signalValidation.status === "reviewable") {
+            try {
+              paperReviewRecordStored = await paperExecutionService.recordSignalReview(ctx.user.openId, signalValidation);
+            } catch (error) {
+              console.warn("[PAPER] Could not persist reviewable signal", error instanceof Error ? error.name : "unknown");
+            }
+          }
+          return { ...analysis, signalValidation, paperReviewRecordStored };
         } catch (error) {
           if (error instanceof MarketIntelligenceTrustGateError) {
             console.info("[Market Intelligence] Trust gate blocked the run", error.reason);
