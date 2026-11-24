@@ -151,6 +151,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   const closePosition = (
     candle: MarketCandle,
     rawExit: number,
+    exitTime: number,
     exitReason: BacktestTrade["exitReason"],
   ) => {
     if (!position) return;
@@ -164,7 +165,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     equity += grossPnl - exitFee;
     feesPaid += exitFee;
     trades.push({
-      side: current.side, entryTime: current.entryTime, exitTime: candle.closeTime,
+      side: current.side, entryTime: current.entryTime, exitTime,
       entryPrice: current.entryPrice, exitPrice, quantity: current.quantity,
       grossPnl, fees: totalFees, netPnl,
       netReturnPct: current.entryPrice * current.quantity > 0
@@ -174,21 +175,23 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     position = null;
   };
 
-  for (let i = config.slowEmaPeriod; i < candles.length; i += 1) {
+  for (let i = config.slowEmaPeriod + 1; i < candles.length; i += 1) {
     const candle = candles[i];
-    const previous = i - 1;
-    const crossUp = fast[previous] !== null && slow[previous] !== null &&
-      fast[i] !== null && slow[i] !== null &&
-      fast[previous]! <= slow[previous]! && fast[i]! > slow[i]!;
-    const crossDown = fast[previous] !== null && slow[previous] !== null &&
-      fast[i] !== null && slow[i] !== null &&
-      fast[previous]! >= slow[previous]! && fast[i]! < slow[i]!;
+    const signalIndex = i - 1;
+    const priorSignalIndex = i - 2;
+    const crossUp = fast[priorSignalIndex] !== null && slow[priorSignalIndex] !== null &&
+      fast[signalIndex] !== null && slow[signalIndex] !== null &&
+      fast[priorSignalIndex]! <= slow[priorSignalIndex]! && fast[signalIndex]! > slow[signalIndex]!;
+    const crossDown = fast[priorSignalIndex] !== null && slow[priorSignalIndex] !== null &&
+      fast[signalIndex] !== null && slow[signalIndex] !== null &&
+      fast[priorSignalIndex]! >= slow[priorSignalIndex]! && fast[signalIndex]! < slow[signalIndex]!;
 
+    const hadPositionAtStart = position !== null;
     if (position && ((position.side === "LONG" && crossDown) || (position.side === "SHORT" && crossUp))) {
-      closePosition(candle, Number(candle.open), "opposite_signal");
+      closePosition(candle, Number(candle.open), candle.openTime, "opposite_signal");
     }
 
-    if (!position && (crossUp || (config.allowShort && crossDown))) {
+    if (!hadPositionAtStart && !position && (crossUp || (config.allowShort && crossDown))) {
       const side = crossUp ? "LONG" : "SHORT";
       const entryPrice = adverseEntryPrice(Number(candle.open), side, slippageRate);
       const riskBudget = equity * riskRate;
@@ -213,10 +216,10 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       const targetHit = p.side === "LONG" ? Number(candle.high) >= p.targetPrice : Number(candle.low) <= p.targetPrice;
       if (stopHit) {
         const gapAtOpen = p.side === "LONG" ? Number(candle.open) < p.stopPrice : Number(candle.open) > p.stopPrice;
-        closePosition(candle, gapAtOpen ? Number(candle.open) : p.stopPrice, "stop_loss");
+        closePosition(candle, gapAtOpen ? Number(candle.open) : p.stopPrice, candle.closeTime, "stop_loss");
       } else if (targetHit) {
         const gapAtOpen = p.side === "LONG" ? Number(candle.open) > p.targetPrice : Number(candle.open) < p.targetPrice;
-        closePosition(candle, gapAtOpen ? Number(candle.open) : p.targetPrice, "take_profit");
+        closePosition(candle, gapAtOpen ? Number(candle.open) : p.targetPrice, candle.closeTime, "take_profit");
       }
     }
 
@@ -228,7 +231,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     equityCurve.push(markToMarket);
   }
 
-  if (position) closePosition(candles[candles.length - 1], Number(candles[candles.length - 1].close), "end_of_data");
+  if (position) closePosition(candles[candles.length - 1], Number(candles[candles.length - 1].close), candles[candles.length - 1].closeTime, "end_of_data");
 
   const finalEquity = equity;
   const netProfit = finalEquity - config.startingCapital;
