@@ -8,7 +8,7 @@ const binanceRow = [
 
 describe("Binance Spot public provider", () => {
   it("requests public klines without credentials and preserves decimal fields", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify([binanceRow]), {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify([binanceRow]), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }));
@@ -57,9 +57,9 @@ describe("Binance Spot public provider", () => {
     const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
     const provider = new BinanceSpotProvider(fetchMock as typeof fetch);
 
-    await expect(provider.fetchCandles("BTC/USDT", "1m", 2)).rejects.toMatchObject({ kind: "http" });
-    await expect(provider.fetchCandles("BTCUSDT", "2w" as never, 2)).rejects.toMatchObject({ kind: "http" });
-    await expect(provider.fetchCandles("BTCUSDT", "1m", 1_001)).rejects.toMatchObject({ kind: "http" });
+    await expect(provider.fetchCandles("BTC/USDT", "1m", 2)).rejects.toMatchObject({ kind: "invalid-request" });
+    await expect(provider.fetchCandles("BTCUSDT", "2w" as never, 2)).rejects.toMatchObject({ kind: "invalid-request" });
+    await expect(provider.fetchCandles("BTCUSDT", "1m", 1_001)).rejects.toMatchObject({ kind: "invalid-request" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
