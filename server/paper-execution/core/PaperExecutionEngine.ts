@@ -145,8 +145,7 @@ export function preparePaperPosition(input: {
   if (signal.symbol !== instrument.symbol || signal.symbol !== signal.symbol.toUpperCase()) {
     throw new PaperExecutionError("Signal and instrument symbol do not match");
   }
-  if (!alignToTick(input.markPrice, instrument.tickSize) ||
-      !alignToTick(input.stopPrice, instrument.tickSize) ||
+  if (!alignToTick(input.stopPrice, instrument.tickSize) ||
       !alignToTick(input.targetPrice, instrument.tickSize)) {
     throw new PaperExecutionError("Entry, stop and target must align to the instrument tick size");
   }
@@ -154,6 +153,7 @@ export function preparePaperPosition(input: {
   const entryRaw = parse(input.markPrice);
   const stop = parse(input.stopPrice);
   const target = parse(input.targetPrice);
+  if (entryRaw <= 0n || stop <= 0n || target <= 0n) throw new PaperExecutionError("Entry, stop and target must be positive");
   const tick = parse(instrument.tickSize);
   const entry = slippagePrice(entryRaw, account.slippageBps, signal.direction === "LONG", tick);
   if (signal.direction === "LONG" ? (stop >= entry || target <= entry) : (stop <= entry || target >= entry)) {
@@ -239,6 +239,7 @@ export function calculatePaperUnrealizedPnl(
 ): { grossPnl: string; estimatedExitFee: string; netUnrealizedPnl: string } {
   if (position.status !== "open") throw new PaperExecutionError("Only open PAPER positions can be marked");
   const mark = parse(markPrice);
+  if (mark <= 0n) throw new PaperExecutionError("Mark price must be positive");
   const exit = slippagePrice(mark, slippageBps, position.side === "SHORT", parse(position.tickSize));
   const entry = parse(position.entryPrice);
   const quantity = parse(position.quantity);
@@ -270,6 +271,7 @@ export function closePaperPosition(input: {
     throw new PaperExecutionError("PAPER close time is invalid");
   }
   const mark = parse(input.markPrice);
+  if (mark <= 0n) throw new PaperExecutionError("Mark price must be positive");
   const exit = slippagePrice(mark, input.slippageBps, position.side === "SHORT", parse(position.tickSize));
   const entry = parse(position.entryPrice);
   const quantity = parse(position.quantity);
