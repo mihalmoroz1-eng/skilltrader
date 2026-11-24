@@ -26,7 +26,7 @@ const snapshot: FuturesRawSnapshot = {
   markPrice: "100.05", indexPrice: "100", fundingRate: "0.0001", nextFundingTime: now + 1000, openInterest: "1000",
 };
 
-function makeHarness(options: { account?: PaperAccountRecord; signal?: PaperSignalRecord; positions?: PaperPosition[] } = {}) {
+function makeHarness(options: { account?: PaperAccountRecord; signal?: PaperSignalRecord; positions?: PaperPosition[]; marketSnapshot?: FuturesRawSnapshot } = {}) {
   let currentAccount = { ...(options.account ?? account) };
   let currentSignal = { ...(options.signal ?? signal) };
   let positions = [...(options.positions ?? [])];
@@ -57,7 +57,7 @@ function makeHarness(options: { account?: PaperAccountRecord; signal?: PaperSign
     getPortfolio: vi.fn(async () => ({ account: currentAccount, positions, signals: [currentSignal] })),
   } as unknown as PaperExecutionStore;
   const rulesProvider: PaperInstrumentRulesProvider = { getRules: vi.fn(async () => rules) };
-  const futuresProvider: FuturesMarketProvider = { id: "binance-usdm-futures", fetchSnapshot: vi.fn(async () => snapshot) };
+  const futuresProvider: FuturesMarketProvider = { id: "binance-usdm-futures", fetchSnapshot: vi.fn(async () => options.marketSnapshot ?? snapshot) };
   const service = new PaperExecutionService(store, rulesProvider, futuresProvider, () => now);
   return { service, store, rulesProvider, futuresProvider, getAccount: () => currentAccount, getSignal: () => currentSignal, getPositions: () => positions };
 }
@@ -95,6 +95,25 @@ describe("PAPER execution service", () => {
     expect(atomicInput.expectedDailyLoss).toBe("75");
     expect(atomicInput.newDailyLoss).toBe("0");
     expect(atomicInput.dailyLossDate).toBe("2027-01-15");
+  });
+
+  it("calculates equity from reserved entry notional plus unrealized PnL without double counting mark movement", async () => {
+    const position: PaperPosition = {
+      id: 11, userOpenId: "user-1", signalId: "e".repeat(24), marketRunId: "run",
+      symbol: "BTCUSDT", interval: "15m", side: "LONG", quantity: "10", notional: "1000",
+      entryPrice: "100", stopPrice: "98", targetPrice: "120", contractMultiplier: "1",
+      tickSize: "0.1", entryFee: "0.5", status: "open", openedAt: now - 60_000, feesPaid: "0.5",
+    };
+    const markedSnapshot = { ...snapshot, markPrice: "110.0" };
+    const h = makeHarness({
+      account: { ...account, cashBalance: "8999.5" },
+      positions: [position],
+      marketSnapshot: markedSnapshot,
+    });
+    const portfolio = await h.service.getPortfolio("user-1");
+    expect(portfolio.currentOpenNotional).toBe("1100");
+    expect(portfolio.equity).toBe("10098.95");
+    expect(portfolio.markToMarketAvailable).toBe(true);
   });
 
   it("closes a virtual position at a public mark and records the ledger update", async () => {
