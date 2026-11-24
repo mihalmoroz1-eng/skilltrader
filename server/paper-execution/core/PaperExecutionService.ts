@@ -15,24 +15,22 @@ function utcDate(timestamp: number): string {
 function addDecimals(left: string, right: string): string {
   return sumPaperDecimals([left, right]);
 }
-function negativeLoss(value: string): string {
-  const scaled = BigInt(value.split(".")[0]) * 100_000_000n +
-    BigInt((value.split(".")[1] ?? "").padEnd(8, "0"));
-  return scaled < 0n ? (-scaled).toString() : "0";
-}
 function formatScaled(value: bigint): string {
   const whole = value / 100_000_000n;
   const fraction = (value % 100_000_000n).toString().padStart(8, "0").replace(/0+$/, "");
   return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 function parseScaled(value: string): bigint {
-  const [whole, fraction = ""] = value.split(".");
-  return BigInt(whole) * 100_000_000n + BigInt(fraction.padEnd(8, "0"));
+  const negative = value.startsWith("-");
+  const normalized = negative ? value.slice(1) : value;
+  const [whole, fraction = ""] = normalized.split(".");
+  const scaled = BigInt(whole) * 100_000_000n + BigInt(fraction.padEnd(8, "0"));
+  return negative ? -scaled : scaled;
 }
 
 export class PaperExecutionService {
   constructor(
-    private readonly store = new DrizzlePaperExecutionStore(),
+    private readonly store: DrizzlePaperExecutionStore,
     private readonly rulesProvider: PaperInstrumentRulesProvider,
     private readonly futuresProvider: FuturesMarketProvider,
     private readonly now: () => number = Date.now,
@@ -116,7 +114,7 @@ export class PaperExecutionService {
       currentOpenNotional, openPositions: openPositions.length, snapshotAt: now,
     };
     if (parseScaled(equity) <= 0n) throw new PaperExecutionError("PAPER account equity is exhausted");
-    return { account, openPositions, snapshot, riskDailyLoss, currentOpenNotional };
+    return { account, openPositions, snapshot, riskDailyLoss, realizedDailyLossForToday: dailyLossForToday, currentOpenNotional };
   }
 
   async openPosition(userOpenId: string, input: PaperOpenPositionInput) {
@@ -149,7 +147,7 @@ export class PaperExecutionService {
       expectedOpenNotional: snapshot.currentOpenNotional,
       expectedOpenPositions: snapshot.openPositions.length,
       newCashBalance: result.accountCashBalanceAfter,
-      newDailyLoss: snapshot.snapshot.realizedDailyLoss,
+      newDailyLoss: snapshot.realizedDailyLossForToday,
       dailyLossDate: utcDate(now),
       now,
     });
