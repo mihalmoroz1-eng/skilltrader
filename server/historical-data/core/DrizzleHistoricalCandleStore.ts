@@ -10,16 +10,18 @@ export class DrizzleHistoricalCandleStore implements HistoricalCandleStore {
     const db = await getDb();
     if (!db) throw new Error("Historical database is unavailable");
 
-    for (const record of records) {
-      await db.insert(historicalCandles).values(record).onDuplicateKeyUpdate({
-        set: {
-          closeTime: record.closeTime, open: record.open, high: record.high,
-          low: record.low, close: record.close, volume: record.volume,
-          quoteVolume: record.quoteVolume, tradeCount: record.tradeCount,
-          source: record.source, fetchedAt: record.fetchedAt,
-        },
-      });
-    }
+    await db.transaction(async tx => {
+      for (const record of records) {
+        await tx.insert(historicalCandles).values(record).onDuplicateKeyUpdate({
+          set: {
+            closeTime: record.closeTime, open: record.open, high: record.high,
+            low: record.low, close: record.close, volume: record.volume,
+            quoteVolume: record.quoteVolume, tradeCount: record.tradeCount,
+            source: record.source, fetchedAt: record.fetchedAt,
+          },
+        });
+      }
+    });
   }
 
   async list(symbol: string, interval: string, startTime: number, endTime: number, limit: number) {
