@@ -23,7 +23,7 @@ export type MarketDataSnapshot = {
   interval: BinanceInterval;
   source: "binance-spot";
   fetchedAt: number;
-  freshness: "live";
+  freshness: "live" | "cached";
   candles: MarketCandle[];
 };
 
