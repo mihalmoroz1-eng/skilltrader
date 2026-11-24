@@ -68,6 +68,7 @@ export class PaperExecutionService {
       interval: candidate.interval,
       direction: candidate.direction,
       thesisCodes: candidate.thesisCodes,
+      createdAt: this.now(),
       status: "pending",
     };
     await this.store.recordSignalReview(signal, this.now());
@@ -132,11 +133,20 @@ export class PaperExecutionService {
       this.rulesProvider.getRules(signal.symbol),
       this.futuresProvider.fetchSnapshot(signal.symbol, 5),
     ]);
-    const snapshot = await this.accountSnapshot(userOpenId, now);
+    const riskNow = this.now();
+    if (!Number.isSafeInteger(signal.createdAt) || signal.createdAt > riskNow || riskNow - signal.createdAt > 5 * 60_000) {
+      throw new PaperExecutionError("Signal approval expired; generate and approve a fresh signal");
+    }
+    const snapshot = await this.accountSnapshot(userOpenId, riskNow);
+    const nowAfterSnapshot = this.now();
+    if (nowAfterSnapshot - signal.createdAt > 5 * 60_000) {
+      throw new PaperExecutionError("Signal approval expired during risk evaluation; refresh the signal");
+    }
+    snapshot.snapshot.snapshotAt = nowAfterSnapshot;
     const result = preparePaperPosition({
       userOpenId, account: snapshot.snapshot, signal, instrument,
       markPrice: market.markPrice, stopPrice: input.stopPrice, targetPrice: input.targetPrice,
-      currentOpenPositions: snapshot.openPositions.length, now,
+      currentOpenPositions: snapshot.openPositions.length, now: nowAfterSnapshot,
     });
     if (result.status !== "opened" || !result.position || !result.accountCashBalanceAfter) return result;
 
@@ -149,8 +159,9 @@ export class PaperExecutionService {
       expectedOpenPositions: snapshot.openPositions.length,
       newCashBalance: result.accountCashBalanceAfter,
       newDailyLoss: snapshot.realizedDailyLossForToday,
-      dailyLossDate: utcDate(now),
-      now,
+      dailyLossDate: utcDate(nowAfterSnapshot),
+      expectedSignalCreatedAt: signal.createdAt,
+      now: nowAfterSnapshot,
     });
     return { ...result, position };
   }
