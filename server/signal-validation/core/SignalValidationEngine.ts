@@ -66,14 +66,14 @@ function directionalCandidate(analysis: MarketIntelligenceResult, now: number): 
     analysis.strategy.context === "trend_context" &&
     longEvidence.every((code) => marketCodes.includes(code)) &&
     longEvidence.every((code) => analysis.market.evidenceCodes.includes(code)) &&
-    ["ema20_above_ema50", "trend_structure_up"].every((code) => strategyCodes.includes(code));
+    (["ema20_above_ema50", "trend_structure_up"] as const).every((code) => strategyCodes.includes(code));
 
   const shortAligned = analysis.market.regime === "downtrend" &&
     analysis.market.momentum === "negative" &&
     analysis.strategy.context === "trend_context" &&
     shortEvidence.every((code) => marketCodes.includes(code)) &&
     shortEvidence.every((code) => analysis.market.evidenceCodes.includes(code)) &&
-    ["ema20_below_ema50", "trend_structure_down"].every((code) => strategyCodes.includes(code));
+    (["ema20_below_ema50", "trend_structure_down"] as const).every((code) => strategyCodes.includes(code));
 
   if (!longAligned && !shortAligned) return null;
   const direction = longAligned ? "LONG" as const : "SHORT" as const;
