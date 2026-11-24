@@ -57,9 +57,29 @@ describe("market data service", () => {
     expect(provider.fetchCandles).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects invalid clock values instead of caching them", async () => {
+  it("rejects invalid clock values before reading the cache or fetching data", async () => {
     const provider = createProvider([validCandle]);
     const service = new MarketDataService(provider, new MarketDataCache(), () => Number.NaN);
     await expect(service.getCandles("BTCUSDT", "1m", 1)).rejects.toThrow(/invalid timestamp/);
+    expect(provider.fetchCandles).not.toHaveBeenCalled();
+  });
+
+  it("does not silently serve expired candles when the provider is unavailable", async () => {
+    let now = 1_000;
+    let calls = 0;
+    const provider: MarketDataProvider = {
+      id: "test-provider",
+      fetchCandles: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) return [validCandle];
+        throw new Error("exchange unavailable");
+      }),
+    };
+    const service = new MarketDataService(provider, new MarketDataCache(50), () => now);
+
+    await expect(service.getCandles("BTCUSDT", "1m", 1)).resolves.toMatchObject({ freshness: "live" });
+    now = 1_050;
+    await expect(service.getCandles("BTCUSDT", "1m", 1)).rejects.toThrow("exchange unavailable");
+    expect(provider.fetchCandles).toHaveBeenCalledTimes(2);
   });
 });
