@@ -1,0 +1,79 @@
+CREATE TABLE IF NOT EXISTS `paper_accounts` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `userOpenId` varchar(64) NOT NULL,
+  `currency` varchar(8) NOT NULL DEFAULT 'USDT',
+  `startingBalance` varchar(40) NOT NULL,
+  `cashBalance` varchar(40) NOT NULL,
+  `realizedDailyLoss` varchar(40) NOT NULL DEFAULT '0',
+  `dailyLossDate` varchar(10) NOT NULL,
+  `riskPerTradeBps` int unsigned NOT NULL,
+  `maxDailyLossBps` int unsigned NOT NULL,
+  `maxGrossExposureBps` int unsigned NOT NULL,
+  `maxOpenPositions` int unsigned NOT NULL,
+  `feeBps` int unsigned NOT NULL,
+  `slippageBps` int unsigned NOT NULL,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `paper_accounts_userOpenId_unique` (`userOpenId`)
+);
+
+CREATE TABLE IF NOT EXISTS `paper_signal_reviews` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `userOpenId` varchar(64) NOT NULL,
+  `signalId` varchar(24) NOT NULL,
+  `marketRunId` varchar(128) NOT NULL,
+  `validationDigest` varchar(64) NOT NULL,
+  `marketEvidenceDigest` varchar(64) NOT NULL,
+  `symbol` varchar(20) NOT NULL,
+  `interval` varchar(4) NOT NULL,
+  `direction` enum('LONG','SHORT') NOT NULL,
+  `thesisCodes` text NOT NULL,
+  `status` enum('pending','accepted','dismissed','consumed') NOT NULL DEFAULT 'pending',
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `paper_signal_reviews_user_signal_unique` (`userOpenId`, `signalId`),
+  KEY `paper_signal_reviews_user_status_idx` (`userOpenId`, `status`)
+);
+
+CREATE TABLE IF NOT EXISTS `paper_positions` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `userOpenId` varchar(64) NOT NULL,
+  `signalId` varchar(24) NOT NULL,
+  `marketRunId` varchar(128) NOT NULL,
+  `symbol` varchar(20) NOT NULL,
+  `interval` varchar(4) NOT NULL,
+  `side` enum('LONG','SHORT') NOT NULL,
+  `quantity` varchar(40) NOT NULL,
+  `notional` varchar(40) NOT NULL,
+  `entryPrice` varchar(40) NOT NULL,
+  `stopPrice` varchar(40) NOT NULL,
+  `targetPrice` varchar(40),
+  `contractMultiplier` varchar(40) NOT NULL,
+  `entryFee` varchar(40) NOT NULL,
+  `status` enum('open','closed') NOT NULL DEFAULT 'open',
+  `openedAt` bigint NOT NULL,
+  `closedAt` bigint,
+  `exitPrice` varchar(40),
+  `grossPnl` varchar(40),
+  `netPnl` varchar(40),
+  `feesPaid` varchar(40) NOT NULL DEFAULT '0',
+  `exitReason` enum('manual','stop_loss','take_profit','end_of_data'),
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `paper_positions_user_status_idx` (`userOpenId`, `status`),
+  KEY `paper_positions_user_symbol_idx` (`userOpenId`, `symbol`)
+);
+
+CREATE TABLE IF NOT EXISTS `paper_events` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `userOpenId` varchar(64) NOT NULL,
+  `eventType` enum('account_initialized','signal_recorded','signal_accepted','signal_dismissed','position_opened','position_closed') NOT NULL,
+  `entityId` varchar(64),
+  `eventPayload` text NOT NULL,
+  `occurredAt` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `paper_events_user_time_idx` (`userOpenId`, `occurredAt`)
+);
