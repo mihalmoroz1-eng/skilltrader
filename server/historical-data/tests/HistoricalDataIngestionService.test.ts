@@ -52,10 +52,10 @@ describe("historical data ingestion", () => {
 
   it("rejects provider candles outside the requested time range", async () => {
     const start = 1_700_000_000_000;
-    const p = provider(async () => [candle(start - minute), candle(start)]);
-    const service = new HistoricalDataIngestionService(p, new MemoryStore(), () => start + 2 * minute);
+    const p = provider(async () => [candle(start), candle(start + 2 * minute)]);
+    const service = new HistoricalDataIngestionService(p, new MemoryStore(), () => start + 3 * minute);
     await expect(service.ingest({
-      symbol: "BTCUSDT", interval: "1m", startTime: start, endTime: start,
+      symbol: "BTCUSDT", interval: "1m", startTime: start, endTime: start + minute,
     })).rejects.toThrow(/outside the requested time range/);
   });
 
