@@ -87,6 +87,7 @@ export class PaperExecutionService {
     openPositions: Awaited<ReturnType<DrizzlePaperExecutionStore["getOpenPositions"]>>;
     snapshot: PaperAccountSnapshot;
     riskDailyLoss: string;
+    realizedDailyLossForToday: string;
     currentOpenNotional: string;
   }> {
     const account = await this.store.getAccount(userOpenId);
