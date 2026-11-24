@@ -10,6 +10,7 @@ import { askTraderAssistant, TraderAssistantPipelineOutputError, traderAssistant
 import { BinanceSpotProvider, MarketDataProviderError } from "./market-data/providers/BinanceSpotProvider";
 import { MarketDataNormalizationError } from "./market-data/core/MarketDataNormalizer";
 import { MarketDataValidationError } from "./market-data/core/MarketDataValidator";
+import { MarketDataProcessingError, processMarketData } from "./market-data/core/MarketDataProcessor";
 import { MarketDataRequestError, MarketDataService } from "./market-data/services/MarketDataService";
 import { marketDataRateLimiter } from "./market-data/services/MarketDataRateLimiter";
 
@@ -70,6 +71,42 @@ export const appRouter = router({
           }
           console.error("[Market Data] Request failed", error instanceof Error ? error.name : "unknown error");
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Не удалось получить рыночные данные." });
+        }
+      }),
+    analysis: protectedProcedure
+      .input(marketDataRequestSchema)
+      .query(async ({ ctx, input }) => {
+        const limit = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!limit.allowed) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `Достигнут лимит запросов рыночных данных. Повторите запрос через ${limit.retryAfterSeconds} сек.`,
+          });
+        }
+
+        try {
+          const snapshot = await marketDataService.getCandles(input.symbol, input.interval, input.limit);
+          return processMarketData(snapshot);
+        } catch (error) {
+          if (error instanceof MarketDataProviderError && error.kind === "rate-limit") {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Биржа ограничила частоту запросов. Повторите позже." });
+          }
+          if (error instanceof MarketDataProviderError && (error.kind === "timeout" || error.kind === "network" || (error.status !== undefined && error.status >= 500))) {
+            console.warn("[Market Data] Analysis provider temporarily unavailable", error.kind, error.status ?? "no-status");
+            throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Источник рыночных данных временно недоступен." });
+          }
+          if (
+            error instanceof MarketDataRequestError ||
+            error instanceof MarketDataProviderError ||
+            error instanceof MarketDataNormalizationError ||
+            error instanceof MarketDataValidationError ||
+            error instanceof MarketDataProcessingError
+          ) {
+            console.error("[Market Data] Analysis rejected", error.name);
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Данные не прошли проверку для расчёта технических индикаторов." });
+          }
+          console.error("[Market Data] Analysis failed", error instanceof Error ? error.name : "unknown error");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Не удалось рассчитать технические индикаторы." });
         }
       }),
   }),
