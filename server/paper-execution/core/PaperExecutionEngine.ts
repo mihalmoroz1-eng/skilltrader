@@ -95,6 +95,7 @@ export type PaperPosition = {
   stopPrice: string;
   targetPrice: string;
   contractMultiplier: string;
+  tickSize: string;
   entryFee: string;
   status: "open" | "closed";
   openedAt: number;
