@@ -91,11 +91,15 @@ export type MarketIntelligenceResult = {
   critic: CriticAgentOutput;
   provenance: {
     source: string;
+    freshness: "live" | "cached";
+    qualityStatus: "ready" | "degraded" | "insufficient";
     symbol: string;
     interval: string;
     fetchedAt: number;
     processedAt: number;
     dataAgeMs: number;
+    latestClosedCandleOpenTime: number;
+    latestClosedCandleCloseTime: number;
     closedCandleCount: number;
     gapCount: number;
     promptVersion: string;
