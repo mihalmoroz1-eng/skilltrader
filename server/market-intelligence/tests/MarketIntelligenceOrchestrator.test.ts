@@ -49,14 +49,14 @@ function createProcessed(now: number, includeFormingCandle = false): ProcessedMa
     indicators: candles.map((candle) => ({
       openTime: candle.openTime,
       closeTime: candle.closeTime,
-      ema20: 109,
-      ema50: 107,
+      ema20: 104,
+      ema50: 102,
       rsi14: 60,
       macdLine: 1,
       macdSignal: 0.7,
       macdHistogram: 0.3,
       atr14: 0.6,
-      vwap: 108,
+      vwap: 103,
     })),
   };
 
