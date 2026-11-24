@@ -2,45 +2,54 @@
 
 ## Scope
 
-This module introduces a server-side, read-only market-data foundation. The first provider is Binance Spot public REST klines. It does not require API keys, account permissions, or trading credentials and cannot place orders.
+This module is a server-side, read-only market-data foundation. The first adapter uses Binance Spot public REST klines. It requires no API key, account permission, or trading credential and has no order-placement capability.
 
-The existing UI simulation remains synthetic. This module is not yet connected to the dashboard, scenario engine, signal pipeline, or any execution path.
+The existing dashboard and simulation remain synthetic. This module is not connected to the UI, scenario engine, signal pipeline, or execution path.
 
 ## Data flow
 
-`MarketDataService` validates request parameters, checks the bounded TTL cache, calls the selected `MarketDataProvider`, normalizes the provider payload, validates the canonical OHLCV candles, and returns a snapshot with source and freshness metadata.
+`MarketDataService` validates the request, checks the bounded TTL cache, calls a provider adapter, validates canonical candles, and returns a snapshot with source and freshness metadata.
 
-- Provider: `providers/BinanceSpotProvider.ts`
-- Shared contracts: `core/MarketDataTypes.ts`
-- Normalization: `core/MarketDataNormalizer.ts`
-- Validation: `core/MarketDataValidator.ts`
+- Provider contract: `core/MarketDataTypes.ts`
+- Binance adapter and HTTP boundary: `providers/BinanceSpotProvider.ts`
+- Binance payload normalizer: `core/MarketDataNormalizer.ts`
+- Canonical data validator: `core/MarketDataValidator.ts`
 - TTL cache: `core/MarketDataCache.ts`
-- Orchestration: `services/MarketDataService.ts`
+- Provider-independent orchestration: `services/MarketDataService.ts`
+
+A future data source implements `MarketDataProvider` and returns canonical `MarketCandle[]`; it does not need to expose its wire format to the service.
+
+## Precision and data integrity
+
+Prices and volumes are retained as decimal strings from the exchange. This avoids losing exchange precision when the JSON payload is parsed into JavaScript numbers. OHLC consistency checks use scaled integer arithmetic with `BigInt`; consumers must also use decimal-safe arithmetic for monetary calculations and only convert to floating-point numbers at visualization boundaries where appropriate.
+
+The normalizer rejects malformed rows, non-decimal strings, unsafe timestamps and invalid trade counts. The validator rejects empty datasets, non-positive prices, invalid candle timestamps, negative/non-decimal quantities, impossible OHLC ranges, duplicate timestamps and out-of-order candles.
 
 ## Binance Spot source
 
-The provider calls the public `GET /api/v3/klines` endpoint on `https://api.binance.com`. It sends no API key, signature, account data, or order request. The provider has a bounded request timeout and reports HTTP/rate-limit failures as typed errors. It does not silently retry.
+The adapter calls the fixed public endpoint `GET https://api.binance.com/api/v3/klines`. It sends no API key, signature, account data or order request. Direct calls validate symbol, interval and limit, use an explicit timeout, cap response bodies at 2 MiB by default, and return typed timeout, network, HTTP, rate-limit, oversized-response and JSON errors. It does not silently retry.
 
-Supported intervals and the maximum request size follow the Binance Spot kline API shape. The service accepts limits from 1 to 1,000 candles and normalizes symbols to uppercase.
+The service accepts limits from 1 to 1,000 candles. Symbols are normalized to uppercase before a provider is called.
 
-## Data integrity
+## Cache and freshness
 
-Incoming payloads are treated as untrusted. The normalizer rejects malformed rows and non-finite numeric fields. The validator rejects empty datasets, non-positive prices, negative volumes, invalid trade counts, impossible OHLC ranges, duplicate timestamps, and out-of-order candles.
+The in-memory cache defaults to a 5-second TTL and 100 entries. Cache hits are explicitly marked `freshness: "cached"`; network responses are marked `freshness: "live"`. The timestamp `fetchedAt` records the last exchange fetch, not the time of a cache read. Expired data is not returned as live and is not used as a silent fallback when the provider fails.
 
-The cache is in-memory, bounded by entry count, and uses a configurable TTL (5 seconds by default). Cache hits are explicitly marked `freshness: "cached"`; network responses are marked `freshness: "live"`. A cache hit is not a new exchange fetch.
+Cache entries are process-local, are lost on restart, and are not shared across server instances.
 
 ## Limitations and safety
 
-- Public market-data access is subject to Binance availability, geographic restrictions, and rate limits.
-- A successful HTTP response does not prove that a candle is closed; consumers must inspect candle timestamps before treating the latest candle as final.
-- In-memory cache entries are lost on process restart and are not shared across server instances.
-- This module is not yet exposed through tRPC or the client UI.
-- No historical backfill, websocket stream, news feed, exchange account connection, trading signal, paper order, or live order is implemented here.
-- Provider output must not be described as investment advice or a guaranteed forecast.
+- Public market-data access is subject to Binance availability, geographic restrictions and rate limits.
+- The latest returned candle may still be forming. Consumers must inspect its close time and current time before treating it as final.
+- Historical backfill, WebSocket streaming, news, additional exchanges, tRPC exposure and UI integration are not included.
+- No account connection, AI-generated trade signal, paper order or live order is implemented here.
+- Provider data is market information, not an investment recommendation or guaranteed forecast.
 
 ## Verification
 
-Unit tests cover normalization, validation, cache TTL/defensive copies/eviction, provider request shape and HTTP rate-limit handling, and service parameter validation/cache behavior. Run:
+Unit tests cover exact decimal normalization, OHLC validation, provider independence, cache TTL/defensive copies/eviction, Binance request shape, HTTP rate limits, malformed JSON, oversized payloads and invalid inputs.
+
+Run the repository checks from the project root:
 
 ```bash
 pnpm check
@@ -48,4 +57,4 @@ pnpm test
 pnpm build
 ```
 
-The GitHub Actions workflow is expected to verify Node.js 22 and 24. A local or source-level review is not a substitute for a completed green CI run.
+GitHub Actions is configured for Node.js 22 and 24. These checks must complete successfully before the pull request can be considered verified; creating source files or tests alone is not evidence of a passing run.
