@@ -1,4 +1,4 @@
-import type { BinanceInterval, MarketCandle } from "./MarketDataTypes";
+import type { MarketCandle } from "./MarketDataTypes";
 
 export class MarketDataNormalizationError extends Error {
   constructor(message: string) {
@@ -7,23 +7,28 @@ export class MarketDataNormalizationError extends Error {
   }
 }
 
-function finiteNumber(value: unknown, field: string): number {
+const DECIMAL_PATTERN = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
+
+function decimalString(value: unknown, field: string): string {
+  if (typeof value !== "string" || !DECIMAL_PATTERN.test(value)) {
+    throw new MarketDataNormalizationError(`Invalid Binance decimal field: ${field}`);
+  }
+  return value;
+}
+
+function safeInteger(value: unknown, field: string): number {
   const parsed = typeof value === "number" ? value : Number(value);
-  if (value === null || value === undefined || value === "" || !Number.isFinite(parsed)) {
-    throw new MarketDataNormalizationError(`Invalid Binance field: ${field}`);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new MarketDataNormalizationError(`Invalid Binance integer field: ${field}`);
   }
   return parsed;
 }
 
 /**
- * Converts Binance Spot REST kline rows into the application's canonical candle shape.
- * Binance's response is treated as untrusted external input.
+ * Converts Binance Spot REST kline tuples into canonical candles.
+ * Decimal fields remain strings so exchange precision is not discarded.
  */
-export function normalizeBinanceKlines(
-  payload: unknown,
-  _symbol: string,
-  _interval: BinanceInterval,
-): MarketCandle[] {
+export function normalizeBinanceKlines(payload: unknown): MarketCandle[] {
   if (!Array.isArray(payload)) {
     throw new MarketDataNormalizationError("Binance kline response must be an array");
   }
@@ -34,15 +39,15 @@ export function normalizeBinanceKlines(
     }
 
     return {
-      openTime: finiteNumber(row[0], "openTime"),
-      open: finiteNumber(row[1], "open"),
-      high: finiteNumber(row[2], "high"),
-      low: finiteNumber(row[3], "low"),
-      close: finiteNumber(row[4], "close"),
-      volume: finiteNumber(row[5], "volume"),
-      closeTime: finiteNumber(row[6], "closeTime"),
-      quoteVolume: finiteNumber(row[7], "quoteVolume"),
-      tradeCount: finiteNumber(row[8], "tradeCount"),
+      openTime: safeInteger(row[0], "openTime"),
+      open: decimalString(row[1], "open"),
+      high: decimalString(row[2], "high"),
+      low: decimalString(row[3], "low"),
+      close: decimalString(row[4], "close"),
+      volume: decimalString(row[5], "volume"),
+      closeTime: safeInteger(row[6], "closeTime"),
+      quoteVolume: decimalString(row[7], "quoteVolume"),
+      tradeCount: safeInteger(row[8], "tradeCount"),
     };
   });
 }
