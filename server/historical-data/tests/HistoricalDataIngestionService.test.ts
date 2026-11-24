@@ -24,7 +24,7 @@ describe("historical data ingestion", () => {
     const start = 1_700_000_000_000;
     const p = provider(async (_s, _i, from) => from === start ? [candle(start), candle(start + minute)] : [candle(start + 2 * minute)]);
     const store = new MemoryStore();
-    const service = new HistoricalDataIngestionService(p, store, () => start + 10_000);
+    const service = new HistoricalDataIngestionService(p, store, () => start + 3 * minute);
     const result = await service.ingest({ symbol: "BTCUSDT", interval: "1m", startTime: start, endTime: start + 2 * minute, pageLimit: 2 });
     expect(result.pagesFetched).toBe(2);
     expect(result.candlesStored).toBe(3);
