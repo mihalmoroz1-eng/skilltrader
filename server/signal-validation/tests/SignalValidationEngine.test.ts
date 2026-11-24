@@ -157,7 +157,8 @@ describe("deterministic signal validation engine", () => {
 
     const result = validateSignalCandidate(analysis, NOW);
     expect(result.status).toBe("rejected");
-    expect(result.candidate).toBeNull();
+    expect(result.candidate?.direction).toBe("LONG");
+    expect(result.executionEligible).toBe(false);
     expect(result.checks.find((check) => check.key === "technical_risk_gate")?.reasonCode).toBe("technical_risk_blocked");
   });
 
