@@ -324,14 +324,21 @@ function assertTrustGate(processed: ProcessedMarketData, now: number): void {
   if (!processed || typeof processed !== "object") {
     throw new MarketIntelligenceTrustGateError("processed_market_data_missing");
   }
+  if (!processed.quality || !Array.isArray(processed.candles) || !Array.isArray(processed.indicators)) {
+    throw new MarketIntelligenceTrustGateError("processed_market_data_shape_invalid");
+  }
   if (processed.source !== "binance-spot") {
     throw new MarketIntelligenceTrustGateError("unapproved_market_data_source");
   }
   if (processed.quality.status !== "ready" || processed.quality.gapCount !== 0) {
     throw new MarketIntelligenceTrustGateError("market_data_quality_not_ready");
   }
-  if (processed.quality.closedCandleCount < MIN_CLOSED_CANDLES) {
-    throw new MarketIntelligenceTrustGateError("insufficient_closed_history");
+  if (
+    !Number.isSafeInteger(processed.quality.closedCandleCount) ||
+    processed.quality.closedCandleCount < MIN_CLOSED_CANDLES ||
+    processed.quality.closedCandleCount > processed.candles.length
+  ) {
+    throw new MarketIntelligenceTrustGateError("insufficient_or_invalid_closed_history");
   }
   if (!Number.isSafeInteger(processed.processedAt) || processed.processedAt > now || processed.processedAt < 0) {
     throw new MarketIntelligenceTrustGateError("processed_timestamp_invalid");
@@ -345,8 +352,13 @@ function assertTrustGate(processed: ProcessedMarketData, now: number): void {
   if (now - processed.fetchedAt > MAX_DATA_AGE_MS) {
     throw new MarketIntelligenceTrustGateError("source_data_stale");
   }
-  if (processed.quality.incompleteCandleCount > 1) {
-    throw new MarketIntelligenceTrustGateError("too_many_incomplete_candles");
+  if (
+    !Number.isSafeInteger(processed.quality.incompleteCandleCount) ||
+    processed.quality.incompleteCandleCount < 0 ||
+    processed.quality.incompleteCandleCount > 1 ||
+    processed.quality.closedCandleCount + processed.quality.incompleteCandleCount !== processed.candles.length
+  ) {
+    throw new MarketIntelligenceTrustGateError("candle_quality_counts_invalid");
   }
   if (!Array.isArray(processed.indicators) || processed.indicators.length !== processed.quality.closedCandleCount) {
     throw new MarketIntelligenceTrustGateError("indicator_series_alignment_invalid");
