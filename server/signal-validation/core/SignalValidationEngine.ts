@@ -113,6 +113,7 @@ export function validateSignalCandidate(
   const intervalMs = FIXED_INTERVAL_MS[provenance.interval];
   const dataAgeMs = now - provenance.fetchedAt;
   const sourceValid = provenance.source === "binance-spot" &&
+    (provenance.freshness === "live" || provenance.freshness === "cached") &&
     /^[A-Z0-9]{2,20}$/.test(provenance.symbol) &&
     intervalMs !== undefined;
   const timestampsValid = isSafeTimestamp(provenance.fetchedAt, now) &&
@@ -126,23 +127,35 @@ export function validateSignalCandidate(
     now - provenance.latestClosedCandleCloseTime <= (intervalMs ?? 0) * MAX_CANDLE_AGE_INTERVALS;
   const marketDataValid = sourceValid &&
     timestampsValid &&
-    provenance.freshness === "live" &&
     provenance.qualityStatus === "ready" &&
     dataAgeMs >= 0 &&
     dataAgeMs <= MAX_DATA_AGE_MS &&
     provenance.closedCandleCount >= MIN_CLOSED_CANDLES &&
     provenance.gapCount === 0;
 
+  const deterministicBlockingCodes = [
+    "atr_ratio_above_2_percent",
+    "rsi_extreme",
+    "price_extension_from_ema20",
+    "indicator_disagreement",
+  ] as const;
+  const expectedBlockingCodes = analysis.serverEvidence.riskEvidenceCodes
+    .filter((code) => deterministicBlockingCodes.includes(code as typeof deterministicBlockingCodes[number]));
+  const technicalRiskMetadataValid =
+    analysis.technicalRiskGate.evidenceCodes.length === analysis.serverEvidence.riskEvidenceCodes.length &&
+    analysis.serverEvidence.riskEvidenceCodes.every((code) => analysis.technicalRiskGate.evidenceCodes.includes(code)) &&
+    analysis.technicalRiskGate.blockingCodes.length === expectedBlockingCodes.length &&
+    expectedBlockingCodes.every((code) => analysis.technicalRiskGate.blockingCodes.includes(code)) &&
+    analysis.technicalRiskGate.status === (expectedBlockingCodes.length === 0 ? "clear" : "blocked") &&
+    Number.isFinite(analysis.technicalRiskGate.atrToClosePercent) &&
+    analysis.technicalRiskGate.atrToClosePercent >= 0;
+
   const evidenceValid =
     hasOnlyServerEvidence(analysis.market.evidenceCodes, analysis.serverEvidence.marketEvidenceCodes) &&
     hasOnlyServerEvidence(analysis.strategy.evidenceCodes, analysis.serverEvidence.marketEvidenceCodes) &&
     analysis.risk.riskEvidenceCodes.length === analysis.serverEvidence.riskEvidenceCodes.length &&
     analysis.serverEvidence.riskEvidenceCodes.every((code) => analysis.risk.riskEvidenceCodes.includes(code)) &&
-    analysis.technicalRiskGate.evidenceCodes.length === analysis.serverEvidence.riskEvidenceCodes.length &&
-    analysis.serverEvidence.riskEvidenceCodes.every((code) => analysis.technicalRiskGate.evidenceCodes.includes(code)) &&
-    analysis.technicalRiskGate.blockingCodes.every((code) => analysis.serverEvidence.riskEvidenceCodes.includes(code)) &&
-    Number.isFinite(analysis.technicalRiskGate.atrToClosePercent) &&
-    analysis.technicalRiskGate.atrToClosePercent >= 0;
+    technicalRiskMetadataValid;
 
   const consensusValid = analysis.status === "reviewable" &&
     analysis.critic.verdict === "consistent" &&
@@ -188,7 +201,7 @@ export function validateSignalCandidate(
     {
       key: "strategy_alignment",
       state: candidate ? "passed" : "failed",
-      reasonCode: candidate ? "uptrend_evidence_aligned" : "strategy_context_not_trend_aligned",
+      reasonCode: candidate ? "strategy_alignment_confirmed" : "strategy_context_not_trend_aligned",
     },
     {
       key: "technical_risk_gate",
