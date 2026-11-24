@@ -7,7 +7,13 @@ import {
   preparePaperPosition, sumPaperDecimals,
   type PaperAccountConfig, type PaperAccountSnapshot, type PaperSignalRecord,
 } from "./PaperExecutionEngine";
-import { DrizzlePaperExecutionStore, PaperStateConflictError } from "./DrizzlePaperExecutionStore";
+import { DrizzlePaperExecutionStore } from "./DrizzlePaperExecutionStore";
+
+export type PaperExecutionStore = Pick<DrizzlePaperExecutionStore,
+  "createAccount" | "getAccount" | "getSignal" | "recordSignalReview" | "setSignalStatus" |
+  "getOpenPositions" | "getPosition" | "listPositions" | "openPositionAtomic" |
+  "closePositionAtomic" | "getPortfolio"
+>;
 
 function utcDate(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10);
@@ -30,7 +36,7 @@ function parseScaled(value: string): bigint {
 
 export class PaperExecutionService {
   constructor(
-    private readonly store: DrizzlePaperExecutionStore,
+    private readonly store: PaperExecutionStore,
     private readonly rulesProvider: PaperInstrumentRulesProvider,
     private readonly futuresProvider: FuturesMarketProvider,
     private readonly now: () => number = Date.now,
@@ -84,7 +90,7 @@ export class PaperExecutionService {
   }
 
   private async accountSnapshot(userOpenId: string, now: number): Promise<{
-    account: NonNullable<Awaited<ReturnType<DrizzlePaperExecutionStore["getAccount"]>>>;
+    account: NonNullable<Awaited<ReturnType<PaperExecutionStore["getAccount"]>>>;
     openPositions: Awaited<ReturnType<DrizzlePaperExecutionStore["getOpenPositions"]>>;
     snapshot: PaperAccountSnapshot;
     riskDailyLoss: string;
@@ -127,6 +133,10 @@ export class PaperExecutionService {
     if (!account) throw new PaperExecutionError("Initialize a PAPER account before opening a position");
     if (!signal || signal.status !== "accepted") {
       throw new PaperExecutionError("Signal must be manually accepted before PAPER opening");
+    }
+    const preflightNow = this.now();
+    if (!Number.isSafeInteger(signal.createdAt) || signal.createdAt > preflightNow || preflightNow - signal.createdAt > 5 * 60_000) {
+      throw new PaperExecutionError("Signal approval expired; generate and approve a fresh signal");
     }
     const [instrument, market] = await Promise.all([
       this.rulesProvider.getRules(signal.symbol),
