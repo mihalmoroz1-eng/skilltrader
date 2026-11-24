@@ -36,6 +36,12 @@ describe("market candle validator", () => {
     expect(() => validateCandles([candle(1_000, { open: "0" })])).toThrow(/prices must be positive/);
   });
 
+  it("rejects overlapping candle time ranges", () => {
+    const first = candle(1_000, { closeTime: 60_000 });
+    const overlapping = candle(59_000, { closeTime: 100_000 });
+    expect(() => validateCandles([first, overlapping])).toThrow(/overlaps the previous candle/);
+  });
+
   it("compares decimal strings exactly beyond JavaScript number precision", () => {
     const precise = candle(1_000, {
       open: "1.000000000000000001",
