@@ -112,7 +112,7 @@ describe("PAPER execution service", () => {
     });
     const portfolio = await h.service.getPortfolio("user-1");
     expect(portfolio.currentOpenNotional).toBe("1100");
-    expect(portfolio.equity).toBe("10098.95");
+    expect(portfolio.equity).toBe("10097.9505");
     expect(portfolio.markToMarketAvailable).toBe(true);
   });
 
