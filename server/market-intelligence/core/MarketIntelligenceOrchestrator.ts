@@ -220,7 +220,8 @@ function requireFiniteIndicator(value: number | null | undefined, name: string):
 
 function deriveEvidence(processed: ProcessedMarketData, now: number): AnalysisFacts {
   const { candles, indicators, interval } = processed;
-  const lastCandle = candles[candles.length - 1];
+  const closedCandles = candles.filter((candle) => candle.closeTime < processed.processedAt);
+  const lastCandle = closedCandles[closedCandles.length - 1];
   const lastIndicator = indicators[indicators.length - 1];
   if (!lastCandle || !lastIndicator) {
     throw new MarketIntelligenceTrustGateError("closed_candle_snapshot_missing");
@@ -282,7 +283,7 @@ function deriveEvidence(processed: ProcessedMarketData, now: number): AnalysisFa
     throw new MarketIntelligenceTrustGateError("latest_closed_candle_too_old");
   }
 
-  const recentClosedCandles = candles.slice(-MAX_CONTEXT_CANDLES).map((candle) => ({
+  const recentClosedCandles = closedCandles.slice(-MAX_CONTEXT_CANDLES).map((candle) => ({
     openTime: candle.openTime,
     open: candle.open,
     high: candle.high,
