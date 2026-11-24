@@ -14,12 +14,24 @@ export class MarketDataRequestError extends Error {
   }
 }
 
+function readClock(now: () => number): number {
+  const value = now();
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new MarketDataRequestError("Market data clock returned an invalid timestamp");
+  }
+  return value;
+}
+
 export class MarketDataService {
   constructor(
     private readonly provider: MarketDataProvider,
     private readonly cache = new MarketDataCache(),
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    if (!provider || typeof provider.id !== "string" || provider.id.trim().length === 0) {
+      throw new Error("A market data provider with a non-empty id is required");
+    }
+  }
 
   async getCandles(
     symbolInput: string,
@@ -42,17 +54,14 @@ export class MarketDataService {
 
     const interval: MarketInterval = intervalInput;
     const cacheKey = `${this.provider.id}:${symbol}:${interval}:${limit}`;
-    const cached = this.cache.get(cacheKey, this.now());
+    const checkedAt = readClock(this.now);
+    const cached = this.cache.get(cacheKey, checkedAt);
     if (cached) return { ...cached, freshness: "cached" };
 
     const candles = await this.provider.fetchCandles(symbol, interval, limit);
     validateCandles(candles);
 
-    const fetchedAt = this.now();
-    if (!Number.isFinite(fetchedAt) || fetchedAt < 0) {
-      throw new MarketDataRequestError("Market data clock returned an invalid timestamp");
-    }
-
+    const fetchedAt = readClock(this.now);
     const snapshot: MarketDataSnapshot = {
       symbol,
       interval,
