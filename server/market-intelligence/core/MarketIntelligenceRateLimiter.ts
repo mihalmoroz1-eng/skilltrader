@@ -65,7 +65,17 @@ export class MarketIntelligenceRateLimiter {
 
     const dailyState = daily?.day === day ? daily : { day, count: 0 };
     if (dailyState.count >= this.requestsPerUtcDay) {
-      return { allowed: false, scope: "day", retryAfterSeconds: 86_400 };
+      const current = new Date(nowMs);
+      const nextUtcDay = Date.UTC(
+        current.getUTCFullYear(),
+        current.getUTCMonth(),
+        current.getUTCDate() + 1,
+      );
+      return {
+        allowed: false,
+        scope: "day",
+        retryAfterSeconds: Math.max(1, Math.ceil((nextUtcDay - nowMs) / 1_000)),
+      };
     }
 
     const recent = this.minuteByUser.get(key) ?? [];
