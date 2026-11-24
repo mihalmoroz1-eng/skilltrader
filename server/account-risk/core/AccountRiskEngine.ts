@@ -54,8 +54,11 @@ export function evaluateAccountRisk(rawInput: AccountRiskInput): AccountRiskResu
   const unitTradingCosts = multiplyBps(unitPriceExposure, candidate.roundTripCostBps);
   const riskPerUnit = unitStopLoss + unitTradingCosts;
 
-  const maxQuantityByRisk = divideFloor(riskBudget * SCALE, riskPerUnit);
-  const maxQuantityByExposure = divideFloor(remainingGrossExposure * SCALE, unitPriceExposure);
+  const calculationPossible = unitPriceExposure > 0n && riskPerUnit > 0n;
+  const maxQuantityByRisk = riskPerUnit > 0n ? divideFloor(riskBudget * SCALE, riskPerUnit) : 0n;
+  const maxQuantityByExposure = unitPriceExposure > 0n
+    ? divideFloor(remainingGrossExposure * SCALE, unitPriceExposure)
+    : 0n;
   const quantity = floorToStep(maxQuantityByRisk < maxQuantityByExposure ? maxQuantityByRisk : maxQuantityByExposure, step);
   const notional = (quantity * unitPriceExposure) / SCALE;
   const estimatedLoss = (quantity * riskPerUnit) / SCALE;
@@ -63,8 +66,8 @@ export function evaluateAccountRisk(rawInput: AccountRiskInput): AccountRiskResu
   const snapshotFresh = BigInt(input.evaluatedAt) >= BigInt(account.snapshotAt) && BigInt(input.evaluatedAt) - BigInt(account.snapshotAt) <= MAX_ACCOUNT_SNAPSHOT_AGE_MS;
   const positionLimitPassed = account.openPositions < account.maxOpenPositions;
   const dailyLossPassed = remainingDailyLossBudget > 0n && estimatedLoss <= remainingDailyLossBudget;
-  const tradeRiskPassed = estimatedLoss > 0n && estimatedLoss <= riskBudget;
-  const exposurePassed = remainingGrossExposure > 0n && notional <= remainingGrossExposure;
+  const tradeRiskPassed = calculationPossible && estimatedLoss > 0n && estimatedLoss <= riskBudget;
+  const exposurePassed = unitPriceExposure > 0n && remainingGrossExposure > 0n && notional <= remainingGrossExposure;
   const minimumQuantityPassed = quantity >= minimumQuantity;
   const checks = [
     check("account_snapshot_fresh", snapshotFresh, "Account snapshot is current", "Account snapshot is stale"),
