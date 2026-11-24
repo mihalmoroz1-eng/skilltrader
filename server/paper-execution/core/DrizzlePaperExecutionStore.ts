@@ -165,7 +165,7 @@ export class DrizzlePaperExecutionStore {
     userOpenId: string; signalId: string; position: PaperPosition;
     expectedCashBalance: string; expectedDailyLoss: string; expectedDailyLossDate: string;
     expectedOpenNotional: string; expectedOpenPositions: number;
-    newCashBalance: string; dailyLossDate: string; now: number;
+    newCashBalance: string; newDailyLoss: string; dailyLossDate: string; now: number;
   }): Promise<PaperPosition> {
     const db = await getDb();
     if (!db) throw new Error("PAPER database is unavailable");
@@ -190,7 +190,7 @@ export class DrizzlePaperExecutionStore {
         throw new PaperStateConflictError("PAPER account changed during risk evaluation; recalculate before opening");
       }
       await tx.update(paperAccounts).set({
-        cashBalance: input.newCashBalance, realizedDailyLoss: "0", dailyLossDate: input.dailyLossDate,
+        cashBalance: input.newCashBalance, realizedDailyLoss: input.newDailyLoss, dailyLossDate: input.dailyLossDate,
       }).where(eq(paperAccounts.userOpenId, input.userOpenId));
       await tx.update(paperSignalReviews).set({ status: "consumed" }).where(eq(paperSignalReviews.id, signal.id));
       await tx.insert(paperPositions).values({
