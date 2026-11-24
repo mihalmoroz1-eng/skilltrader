@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, Database, Download, Play, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Database, Play, RefreshCw, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { MARKET_DATA_INTERVALS } from "@shared/marketData";
 import "./HistoricalBacktestPanel.css";
@@ -68,10 +68,11 @@ export default function HistoricalBacktestPanel() {
 
   const loadedCandles = candles.data ?? [];
   const canBacktest = rangeValid && loadedCandles.length > 0 && loadedCandles.length <= 50_000 &&
-    Number.isFinite(Number(startingCapital)) && Number(startingCapital) >= 1 &&
-    Number.isInteger(Number(riskBps)) && Number(riskBps) >= 1 &&
-    Number.isInteger(Number(stopLossBps)) && Number(stopLossBps) >= 10 &&
-    Number.isInteger(Number(takeProfitBps)) && Number(takeProfitBps) >= 10;
+    Number.isFinite(Number(startingCapital)) && Number(startingCapital) >= 1 && Number(startingCapital) <= 1_000_000_000 &&
+    Number.isInteger(Number(riskBps)) && Number(riskBps) >= 1 && Number(riskBps) <= 1_000 &&
+    Number.isInteger(Number(stopLossBps)) && Number(stopLossBps) >= 10 && Number(stopLossBps) <= 5_000 &&
+    Number.isInteger(Number(takeProfitBps)) && Number(takeProfitBps) >= 10 && Number(takeProfitBps) <= 10_000 &&
+    Number(riskBps) < Number(stopLossBps);
 
   const startIngestion = () => {
     setQueryEnabled(false);
