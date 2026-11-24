@@ -57,6 +57,21 @@ describe("market data service", () => {
     expect(provider.fetchCandles).toHaveBeenCalledTimes(2);
   });
 
+  it("rejects a provider response that exceeds the requested candle limit", async () => {
+    const provider = createProvider([validCandle, { ...validCandle, openTime: validCandle.closeTime + 1, closeTime: validCandle.closeTime + 60_000 }]);
+    const service = new MarketDataService(provider);
+    await expect(service.getCandles("BTCUSDT", "1m", 1)).rejects.toThrow(/more candles than requested/);
+  });
+
+  it("rejects non-array responses from an untrusted provider", async () => {
+    const provider = {
+      id: "broken-provider",
+      fetchCandles: vi.fn(async () => null),
+    } as unknown as MarketDataProvider;
+    const service = new MarketDataService(provider);
+    await expect(service.getCandles("BTCUSDT", "1m", 1)).rejects.toThrow(/non-array candle payload/);
+  });
+
   it("rejects invalid clock values before reading the cache or fetching data", async () => {
     const provider = createProvider([validCandle]);
     const service = new MarketDataService(provider, new MarketDataCache(), () => Number.NaN);
