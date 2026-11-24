@@ -11,7 +11,7 @@ The initial engine ingests Binance Spot OHLCV candles into the shared MySQL data
 - Historical ranges are limited to 366 days per request; provider pages are capped at 1,000 rows.
 
 ## Quality controls
-Every provider page is validated by the existing OHLCV validator. The ingestion service checks page ordering, pagination progress, duplicate conflicts, and missing interval gaps. Gaps are reported, not synthesized. The complete flag is false when a gap is detected or the returned range does not cover the requested edges.
+Every provider page is validated by the existing OHLCV validator. The ingestion service checks page ordering, strict pagination cursor boundaries, requested-range boundaries, pagination progress, duplicate conflicts, and missing interval gaps. Provider response bodies are capped while streaming, not only after full buffering. Gaps are reported, not synthesized. The complete flag is false when a gap is detected or the returned range does not cover the requested edges.
 
 ## Storage
 The historical_candles table is defined in drizzle/schema.ts and created by migration 0001_historical_candles.sql. Decimal values are stored as VARCHAR to preserve source representation. Database writes are idempotent on the unique candle key.
