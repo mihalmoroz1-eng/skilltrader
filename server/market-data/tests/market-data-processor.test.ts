@@ -109,6 +109,18 @@ describe("deterministic market data processor", () => {
     expect(result.quality.continuousSegments).toBe(1);
   });
 
+  it("rejects candles with wrong interval boundaries and future open times", () => {
+    const candles = makeCandles(2);
+    expect(() => processMarketData(
+      snapshot([{ ...candles[0], closeTime: candles[0].closeTime - 1 }]),
+      candles[0].closeTime + 1,
+    )).toThrow(/close time does not match/);
+    expect(() => processMarketData(
+      snapshot([candles[0]]),
+      candles[0].openTime - 1,
+    )).toThrow(/dated in the future/);
+  });
+
   it("rejects invalid snapshots, timestamps and structurally invalid candles", () => {
     const candles = makeCandles(5);
     expect(() => processMarketData(snapshot(candles), Number.NaN)).toThrow(MarketDataProcessingError);
