@@ -75,6 +75,15 @@ describe("deterministic technical indicators", () => {
     expect(() => calculateMACD([1, 2, 3], 26, 12, 9)).toThrow(/fast period/);
   });
 
+  it("keeps weighted VWAP finite for large but valid volume values", () => {
+    const vwap = calculateVWAP([
+      { high: 12, low: 8, close: 10, volume: 1e308 },
+      { high: 15, low: 9, close: 12, volume: 1e308 },
+    ]);
+    expect(vwap[0]).toBe(10);
+    expect(vwap[1]).toBeCloseTo(11, 12);
+  });
+
   it("rejects invalid numeric candles", () => {
     expect(() => calculateVWAP([{ high: 9, low: 10, close: 10, volume: 1 }])).toThrow(RangeError);
   });
