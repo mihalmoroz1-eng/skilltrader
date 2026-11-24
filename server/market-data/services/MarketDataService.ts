@@ -1,11 +1,10 @@
 import { MarketDataCache } from "../core/MarketDataCache";
-import { normalizeBinanceKlines } from "../core/MarketDataNormalizer";
 import { validateCandles } from "../core/MarketDataValidator";
 import {
-  isBinanceInterval,
-  type BinanceInterval,
+  isMarketInterval,
   type MarketDataProvider,
   type MarketDataSnapshot,
+  type MarketInterval,
 } from "../core/MarketDataTypes";
 
 export class MarketDataRequestError extends Error {
@@ -27,35 +26,42 @@ export class MarketDataService {
     intervalInput: string,
     limit = 500,
   ): Promise<MarketDataSnapshot> {
+    if (typeof symbolInput !== "string") {
+      throw new MarketDataRequestError("Invalid market symbol");
+    }
     const symbol = symbolInput.trim().toUpperCase();
     if (!/^[A-Z0-9]{2,20}$/.test(symbol)) {
       throw new MarketDataRequestError("Invalid market symbol");
     }
-    if (!isBinanceInterval(intervalInput)) {
+    if (!isMarketInterval(intervalInput)) {
       throw new MarketDataRequestError("Unsupported candle interval");
     }
     if (!Number.isInteger(limit) || limit < 1 || limit > 1000) {
       throw new MarketDataRequestError("Candle limit must be an integer from 1 to 1000");
     }
 
-    const interval: BinanceInterval = intervalInput;
+    const interval: MarketInterval = intervalInput;
     const cacheKey = `${this.provider.id}:${symbol}:${interval}:${limit}`;
     const cached = this.cache.get(cacheKey, this.now());
     if (cached) return { ...cached, freshness: "cached" };
 
-    const raw = await this.provider.fetchCandles(symbol, interval, limit);
-    const candles = normalizeBinanceKlines(raw, symbol, interval);
+    const candles = await this.provider.fetchCandles(symbol, interval, limit);
     validateCandles(candles);
+
+    const fetchedAt = this.now();
+    if (!Number.isFinite(fetchedAt) || fetchedAt < 0) {
+      throw new MarketDataRequestError("Market data clock returned an invalid timestamp");
+    }
 
     const snapshot: MarketDataSnapshot = {
       symbol,
       interval,
       source: this.provider.id,
-      fetchedAt: this.now(),
+      fetchedAt,
       freshness: "live",
       candles,
     };
-    this.cache.set(cacheKey, snapshot, snapshot.fetchedAt);
+    this.cache.set(cacheKey, snapshot, fetchedAt);
     return snapshot;
   }
 }
