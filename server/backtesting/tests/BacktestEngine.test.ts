@@ -30,6 +30,13 @@ describe("historical backtesting engine", () => {
     expect(first.candlesProcessed).toBe(candles.length);
   });
 
+  it("binds run identity to the exact historical candle content", () => {
+    const first = runBacktest(series([10, 10, 10, 12, 14, 16, 18, 20, 18, 16, 14, 12]), config);
+    const changed = runBacktest(series([10, 10, 10, 12, 14, 16, 19, 20, 18, 16, 14, 12]), config);
+    expect(first.dataDigest).not.toBe(changed.dataDigest);
+    expect(first.runId).not.toBe(changed.runId);
+  });
+
   it("executes crossover signals no earlier than the next candle open", () => {
     const candles = series([10, 10, 10, 12, 14, 16, 18, 20, 18, 16, 14, 12]);
     const result = runBacktest(candles, config);
