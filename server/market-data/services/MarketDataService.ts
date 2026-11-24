@@ -58,7 +58,13 @@ export class MarketDataService {
     const cached = this.cache.get(cacheKey, checkedAt);
     if (cached) return { ...cached, freshness: "cached" };
 
-    const candles = await this.provider.fetchCandles(symbol, interval, limit);
+    const candles: unknown = await this.provider.fetchCandles(symbol, interval, limit);
+    if (!Array.isArray(candles)) {
+      throw new MarketDataRequestError("Market data provider returned a non-array candle payload");
+    }
+    if (candles.length > limit) {
+      throw new MarketDataRequestError("Market data provider returned more candles than requested");
+    }
     validateCandles(candles);
 
     const fetchedAt = readClock(this.now);
