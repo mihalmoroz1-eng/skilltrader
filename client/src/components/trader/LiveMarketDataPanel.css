@@ -1,0 +1,232 @@
+.live-market-panel {
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.live-market-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.live-market-heading h2 {
+  margin: 5px 0 0;
+}
+
+.live-market-heading .panel-subtitle {
+  max-width: 560px;
+  margin-top: 7px;
+}
+
+.live-market-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.live-market-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--muted-foreground, #8b93a1);
+}
+
+.live-market-status-good {
+  color: #92d94b;
+}
+
+.live-market-status-warning {
+  color: #e9ae56;
+}
+
+.live-market-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.live-market-refresh:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.live-market-refresh .is-spinning {
+  animation: live-market-spin 1s linear infinite;
+}
+
+.live-market-error {
+  margin-top: 14px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: rgba(233, 174, 86, 0.09);
+  color: #e9ae56;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.live-market-empty {
+  margin-top: 18px;
+  color: var(--muted-foreground, #8b93a1);
+  font-size: 12px;
+}
+
+.live-market-content {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(240px, 1.25fr);
+  align-items: center;
+  gap: 28px;
+  margin-top: 18px;
+}
+
+.live-market-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.live-market-label,
+.live-market-timestamp {
+  color: var(--muted-foreground, #8b93a1);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.live-market-primary strong {
+  font-size: clamp(24px, 3.5vw, 34px);
+  line-height: 1.15;
+  color: var(--foreground, #f1f3f5);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.live-market-primary strong small {
+  font-size: 12px;
+  color: var(--muted-foreground, #8b93a1);
+  font-weight: 600;
+}
+
+.live-market-sparkline {
+  min-width: 0;
+  height: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.live-market-sparkline svg {
+  display: block;
+  width: 100%;
+  height: 68px;
+  overflow: visible;
+}
+
+.live-market-sparkline-line {
+  fill: none;
+  stroke: #92d94b;
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.live-market-sparkline.is-falling .live-market-sparkline-line {
+  stroke: #e87979;
+}
+
+.live-market-sparkline-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-foreground, #8b93a1);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-market-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  border-top: 1px solid var(--border, rgba(255,255,255,0.1));
+  margin-top: 18px;
+  padding-top: 14px;
+}
+
+.live-market-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.live-market-metrics span {
+  color: var(--muted-foreground, #8b93a1);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+}
+
+.live-market-metrics strong {
+  overflow-wrap: anywhere;
+  color: var(--foreground, #f1f3f5);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-market-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin-top: 14px;
+  color: var(--muted-foreground, #8b93a1);
+  font-size: 9px;
+}
+
+@keyframes live-market-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 640px) {
+  .live-market-heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .live-market-actions {
+    justify-content: flex-start;
+  }
+
+  .live-market-content {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .live-market-sparkline {
+    height: 80px;
+  }
+
+  .live-market-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 13px;
+  }
+
+  .live-market-footer {
+    flex-direction: column;
+  }
+}
