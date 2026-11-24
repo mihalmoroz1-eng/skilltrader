@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import "./LiveMarketDataPanel.css";
@@ -26,7 +26,7 @@ function errorMessage(error: unknown): string {
   return "Не удалось получить рыночные данные. Повторите запрос позже.";
 }
 
-function StatusLine({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "good" | "warning" }) {
+function StatusLine({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "good" | "warning" }) {
   return <span className={`live-market-status live-market-status-${tone}`}>{children}</span>;
 }
 
@@ -60,8 +60,6 @@ export default function LiveMarketDataPanel() {
     return {
       path: points.map((point, index) => `${index === 0 ? "M" : "L"} ${point}`).join(" "),
       rising: values[values.length - 1] >= values[0],
-      first: values[0],
-      last: values[values.length - 1],
     };
   }, [query.data]);
 
@@ -196,8 +194,8 @@ export default function LiveMarketDataPanel() {
                   <path d={chart.path} className="live-market-sparkline-line" />
                 </svg>
                 <div className="live-market-sparkline-caption">
-                  <span>{formatDecimal(String(chart.first))}</span>
-                  <span>{formatDecimal(String(chart.last))}</span>
+                  <span>{formatDecimal(data.candles[0].close)}</span>
+                  <span>{formatDecimal(latest.close)}</span>
                 </div>
               </div>
             )}
