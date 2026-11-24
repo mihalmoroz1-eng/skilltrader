@@ -254,21 +254,25 @@ export function validateSignalCandidate(
     status = "reviewable";
   }
 
+  const uniqueRejectedReasonCodes = [...new Set(rejectedReasonCodes)];
   const validationPayload = {
     status,
     candidate,
     checks,
-    rejectedReasonCodes,
+    rejectedReasonCodes: uniqueRejectedReasonCodes,
     warnings,
     marketRunId: analysis.runId,
     marketEvidenceDigest: provenance.evidenceDigest,
     validatedAt: now,
+    executionEligible: false,
+    requiresSeparateAccountRiskEngine: true,
+    manualReviewOnly: true,
   };
   const result = {
     status,
     candidate,
     checks,
-    rejectedReasonCodes: [...new Set(rejectedReasonCodes)],
+    rejectedReasonCodes: uniqueRejectedReasonCodes,
     warnings,
     provenance: {
       marketRunId: analysis.runId,
