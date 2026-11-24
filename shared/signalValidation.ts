@@ -32,6 +32,7 @@ export const SIGNAL_VALIDATION_REASON_CODES = [
   "uptrend_evidence_aligned",
   "downtrend_evidence_aligned",
   "directional_evidence_incomplete",
+  "strategy_alignment_confirmed",
   "strategy_context_not_trend_aligned",
   "technical_risk_clear",
   "technical_risk_blocked",
