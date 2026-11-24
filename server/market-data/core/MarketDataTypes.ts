@@ -1,9 +1,6 @@
-export const MARKET_INTERVALS = [
-  "1m", "3m", "5m", "15m", "30m",
-  "1h", "2h", "4h", "6h", "8h", "12h",
-  "1d", "3d", "1w", "1M",
-] as const;
+import { MARKET_DATA_INTERVALS } from "@shared/marketData";
 
+export const MARKET_INTERVALS = MARKET_DATA_INTERVALS;
 export type MarketInterval = (typeof MARKET_INTERVALS)[number];
 export type DecimalString = string;
 
