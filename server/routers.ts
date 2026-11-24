@@ -17,8 +17,16 @@ import { marketDataRateLimiter } from "./market-data/services/MarketDataRateLimi
 import { MarketIntelligenceOrchestrator, MarketIntelligenceAgentCallError, MarketIntelligenceAgentOutputError, MarketIntelligenceTrustGateError } from "./market-intelligence/core/MarketIntelligenceOrchestrator";
 import { marketIntelligenceRateLimiter } from "./market-intelligence/core/MarketIntelligenceRateLimiter";
 import { validateSignalCandidate } from "./signal-validation/core/SignalValidationEngine";
+import { historicalDataRangeSchema, historicalDataQuerySchema } from "@shared/historicalData";
+import { BinanceSpotHistoricalProvider } from "./historical-data/providers/BinanceSpotHistoricalProvider";
+import { DrizzleHistoricalCandleStore } from "./historical-data/core/DrizzleHistoricalCandleStore";
+import { HistoricalDataIngestionService, HistoricalDataRequestError } from "./historical-data/core/HistoricalDataIngestionService";
+
 
 const marketDataService = new MarketDataService(new BinanceSpotProvider());
+const historicalDataService = new HistoricalDataIngestionService(
+  new BinanceSpotHistoricalProvider(), new DrizzleHistoricalCandleStore(),
+);
 const marketIntelligenceOrchestrator = new MarketIntelligenceOrchestrator();
 
 export const appRouter = router({
@@ -33,6 +41,43 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+
+  historicalData: router({
+    ingest: protectedProcedure
+      .input(historicalDataRangeSchema)
+      .mutation(async ({ ctx, input }) => {
+        const limit = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!limit.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${limit.retryAfterSeconds} сек.` });
+        }
+        try {
+          return await historicalDataService.ingest(input);
+        } catch (error) {
+          if (error instanceof HistoricalDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          }
+          if (error instanceof MarketDataProviderError) {
+            if (error.kind === "rate-limit") throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Binance ограничила частоту запросов." });
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Не удалось получить исторические данные от Binance." });
+          }
+          console.error("[Historical Data] Ingestion failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Историческое хранилище временно недоступно." });
+        }
+      }),
+    candles: protectedProcedure
+      .input(historicalDataQuerySchema)
+      .query(async ({ input }) => {
+        try {
+          return await historicalDataService.query(input);
+        } catch (error) {
+          if (error instanceof HistoricalDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          }
+          console.error("[Historical Data] Query failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Историческое хранилище временно недоступно." });
+        }
+      }),
   }),
 
   marketData: router({
