@@ -26,6 +26,8 @@ import { BacktestInputError, runBacktest } from "./backtesting/core/BacktestEngi
 import { futuresIntelligenceRequestSchema } from "@shared/futuresIntelligence";
 import { BinanceUsdMFuturesProvider, FuturesProviderError } from "./futures-intelligence/providers/BinanceUsdMFuturesProvider";
 import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futures-intelligence/core/FuturesLiquidityService";
+import { researchAgentRequestSchema } from "@shared/researchAgent";
+import { ResearchAgent, ResearchAgentCallError, ResearchAgentOutputError, ResearchAgentTrustGateError } from "./research-agent/core/ResearchAgent";
 
 
 const marketDataService = new MarketDataService(new BinanceSpotProvider());
@@ -34,6 +36,7 @@ const historicalDataService = new HistoricalDataIngestionService(
 );
 const marketIntelligenceOrchestrator = new MarketIntelligenceOrchestrator();
 const futuresLiquidityService = new FuturesLiquidityService(new BinanceUsdMFuturesProvider());
+const researchAgent = new ResearchAgent();
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -47,6 +50,49 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+
+  researchAgent: router({
+    analyze: protectedProcedure
+      .input(researchAgentRequestSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketIntelligenceRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `Достигнут лимит исследовательских запусков. Повторите через ${rate.retryAfterSeconds} сек.`,
+          });
+        }
+        try {
+          const snapshot = await marketDataService.getCandles(input.symbol, input.interval, input.limit);
+          const processed = processMarketData(snapshot);
+          const futures = await futuresLiquidityService.analyze(input.symbol, 100);
+          return await researchAgent.analyze(processed, futures);
+        } catch (error) {
+          if (error instanceof ResearchAgentTrustGateError || error instanceof MarketIntelligenceTrustGateError) {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Источники данных не прошли проверку свежести или качества. Исследование остановлено." });
+          }
+          if (error instanceof ResearchAgentOutputError || error instanceof MarketDataNormalizationError ||
+              error instanceof MarketDataValidationError || error instanceof MarketDataProcessingError ||
+              error instanceof FuturesLiquidityValidationError) {
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Данные или структурированный результат исследования не прошли проверку." });
+          }
+          if (error instanceof ResearchAgentCallError) {
+            if (error.cause instanceof LlmInvocationError && error.cause.status === 429) {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Поставщик AI ограничил частоту запросов." });
+            }
+            throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Research Agent временно недоступен." });
+          }
+          if (error instanceof FuturesProviderError || error instanceof MarketDataProviderError) {
+            if (error.kind === "rate-limit") {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Источник рыночных данных ограничил частоту запросов." });
+            }
+            throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Один из публичных источников временно недоступен." });
+          }
+          console.error("[Research Agent] Run failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Не удалось завершить исследовательский анализ." });
+        }
+      }),
   }),
 
   futuresIntelligence: router({
