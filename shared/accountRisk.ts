@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+function compareDecimalStrings(left: string, right: string): number {
+  const [leftWhole, leftFraction = ""] = left.split(".");
+  const [rightWhole, rightFraction = ""] = right.split(".");
+  const scale = Math.max(leftFraction.length, rightFraction.length);
+  const leftValue = BigInt(leftWhole) * 10n ** BigInt(scale) + BigInt(leftFraction.padEnd(scale, "0") || "0");
+  const rightValue = BigInt(rightWhole) * 10n ** BigInt(scale) + BigInt(rightFraction.padEnd(scale, "0") || "0");
+  return leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
+}
+
 const decimalStringSchema = z.string().max(40).regex(/^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/);
 const positiveDecimalStringSchema = decimalStringSchema.refine((value) => Number(value) > 0);
 export const accountRiskInputSchema = z.object({
@@ -31,10 +40,10 @@ export const accountRiskInputSchema = z.object({
   if (input.account.snapshotAt > input.evaluatedAt) {
     ctx.addIssue({ code: "custom", path: ["account", "snapshotAt"], message: "Account snapshot cannot be from the future" });
   }
-  if (input.candidate.direction === "LONG" && Number(input.candidate.stopPrice) >= Number(input.candidate.entryPrice)) {
+  if (input.candidate.direction === "LONG" && compareDecimalStrings(input.candidate.stopPrice, input.candidate.entryPrice) >= 0) {
     ctx.addIssue({ code: "custom", path: ["candidate", "stopPrice"], message: "LONG stop must be below entry" });
   }
-  if (input.candidate.direction === "SHORT" && Number(input.candidate.stopPrice) <= Number(input.candidate.entryPrice)) {
+  if (input.candidate.direction === "SHORT" && compareDecimalStrings(input.candidate.stopPrice, input.candidate.entryPrice) <= 0) {
     ctx.addIssue({ code: "custom", path: ["candidate", "stopPrice"], message: "SHORT stop must be above entry" });
   }
 });
