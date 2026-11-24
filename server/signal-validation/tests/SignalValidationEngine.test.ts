@@ -12,8 +12,8 @@ const BASE_MARKET_CODES = [
 ] as const;
 
 function createAnalysis(overrides?: Partial<MarketIntelligenceResult>): MarketIntelligenceResult {
-  const openTime = NOW - 15 * 60_000;
-  const closeTime = openTime + 15 * 60_000 - 1;
+  const closeTime = NOW - 3_000;
+  const openTime = closeTime - 15 * 60_000 + 1;
   const base: MarketIntelligenceResult = {
     runId: "market-run-123",
     status: "reviewable",
@@ -52,9 +52,9 @@ function createAnalysis(overrides?: Partial<MarketIntelligenceResult>): MarketIn
       qualityStatus: "ready",
       symbol: "BTCUSDT",
       interval: "15m",
-      fetchedAt: NOW - 1_000,
-      processedAt: NOW - 900,
-      dataAgeMs: 1_000,
+      fetchedAt: NOW - 2_000,
+      processedAt: NOW - 1_000,
+      dataAgeMs: 2_000,
       latestClosedCandleOpenTime: openTime,
       latestClosedCandleCloseTime: closeTime,
       closedCandleCount: 96,
