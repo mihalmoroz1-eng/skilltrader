@@ -12,6 +12,14 @@ function formatDecimal(value: string): string {
   return fraction ? `${groupedWhole}.${fraction}` : groupedWhole;
 }
 
+function formatIndicator(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
 function errorMessage(error: unknown): string {
   const code = (error as { data?: { code?: string } } | null)?.data?.code;
   if (code === "UNAUTHORIZED" || code === "FORBIDDEN") {
@@ -37,7 +45,7 @@ export default function LiveMarketDataPanel() {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
-  const query = trpc.marketData.candles.useQuery(REQUEST, {
+  const query = trpc.marketData.analysis.useQuery(REQUEST, {
     enabled: !OFFLINE_MODE && Boolean(auth.data),
     retry: false,
     refetchInterval: 30_000,
@@ -125,7 +133,15 @@ export default function LiveMarketDataPanel() {
 
   const data = query.data;
   const latest = data?.candles[data.candles.length - 1];
+  const latestIndicator = data?.indicators[data.indicators.length - 1];
   const latestCandleClosed = latest ? latest.closeTime < Date.now() : false;
+  const qualityLabel = data?.quality.status === "ready"
+    ? "КАЧЕСТВО: ГОТОВО"
+    : data?.quality.status === "degraded"
+      ? "КАЧЕСТВО: ЕСТЬ ПРОПУСКИ"
+      : data
+        ? "НЕДОСТАТОЧНО ИСТОРИИ"
+        : "";
   const updatedAt = data
     ? new Date(data.fetchedAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : null;
@@ -206,10 +222,27 @@ export default function LiveMarketDataPanel() {
             <div><span>МИНИМУМ</span><strong>{formatDecimal(latest.low)}</strong></div>
             <div><span>ОБЪЁМ BTC</span><strong>{formatDecimal(latest.volume)}</strong></div>
           </div>
+          <div className="live-market-indicator-heading">
+            <strong>Технические индикаторы</strong>
+            <span>{qualityLabel}</span>
+          </div>
+          <div className="live-market-indicators">
+            <div><span>EMA 20</span><strong>{formatIndicator(latestIndicator?.ema20, 4)}</strong></div>
+            <div><span>EMA 50</span><strong>{formatIndicator(latestIndicator?.ema50, 4)}</strong></div>
+            <div><span>RSI 14</span><strong>{formatIndicator(latestIndicator?.rsi14, 2)}</strong></div>
+            <div><span>MACD HIST</span><strong>{formatIndicator(latestIndicator?.macdHistogram, 5)}</strong></div>
+            <div><span>ATR 14</span><strong>{formatIndicator(latestIndicator?.atr14, 4)}</strong></div>
+            <div><span>VWAP WINDOW</span><strong>{formatIndicator(latestIndicator?.vwap, 4)}</strong></div>
+          </div>
+          {data.quality.warnings.length > 0 && (
+            <ul className="live-market-quality-warnings">
+              {data.quality.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            </ul>
+          )}
           <div className="live-market-footer">
-            <span>96 свечей · окно около 24 часов · REST read-only</span>
+            <span>{data.quality.closedCandleCount} закрытых свечей · {data.quality.gapCount} пропусков · {data.quality.continuousSegments} сегм.</span>
             <span>{latestCandleClosed ? "Последняя свеча закрыта" : "Последняя свеча ещё формируется"}</span>
-            <span>Обновление каждые 30 секунд</span>
+            <span>REST read-only · обновление каждые 30 секунд</span>
           </div>
         </>
       )}
