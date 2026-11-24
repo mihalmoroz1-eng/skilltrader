@@ -1,5 +1,6 @@
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { historicalCandles } from "../../../drizzle/schema";
+import { isMarketInterval } from "../../market-data/core/MarketDataTypes";
 import { getDb } from "../../db";
 import type { HistoricalCandleRecord, HistoricalCandleStore } from "./HistoricalDataTypes";
 
@@ -24,9 +25,16 @@ export class DrizzleHistoricalCandleStore implements HistoricalCandleStore {
   async list(symbol: string, interval: string, startTime: number, endTime: number, limit: number) {
     const db = await getDb();
     if (!db) throw new Error("Historical database is unavailable");
-    return db.select().from(historicalCandles).where(and(
+    const rows = await db.select().from(historicalCandles).where(and(
       eq(historicalCandles.symbol, symbol), eq(historicalCandles.interval, interval),
       gte(historicalCandles.openTime, startTime), lte(historicalCandles.openTime, endTime),
     )).orderBy(asc(historicalCandles.openTime)).limit(limit);
+
+    return rows.map(({ id: _id, ...row }) => {
+      if (!isMarketInterval(row.interval)) {
+        throw new Error("Historical database contains an unsupported interval");
+      }
+      return { ...row, interval: row.interval };
+    });
   }
 }
