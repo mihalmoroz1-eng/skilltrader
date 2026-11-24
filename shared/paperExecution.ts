@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 const decimal = z.string().max(40).regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})?$/);
-const positiveDecimal = decimal.refine(value => Number(value) > 0);
+const positiveDecimal = decimal.refine(value => Number.isFinite(Number(value)) && Number(value) > 0 && Number(value) <= 1_000_000_000_000);
 
 export const paperAccountInitializeSchema = z.object({
-  startingBalance: positiveDecimal,
+  startingBalance: positiveDecimal.refine(value => Number(value) <= 1_000_000_000),
   riskPerTradeBps: z.number().int().min(1).max(1000),
   maxDailyLossBps: z.number().int().min(1).max(5000),
   maxGrossExposureBps: z.number().int().min(100).max(10000),
