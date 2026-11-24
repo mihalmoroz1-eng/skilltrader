@@ -39,7 +39,7 @@ function mapSignal(row: typeof paperSignalReviews.$inferSelect): PaperSignalReco
     userOpenId: row.userOpenId, signalId: row.signalId, marketRunId: row.marketRunId,
     validationDigest: row.validationDigest, marketEvidenceDigest: row.marketEvidenceDigest,
     symbol: row.symbol, interval: row.interval, direction: row.direction,
-    thesisCodes, status: row.status,
+    thesisCodes, createdAt: row.createdAt.getTime(), status: row.status,
   };
 }
 function mapPosition(row: typeof paperPositions.$inferSelect): PaperPosition {
