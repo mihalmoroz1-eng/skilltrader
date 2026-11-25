@@ -83,6 +83,7 @@ function summarizeBucket(
   observations: ReturnObservation[],
   tradeCount: number,
   interval: MarketInterval,
+  totalClassifiedCandles: number,
 ): RegimePerformanceBucket {
   const values = observations.map(item => item.value);
   const count = values.length;
@@ -91,7 +92,8 @@ function summarizeBucket(
   const grossFactor = values.reduce((factor, value) => factor * (1 + value), 1);
   if (!Number.isFinite(grossFactor)) throw new Error("Non-finite compounded regime return; analytics withheld");
   const totalReturn = grossFactor - 1;
-  const periods = annualizationPeriods(interval);
+  const regimeShare = totalClassifiedCandles > 0 ? count / totalClassifiedCandles : 0;
+  const periods = annualizationPeriods(interval) * regimeShare;
 
   let annualizedVolatilityPct: number | null = null;
   let sharpeRatio: number | null = null;
@@ -238,6 +240,7 @@ export function analyzeRegimePerformance(
     observationsByRegime.get(regime)!,
     tradeCountByRegime.get(regime) ?? 0,
     config.interval,
+    classifiedCandles,
   ));
   const totalIntervals = Math.max(0, classifiedCandles - 1);
   const transitionRatePct = totalIntervals > 0 ? transitionCount / totalIntervals * 100 : null;
@@ -258,7 +261,7 @@ export function analyzeRegimePerformance(
       a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
     methodology: [
       "Each close-to-close marked-equity return is assigned to the canonical regime classified using the current candle close; this is an after-close descriptive attribution, not a predictive signal.",
-      "Regime volatility, Sharpe and Sortino require at least 30 valid interval returns. Sharpe uses a 0% risk-free rate and Sortino a 0% target.",
+      "Regime volatility, Sharpe and Sortino require at least 30 valid interval returns. Annualization adjusts the selected interval frequency by the observed share of intervals assigned to that regime; this is a descriptive frequency approximation. Sharpe uses a 0% risk-free rate and Sortino a 0% target.",
       "Sample status is insufficient below 5 observations, limited from 5 to 29, and adequate at 30 or more; these are display thresholds, not statistical significance tests.",
       "Maximum drawdown is the largest drawdown inside any uninterrupted episode of a regime. Separate episodes are not concatenated.",
       "Transition interval returns are reported separately for intervals where the canonical regime label changes.",
