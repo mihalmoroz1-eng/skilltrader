@@ -38,6 +38,8 @@ import { PaperExecutionService } from "./paper-execution/core/PaperExecutionServ
 import { DrizzlePaperExecutionStore, PaperStateConflictError } from "./paper-execution/core/DrizzlePaperExecutionStore";
 import { PaperExecutionError } from "./paper-execution/core/PaperExecutionEngine";
 import { BinanceUsdMInstrumentRulesProvider } from "./paper-execution/providers/BinanceUsdMInstrumentRulesProvider";
+import { marketRegimeRequestSchema } from "@shared/marketRegime";
+import { runMarketRegimeAnalysis, MarketRegimeInputError } from "./market-regime/core/MarketRegimeEngine";
 
 
 const marketDataService = new MarketDataService(new BinanceSpotProvider());
@@ -345,6 +347,26 @@ export const appRouter = router({
           }
           console.error("[Walk-Forward] Validation failed", error instanceof Error ? error.name : "unknown");
           throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Исторические данные для Walk-Forward проверки временно недоступны." });
+        }
+      }),
+    marketRegime: protectedProcedure
+      .input(marketRegimeRequestSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        try {
+          const candles = await historicalDataService.query({
+            symbol: input.symbol, interval: input.interval,
+            startTime: input.startTime, endTime: input.endTime, limit: 50_001,
+          });
+          if (candles.length > 50_000) throw new MarketRegimeInputError("Market regime analysis is limited to 50,000 candles");
+          return runMarketRegimeAnalysis(candles, input);
+        } catch (error) {
+          if (error instanceof MarketRegimeInputError || error instanceof HistoricalDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          }
+          console.error("[Market Regime] Analysis failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Исторические данные для определения режима рынка временно недоступны." });
         }
       }),
     robustness: protectedProcedure
