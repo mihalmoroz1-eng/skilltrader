@@ -101,6 +101,38 @@ describe("strategy benchmark engine", () => {
     );
   });
 
+  it("calculates annualized risk metrics from marked equity curves when history is sufficient", () => {
+    const closes = Array.from({ length: 100 }, (_, index) => 100 + index * 0.12 + Math.sin(index / 3) * 4);
+    const result = runStrategyBenchmark(series(closes), config);
+    expect(result.strategyMetrics.riskMetricObservations).toBeGreaterThanOrEqual(30);
+    expect(result.strategyMetrics.annualizedVolatilityPct).not.toBeNull();
+    expect(result.strategyMetrics.annualizedVolatilityPct).toBeGreaterThan(0);
+    expect(result.strategyMetrics.sharpeRatio).not.toBeNull();
+    expect(result.strategyMetrics.sortinoRatio).not.toBeNull();
+    expect(result.strategyMetrics.returnToMaxDrawdown).toBe(
+      result.strategyMetrics.maxDrawdownPct > 0
+        ? result.strategyMetrics.totalReturnPct / result.strategyMetrics.maxDrawdownPct
+        : null,
+    );
+    expect(result.benchmarks.buyAndHoldOneX.riskMetricObservations).toBeGreaterThanOrEqual(30);
+    expect(result.benchmarks.buyAndHoldOneX.sharpeRatio).not.toBeNull();
+    expect(result.benchmarks.cashControl.sharpeRatio).toBeNull();
+    const base = runBacktest(series(closes), config);
+    expect(base.equityCurve.length).toBe(base.candlesProcessed + 1);
+    expect(base.equityCurve[0].equity).toBe(config.startingCapital);
+    expect(base.equityCurve.at(-1)?.equity).toBe(base.metrics.finalEquity);
+    expect(base.equityCurve.every((point, index) => index === 0 || point.time > base.equityCurve[index - 1].time)).toBe(true);
+    expect(result.executionEligible).toBe(false);
+  });
+
+  it("withholds annualized risk ratios when fewer than 30 return observations exist", () => {
+    const result = runStrategyBenchmark(series([100, 101, 103, 102, 100, 98, 99, 102, 105, 108, 110, 112, 109, 106, 104, 107, 111, 114, 117, 120, 118, 115]), config);
+    expect(result.strategyMetrics.riskMetricObservations).toBeLessThan(30);
+    expect(result.strategyMetrics.annualizedVolatilityPct).toBeNull();
+    expect(result.strategyMetrics.sharpeRatio).toBeNull();
+    expect(result.strategyMetrics.sortinoRatio).toBeNull();
+  });
+
   it("rejects historical gaps and insufficient EMA warm-up", () => {
     const candles = series([100, 101, 103, 102, 100, 98, 99, 102, 105, 108, 110, 112, 109, 106, 104, 107, 111, 114, 117, 120, 118, 115]);
     const gap = [...candles];
