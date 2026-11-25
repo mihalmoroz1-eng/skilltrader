@@ -42,6 +42,10 @@ export default function WalkForwardValidationPanel() {
   const [stepCandles, setStepCandles] = useState("100");
   const [windowCount, setWindowCount] = useState("3");
   const [allowShort, setAllowShort] = useState(false);
+  const [strategy, setStrategy] = useState<"ema_crossover" | "rsi_mean_reversion">("ema_crossover");
+  const [rsiPeriod, setRsiPeriod] = useState("14");
+  const [rsiOversoldLevel, setRsiOversoldLevel] = useState("30");
+  const [rsiOverboughtLevel, setRsiOverboughtLevel] = useState("70");
 
   const startTime = Date.parse(`${startDate}T00:00:00.000Z`);
   const endTime = Date.parse(`${endDate}T23:59:59.999Z`);
@@ -53,7 +57,8 @@ export default function WalkForwardValidationPanel() {
   const rangeValid = Number.isFinite(startTime) && Number.isFinite(endTime) &&
     endTime > startTime && endTime - startTime <= 366 * 86_400_000 &&
     /^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase());
-  const configValid = Number.isInteger(training) && training >= 52 && training <= 30_000 &&
+  const minimumTraining = Math.max(strategy === "ema_crossover" ? 52 : Number(rsiPeriod) + 3, 31);
+  const configValid = Number.isInteger(training) && training >= minimumTraining && training <= 30_000 &&
     Number.isInteger(validation) && validation >= 10 && validation <= 10_000 &&
     Number.isInteger(step) && step >= validation && step <= 10_000 &&
     Number.isInteger(windows) && windows >= 2 && windows <= 12 &&
@@ -61,7 +66,7 @@ export default function WalkForwardValidationPanel() {
 
   const walkForward = trpc.backtesting.walkForward.useMutation();
   useEffect(() => { walkForward.reset(); }, [
-    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort,
+    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel,
   ]);
 
   const run = () => {
@@ -70,6 +75,7 @@ export default function WalkForwardValidationPanel() {
       symbol: symbol.trim().toUpperCase(), interval, startTime, endTime,
       startingCapital: 10_000, riskBps: 50, stopLossBps: 200, takeProfitBps: 400,
       feeBps: 5, slippageBps: 5, fastEmaPeriod: 20, slowEmaPeriod: 50, allowShort,
+      strategy, rsiPeriod: Number(rsiPeriod), rsiOversoldLevel: Number(rsiOversoldLevel), rsiOverboughtLevel: Number(rsiOverboughtLevel),
       trainingCandles: training, validationCandles: validation, stepCandles: step, windowCount: windows,
     });
   };
@@ -106,6 +112,15 @@ export default function WalkForwardValidationPanel() {
             <label>Конец UTC<input type="date" value={endDate} onChange={event => setEndDate(event.target.value)} /></label>
           </div>
           <div className="walk-forward-window-controls">
+            <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion")}>
+              <option value="ema_crossover">EMA Crossover</option>
+              <option value="rsi_mean_reversion">RSI Mean Reversion</option>
+            </select></label>
+            {strategy === "rsi_mean_reversion" && <>
+              <label>RSI Period<input type="number" min="2" max="100" value={rsiPeriod} onChange={event => setRsiPeriod(event.target.value)} /></label>
+              <label>RSI Oversold<input type="number" min="5" max="45" value={rsiOversoldLevel} onChange={event => setRsiOversoldLevel(event.target.value)} /></label>
+              <label>RSI Overbought<input type="number" min="55" max="95" value={rsiOverboughtLevel} onChange={event => setRsiOverboughtLevel(event.target.value)} /></label>
+            </>}
             <label>Обучение, свечей<input type="number" min="52" max="30000" value={trainingCandles} onChange={event => setTrainingCandles(event.target.value)} /></label>
             <label>Проверка, свечей<input type="number" min="10" max="10000" value={validationCandles} onChange={event => setValidationCandles(event.target.value)} /></label>
             <label>Шаг, свечей<input type="number" min="10" max="10000" value={stepCandles} onChange={event => setStepCandles(event.target.value)} /></label>
@@ -124,7 +139,7 @@ export default function WalkForwardValidationPanel() {
           {walkForward.error && <p className="walk-forward-error">{safeError(walkForward.error)}</p>}
           {walkForward.data && (
             <div className="walk-forward-results">
-              <div className="walk-forward-result-title"><strong>Результаты OOS проверки</strong><span>{walkForward.data.windows.length} независимых окон · {walkForward.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
+              <div className="walk-forward-result-title"><strong>Результаты OOS проверки · {walkForward.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : "EMA Crossover"}</strong><span>{walkForward.data.windows.length} независимых окон · {walkForward.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
               <div className="walk-forward-metrics">
                 <div><span>Средняя доходность OOS</span><strong>{percent(walkForward.data.metrics.averageValidationReturnPct)}</strong></div>
                 <div><span>Медиана OOS</span><strong>{percent(walkForward.data.metrics.medianValidationReturnPct)}</strong></div>
