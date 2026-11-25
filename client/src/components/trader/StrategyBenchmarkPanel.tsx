@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, BarChart3, Play, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Play, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { MARKET_DATA_INTERVALS } from "@shared/marketData";
 import "./StrategyBenchmarkPanel.css";
