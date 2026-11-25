@@ -25,3 +25,13 @@ Buy & Hold 1x is a fully invested passive baseline and therefore has higher init
 - Uses the canonical Backtest Engine for the EMA result; no duplicate EMA implementation.
 - All Buy & Hold results are deterministic, bound to the same candle SHA-256 digest, and include entry/exit time and execution prices.
 - Results are research-only and always include `executionEligible=false`. No signals, PAPER orders, exchange orders or LIVE execution are created or authorized.
+
+## Risk-adjusted strategy efficiency
+- EMA Crossover, Buy & Hold 1x and risk-matched Buy & Hold now expose annualized volatility, Sharpe, Sortino and return-to-maximum-drawdown diagnostics.
+- Metrics are calculated server-side from timestamped marked-to-market equity curves over the same benchmark evaluation window. The EMA curve includes the initial capital point, candle-close mark-to-market values, fees and final exit costs.
+- Sharpe uses a 0% risk-free rate. Sortino uses a 0% target return and downside root-mean-square of negative interval returns. Annualization follows the selected candle interval; monthly candles use 12 periods per year.
+- At least 30 interval returns are required for annualized volatility, Sharpe and Sortino. Shorter histories and zero-variance denominators produce unavailable values, not synthetic zeros.
+- Return-to-maximum-drawdown is unavailable when maximum drawdown is zero. Cash control has no risk-adjusted ratios because it has no market return observations.
+- The equity curve is an internal server calculation input and is not added to the ordinary backtest API response, avoiding an unnecessary large payload.
+- This compares the canonical EMA strategy with its existing same-symbol benchmark controls. It does not imply cross-asset or cross-strategy comparability when symbols, periods, capital, fees or execution assumptions differ.
+- Research only: no strategy is selected, parameters optimized, signals created, risk limits changed or orders authorized.
