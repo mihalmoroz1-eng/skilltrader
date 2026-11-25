@@ -4,6 +4,7 @@ import { validateCandles } from "../../market-data/core/MarketDataValidator";
 import { emaCrossoverStrategy, type EmaCrossoverConfig } from "../strategies/EmaCrossoverStrategy";
 import { rsiMeanReversionStrategy, type RsiMeanReversionConfig } from "../strategies/RsiMeanReversionStrategy";
 import { macdMomentumStrategy, type MacdMomentumConfig } from "../strategies/MacdMomentumStrategy";
+import { breakoutStrategy, type BreakoutConfig } from "../strategies/BreakoutStrategy";
 import type { BacktestStrategy, StrategySignalProvider } from "../strategies/Strategy";
 
 export type BacktestConfig = {
@@ -17,10 +18,12 @@ export type BacktestConfig = {
   slippageBps: number;
   fastEmaPeriod: number;
   slowEmaPeriod: number;
-  strategy?: "ema_crossover" | "rsi_mean_reversion" | "macd_momentum";
+  strategy?: "ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout";
   macdFastPeriod?: number;
   macdSlowPeriod?: number;
   macdSignalPeriod?: number;
+  breakoutLookbackPeriod?: number;
+  breakoutBufferBps?: number;
   rsiPeriod?: number;
   rsiOversoldLevel?: number;
   rsiOverboughtLevel?: number;
@@ -43,7 +46,7 @@ export type BacktestTrade = {
   exitReason: "stop_loss" | "take_profit" | "opposite_signal" | "strategy_exit" | "end_of_data";
 };
 
-export type BacktestExecutionConfig = Omit<BacktestConfig, "fastEmaPeriod" | "slowEmaPeriod" | "strategy" | "rsiPeriod" | "rsiOversoldLevel" | "rsiOverboughtLevel" | "macdFastPeriod" | "macdSlowPeriod" | "macdSignalPeriod">;
+export type BacktestExecutionConfig = Omit<BacktestConfig, "fastEmaPeriod" | "slowEmaPeriod" | "strategy" | "rsiPeriod" | "rsiOversoldLevel" | "rsiOverboughtLevel" | "macdFastPeriod" | "macdSlowPeriod" | "macdSignalPeriod" | "breakoutLookbackPeriod" | "breakoutBufferBps">;
 
 export type BacktestResult = {
   runId: string;
@@ -138,6 +141,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     fastEmaPeriod: _fast, slowEmaPeriod: _slow, strategy: _strategy,
     rsiPeriod: _rsiPeriod, rsiOversoldLevel: _oversold, rsiOverboughtLevel: _overbought,
     macdFastPeriod: _macdFast, macdSlowPeriod: _macdSlow, macdSignalPeriod: _macdSignal,
+    breakoutLookbackPeriod: _breakoutLookback, breakoutBufferBps: _breakoutBuffer,
     ...executionConfig
   } = config;
   if (config.strategy === "rsi_mean_reversion") {
@@ -155,6 +159,13 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       signalPeriod: config.macdSignalPeriod ?? 9,
     };
     return runBacktestWithStrategy(candles, executionConfig, macdMomentumStrategy, strategyConfig);
+  }
+  if (config.strategy === "breakout") {
+    const strategyConfig: BreakoutConfig = {
+      lookbackPeriod: config.breakoutLookbackPeriod ?? 20,
+      breakoutBufferBps: config.breakoutBufferBps ?? 10,
+    };
+    return runBacktestWithStrategy(candles, executionConfig, breakoutStrategy, strategyConfig);
   }
   const strategyConfig: EmaCrossoverConfig = { fastEmaPeriod: config.fastEmaPeriod, slowEmaPeriod: config.slowEmaPeriod };
   return runBacktestWithStrategy(candles, executionConfig, emaCrossoverStrategy, strategyConfig);
