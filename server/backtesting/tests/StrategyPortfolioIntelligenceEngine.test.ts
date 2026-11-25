@@ -61,12 +61,11 @@ describe("strategy portfolio intelligence", () => {
       "ema_crossover", "rsi_mean_reversion", "macd_momentum", "breakout",
     ]);
     expect(new Set(result.strategies.map(item => item.dataDigest)).size).toBe(1);
-    expect(new Set(result.strategies.map(item => item.validation.windows.map(window =>
-      [window.validationStartTime, window.validationEndTime].join(":"),
+    expect(new Set(result.strategies.map(item => item.folds.map(fold =>
+      [fold.validationStartTime, fold.validationEndTime].join(":"),
     ).join("|"))).size).toBe(1);
     expect(new Set(result.strategies.map(item => item.runId)).size).toBe(4);
-    expect(result.strategies.every(item => item.validation.windows.length === 2)).toBe(true);
-    expect(result.strategies.every(item => item.validation.executionEligible === false)).toBe(true);
+    expect(result.strategies.every(item => item.folds.length === 2)).toBe(true);
     expect(result.executionEligible).toBe(false);
     expect(result.exchangeOrderSent).toBe(false);
   });
