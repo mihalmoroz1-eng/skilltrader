@@ -101,3 +101,7 @@ export const robustnessRequestSchema = z.object({
 });
 
 export type RobustnessRequest = z.infer<typeof robustnessRequestSchema>;
+
+/** Benchmark comparison uses the exact same input contract as the deterministic EMA backtest. */
+export const strategyBenchmarkRequestSchema = backtestRequestSchema;
+export type StrategyBenchmarkRequest = BacktestRequest;
