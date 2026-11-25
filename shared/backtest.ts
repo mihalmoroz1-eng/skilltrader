@@ -14,13 +14,15 @@ const backtestShape = {
   slippageBps: z.number().int().min(0).max(100).default(5),
   fastEmaPeriod: z.number().int().min(2).max(100).default(20),
   slowEmaPeriod: z.number().int().min(3).max(300).default(50),
-  strategy: z.enum(["ema_crossover", "rsi_mean_reversion", "macd_momentum"]).default("ema_crossover"),
+  strategy: z.enum(["ema_crossover", "rsi_mean_reversion", "macd_momentum", "breakout"]).default("ema_crossover"),
   rsiPeriod: z.number().int().min(2).max(100).default(14),
   rsiOversoldLevel: z.number().int().min(5).max(45).default(30),
   rsiOverboughtLevel: z.number().int().min(55).max(95).default(70),
   macdFastPeriod: z.number().int().min(2).max(100).default(12),
   macdSlowPeriod: z.number().int().min(3).max(300).default(26),
   macdSignalPeriod: z.number().int().min(2).max(100).default(9),
+  breakoutLookbackPeriod: z.number().int().min(2).max(500).default(20),
+  breakoutBufferBps: z.number().int().min(0).max(500).default(10),
   allowShort: z.boolean().default(false),
 };
 
@@ -30,10 +32,12 @@ function validateBacktestParameters(
     endTime: number;
     fastEmaPeriod: number;
     slowEmaPeriod: number;
-    strategy: "ema_crossover" | "rsi_mean_reversion" | "macd_momentum";
+    strategy: "ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout";
     macdFastPeriod: number;
     macdSlowPeriod: number;
     macdSignalPeriod: number;
+    breakoutLookbackPeriod: number;
+    breakoutBufferBps: number;
     rsiOversoldLevel: number;
     rsiOverboughtLevel: number;
     riskBps: number;
@@ -52,6 +56,9 @@ function validateBacktestParameters(
   }
   if (value.strategy === "macd_momentum" && value.macdFastPeriod >= value.macdSlowPeriod) {
     ctx.addIssue({ code: "custom", message: "MACD fast period must be less than slow period", path: ["macdFastPeriod"] });
+  }
+  if (value.strategy === "breakout" && (!Number.isInteger(value.breakoutLookbackPeriod) || value.breakoutLookbackPeriod < 2 || value.breakoutLookbackPeriod > 500 || !Number.isInteger(value.breakoutBufferBps) || value.breakoutBufferBps < 0 || value.breakoutBufferBps > 500)) {
+    ctx.addIssue({ code: "custom", message: "Breakout lookback or buffer is invalid", path: ["breakoutLookbackPeriod"] });
   }
   if (value.strategy === "rsi_mean_reversion" && value.rsiOverboughtLevel - value.rsiOversoldLevel < 10) {
     ctx.addIssue({ code: "custom", message: "RSI thresholds must be separated by at least 10 points", path: ["rsiOverboughtLevel"] });
@@ -77,7 +84,8 @@ export const walkForwardRequestSchema = z.object({
 }).strict().superRefine((value, ctx) => {
   validateBacktestParameters(value, ctx);
   const strategyWarmup = value.strategy === "ema_crossover" ? value.slowEmaPeriod + 2 :
-    value.strategy === "rsi_mean_reversion" ? value.rsiPeriod + 3 : value.macdSlowPeriod + value.macdSignalPeriod + 1;
+    value.strategy === "rsi_mean_reversion" ? value.rsiPeriod + 3 :
+    value.strategy === "macd_momentum" ? value.macdSlowPeriod + value.macdSignalPeriod + 1 : value.breakoutLookbackPeriod + 2;
   if (value.trainingCandles < Math.max(strategyWarmup, value.regimeLookback + 1)) {
     ctx.addIssue({
       code: "custom",
