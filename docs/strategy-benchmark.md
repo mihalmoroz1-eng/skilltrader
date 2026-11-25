@@ -17,7 +17,7 @@ The engine compares the selected deterministic EMA Crossover, RSI Mean Reversion
 Reports final equity, net PnL, total return, marked-to-market maximum drawdown, fees and trade count for every track. Strategy-relative excess returns and drawdown differences are reported in percentage points.
 
 ## Exposure interpretation
-Buy & Hold 1x is a fully invested passive baseline and therefore has higher initial market exposure than a strategy when the configured per-trade risk ratio is below 100%. Risk-matched Buy & Hold uses the same fixed initial target-notional ratio as the selected strategy's risk configuration but holds that notional rather than dynamically sizing each trade. It is a fixed-exposure reference, not an exact replication of the EMA strategy's exposure path.
+Buy & Hold 1x is a fully invested passive baseline and therefore has higher initial market exposure than a strategy when the configured per-trade risk ratio is below 100%. Risk-matched Buy & Hold uses the same fixed initial target-notional ratio as the selected strategy's risk configuration but holds that notional rather than dynamically sizing each trade. It is a fixed-exposure reference, not an exact replication of the selected strategy's exposure path.
 
 ## Limits and safety
 - Reads stored historical Binance Spot candles only; no direct market fetch.
