@@ -97,6 +97,7 @@ export class PaperExecutionService {
     realizedDailyLossForToday: string;
     currentOpenNotional: string;
     storedOpenNotional: string;
+    markPrices: Record<string, { markPrice: string; fetchedAt: number; source: string }>;
   }> {
     const account = await this.store.getAccount(userOpenId);
     if (!account) throw new PaperExecutionError("PAPER account is not initialized");
