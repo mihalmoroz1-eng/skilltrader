@@ -1,7 +1,7 @@
 # Walk-Forward Validation Engine
 
 ## Purpose
-The engine evaluates the selected deterministic EMA Crossover, RSI Mean Reversion or MACD Momentum strategy across sequential rolling training and out-of-sample validation windows. The strategy and its parameters remain fixed across all folds. It is a robustness diagnostic, not a strategy optimizer.
+The engine evaluates the selected deterministic EMA Crossover, RSI Mean Reversion, MACD Momentum or Breakout strategy across sequential rolling training and out-of-sample validation windows. The strategy and its parameters remain fixed across all folds. It is a robustness diagnostic, not a strategy optimizer.
 
 ## Window model
 - Each fold contains a fixed-size training segment followed by a separate validation segment.
@@ -15,7 +15,7 @@ The engine evaluates the selected deterministic EMA Crossover, RSI Mean Reversio
 - The final completed training candle may produce a signal that is filled at the first validation candle open; no validation candle close is used to determine that opening fill.
 - Training results and validation results are separate backtests. Validation starts with fresh configured virtual capital and no training position or PnL carried forward.
 - Every fold resets starting capital. Aggregate returns are per-window statistics, not a compounded portfolio curve.
-- The strategy configuration is fixed across folds. EMA uses its slow-period warm-up; RSI uses its RSI-period warm-up; MACD uses its slow EMA and signal-line warm-up. This workflow does not optimize EMA periods, RSI thresholds, MACD periods, or any risk parameter on the training data.
+- The strategy configuration is fixed across folds. EMA uses its slow-period warm-up; RSI uses its RSI-period warm-up; MACD uses its slow EMA and signal-line warm-up; Breakout uses its prior-range lookback plus next-open boundary. This workflow does not optimize strategy or risk parameters on the training data.
 
 ## Metrics
 Reports per-fold in-sample and out-of-sample return, drawdown, trade count and win rate. Aggregate out-of-sample diagnostics include mean and median return, return dispersion, percentage of positive windows, worst validation drawdown, total validation trades, weighted win rate and profit factor based on winning and losing trade PnL.
@@ -48,7 +48,7 @@ Each independent out-of-sample fold now includes regime-conditional performance 
 - Volatility, Sharpe and Sortino require at least 30 observations within a regime. Sample labels are insufficient below five, limited from five through 29, and adequate at 30 or more; these are display thresholds, not statistical significance tests.
 - Annualization adjusts by the observed share of intervals assigned to a regime. This is a descriptive frequency approximation; grouped compounded returns are conditional statistics, not standalone realizable strategy returns.
 - Drawdown is measured only within uninterrupted episodes of the same regime. Non-contiguous episodes are never concatenated.
-- The training window must cover the selected strategy's warm-up (including the MACD signal-line period when MACD Momentum is selected) and the configured regime lookback. Defaults: 30-candle lookback, 100 bps trend threshold, 50 bps range threshold and 200 bps high-volatility threshold.
+- The training window must cover the selected strategy's warm-up (including the MACD signal-line period when MACD Momentum is selected, or the Breakout lookback plus next-open boundary when Breakout is selected) and the configured regime lookback. Defaults: 30-candle lookback, 100 bps trend threshold, 50 bps range threshold and 200 bps high-volatility threshold.
 - The classifier is deterministic and shared with Market Regime Intelligence. It uses completed OHLC candles only.
 - Research-only: no parameter optimization, regime-based strategy selection, automatic switching, signals, PAPER mutation, risk-limit change or exchange order is performed. `executionEligible=false`.
 
