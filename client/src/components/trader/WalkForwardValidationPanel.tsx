@@ -42,13 +42,15 @@ export default function WalkForwardValidationPanel() {
   const [stepCandles, setStepCandles] = useState("100");
   const [windowCount, setWindowCount] = useState("3");
   const [allowShort, setAllowShort] = useState(false);
-  const [strategy, setStrategy] = useState<"ema_crossover" | "rsi_mean_reversion" | "macd_momentum">("ema_crossover");
+  const [strategy, setStrategy] = useState<"ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout">("ema_crossover");
   const [rsiPeriod, setRsiPeriod] = useState("14");
   const [rsiOversoldLevel, setRsiOversoldLevel] = useState("30");
   const [rsiOverboughtLevel, setRsiOverboughtLevel] = useState("70");
   const [macdFastPeriod, setMacdFastPeriod] = useState("12");
   const [macdSlowPeriod, setMacdSlowPeriod] = useState("26");
   const [macdSignalPeriod, setMacdSignalPeriod] = useState("9");
+  const [breakoutLookbackPeriod, setBreakoutLookbackPeriod] = useState("20");
+  const [breakoutBufferBps, setBreakoutBufferBps] = useState("10");
 
   const startTime = Date.parse(`${startDate}T00:00:00.000Z`);
   const endTime = Date.parse(`${endDate}T23:59:59.999Z`);
@@ -60,7 +62,7 @@ export default function WalkForwardValidationPanel() {
   const rangeValid = Number.isFinite(startTime) && Number.isFinite(endTime) &&
     endTime > startTime && endTime - startTime <= 366 * 86_400_000 &&
     /^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase());
-  const minimumTraining = Math.max(strategy === "ema_crossover" ? 52 : strategy === "rsi_mean_reversion" ? Number(rsiPeriod) + 3 : Number(macdSlowPeriod) + Number(macdSignalPeriod) + 1, 31);
+  const minimumTraining = Math.max(strategy === "ema_crossover" ? 52 : strategy === "rsi_mean_reversion" ? Number(rsiPeriod) + 3 : strategy === "macd_momentum" ? Number(macdSlowPeriod) + Number(macdSignalPeriod) + 1 : Number(breakoutLookbackPeriod) + 2, 31);
   const configValid = Number.isInteger(training) && training >= minimumTraining && training <= 30_000 &&
     Number.isInteger(validation) && validation >= 10 && validation <= 10_000 &&
     Number.isInteger(step) && step >= validation && step <= 10_000 &&
@@ -70,11 +72,13 @@ export default function WalkForwardValidationPanel() {
     (strategy !== "rsi_mean_reversion" || (Number.isInteger(Number(rsiPeriod)) && Number(rsiPeriod) >= 2 && Number(rsiPeriod) <= 100 &&
       Number.isInteger(Number(rsiOversoldLevel)) && Number(rsiOversoldLevel) >= 5 && Number(rsiOversoldLevel) <= 45 &&
       Number.isInteger(Number(rsiOverboughtLevel)) && Number(rsiOverboughtLevel) <= 95 && Number(rsiOverboughtLevel) >= 55 &&
-      Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10));
+      Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10)) &&
+    (strategy !== "breakout" || (Number.isInteger(Number(breakoutLookbackPeriod)) && Number(breakoutLookbackPeriod) >= 2 && Number(breakoutLookbackPeriod) <= 500 &&
+      Number.isInteger(Number(breakoutBufferBps)) && Number(breakoutBufferBps) >= 0 && Number(breakoutBufferBps) <= 500));
 
   const walkForward = trpc.backtesting.walkForward.useMutation();
   useEffect(() => { walkForward.reset(); }, [
-    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod,
+    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, breakoutLookbackPeriod, breakoutBufferBps,
   ]);
 
   const run = () => {
@@ -85,6 +89,7 @@ export default function WalkForwardValidationPanel() {
       feeBps: 5, slippageBps: 5, fastEmaPeriod: 20, slowEmaPeriod: 50, allowShort,
       strategy, rsiPeriod: Number(rsiPeriod), rsiOversoldLevel: Number(rsiOversoldLevel), rsiOverboughtLevel: Number(rsiOverboughtLevel),
       macdFastPeriod: Number(macdFastPeriod), macdSlowPeriod: Number(macdSlowPeriod), macdSignalPeriod: Number(macdSignalPeriod),
+      breakoutLookbackPeriod: Number(breakoutLookbackPeriod), breakoutBufferBps: Number(breakoutBufferBps),
       trainingCandles: training, validationCandles: validation, stepCandles: step, windowCount: windows,
     });
   };
@@ -121,10 +126,11 @@ export default function WalkForwardValidationPanel() {
             <label>Конец UTC<input type="date" value={endDate} onChange={event => setEndDate(event.target.value)} /></label>
           </div>
           <div className="walk-forward-window-controls">
-            <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion" | "macd_momentum")}>
+            <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout")}>
               <option value="ema_crossover">EMA Crossover</option>
               <option value="rsi_mean_reversion">RSI Mean Reversion</option>
               <option value="macd_momentum">MACD Momentum</option>
+              <option value="breakout">Breakout</option>
             </select></label>
             {strategy === "rsi_mean_reversion" && <>
               <label>RSI Period<input type="number" min="2" max="100" value={rsiPeriod} onChange={event => setRsiPeriod(event.target.value)} /></label>
@@ -136,6 +142,10 @@ export default function WalkForwardValidationPanel() {
               <label>MACD Slow<input type="number" min="3" max="300" value={macdSlowPeriod} onChange={event => setMacdSlowPeriod(event.target.value)} /></label>
               <label>MACD Signal<input type="number" min="2" max="100" value={macdSignalPeriod} onChange={event => setMacdSignalPeriod(event.target.value)} /></label>
             </>}
+            {strategy === "breakout" && <>
+              <label>Breakout Lookback<input type="number" min="2" max="500" value={breakoutLookbackPeriod} onChange={event => setBreakoutLookbackPeriod(event.target.value)} /></label>
+              <label>Breakout Buffer, bps<input type="number" min="0" max="500" value={breakoutBufferBps} onChange={event => setBreakoutBufferBps(event.target.value)} /></label>
+            </>}
             <label>Обучение, свечей<input type="number" min="52" max="30000" value={trainingCandles} onChange={event => setTrainingCandles(event.target.value)} /></label>
             <label>Проверка, свечей<input type="number" min="10" max="10000" value={validationCandles} onChange={event => setValidationCandles(event.target.value)} /></label>
             <label>Шаг, свечей<input type="number" min="10" max="10000" value={stepCandles} onChange={event => setStepCandles(event.target.value)} /></label>
@@ -146,7 +156,7 @@ export default function WalkForwardValidationPanel() {
             <span>Нужно свечей: <strong>{Number.isFinite(barsRequired) ? barsRequired.toLocaleString("ru-RU") : "—"}</strong> / 50 000</span>
           </div>
           {!rangeValid && <p className="walk-forward-error">Укажите символ и корректный диапазон до 366 дней.</p>}
-          {!configValid && <p className="walk-forward-error"><AlertTriangle size={13} /> Проверьте размеры окон: обучение должно покрывать EMA warm-up, проверка — от 10 свечей, шаг не меньше проверочного окна, всего от 2 до 12 окон и не более 50 000 свечей.</p>}
+          {!configValid && <p className="walk-forward-error"><AlertTriangle size={13} /> Проверьте размеры окон: обучение должно покрывать warm-up выбранной стратегии, проверка — от 10 свечей, шаг не меньше проверочного окна, всего от 2 до 12 окон и не более 50 000 свечей.</p>}
           <button type="button" className="walk-forward-run" onClick={run} disabled={!rangeValid || !configValid || !auth.data || walkForward.isPending}>
             <Play size={14} /> {walkForward.isPending ? "Проверка выполняется…" : "Запустить Walk-Forward"}
           </button>
@@ -154,7 +164,7 @@ export default function WalkForwardValidationPanel() {
           {walkForward.error && <p className="walk-forward-error">{safeError(walkForward.error)}</p>}
           {walkForward.data && (
             <div className="walk-forward-results">
-              <div className="walk-forward-result-title"><strong>Результаты OOS проверки · {walkForward.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : walkForward.data.strategy === "macd_momentum" ? "MACD Momentum" : "EMA Crossover"}</strong><span>{walkForward.data.windows.length} независимых окон · {walkForward.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
+              <div className="walk-forward-result-title"><strong>Результаты OOS проверки · {walkForward.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : walkForward.data.strategy === "macd_momentum" ? "MACD Momentum" : walkForward.data.strategy === "breakout" ? "Breakout" : "EMA Crossover"}</strong><span>{walkForward.data.windows.length} независимых окон · {walkForward.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
               <div className="walk-forward-metrics">
                 <div><span>Средняя доходность OOS</span><strong>{percent(walkForward.data.metrics.averageValidationReturnPct)}</strong></div>
                 <div><span>Медиана OOS</span><strong>{percent(walkForward.data.metrics.medianValidationReturnPct)}</strong></div>
