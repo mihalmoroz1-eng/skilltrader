@@ -32,6 +32,14 @@ export type WalkForwardRegimeAdaptiveAnalytics = {
   buckets: RegimeAdaptiveBucket[];
 };
 
+export type WalkForwardRegimeAdaptiveSummary = {
+  status: "ready" | "insufficient_folds";
+  totalFolds: number;
+  benchmark: "buy_and_hold_gross_price_return";
+  benchmarkCaveat: string;
+  buckets: Array<RegimeAdaptiveBucket & { foldCoveragePct: number }>;
+};
+
 export type RegimeAdaptiveConfig = {
   interval: MarketInterval;
   lookback: number;
@@ -155,6 +163,46 @@ export function analyzeWalkForwardRegimeAdaptive(
 
   return {
     status: "ready",
+    benchmark: "buy_and_hold_gross_price_return",
+    benchmarkCaveat: "Underlying price return only; excludes trading costs, spread, slippage, fees and financing. It is not exposure-matched; comparisons are directional diagnostics, not like-for-like strategy rankings.",
+    buckets,
+  };
+}
+
+
+/** Aggregates only fold-local regime outcomes; no interval or equity-curve pooling. */
+export function aggregateWalkForwardRegimeAdaptive(
+  folds: WalkForwardRegimeAdaptiveAnalytics[],
+): WalkForwardRegimeAdaptiveSummary {
+  const ready = folds.filter(fold => fold.status === "ready");
+  const totalFolds = folds.length;
+  const buckets = REGIMES.map(regime => {
+    const foldResults = ready.flatMap(fold =>
+      fold.buckets.find(bucket => bucket.regime === regime)?.foldResults ?? [],
+    );
+    const observations = foldResults.reduce((sum, item) => sum + item.observations, 0);
+    const strategies = foldResults.flatMap(item => item.strategyReturnPct === null ? [] : [item.strategyReturnPct]);
+    const benchmarks = foldResults.flatMap(item => item.buyAndHoldGrossReturnPct === null ? [] : [item.buyAndHoldGrossReturnPct]);
+    const excess = foldResults.flatMap(item => item.excessReturnPctPoints === null ? [] : [item.excessReturnPctPoints]);
+    const positive = excess.filter(value => value > 0).length;
+    return {
+      regime,
+      observations,
+      sampleStatus: sampleStatus(observations),
+      foldsObserved: foldResults.length,
+      foldCoveragePct: totalFolds > 0 ? foldResults.length / totalFolds * 100 : 0,
+      positiveExcessFolds: positive,
+      excessPositiveFoldSharePct: excess.length >= 2 ? positive / excess.length * 100 : null,
+      medianStrategyReturnPct: median(strategies),
+      medianBuyAndHoldGrossReturnPct: median(benchmarks),
+      medianExcessReturnPctPoints: median(excess),
+      worstExcessReturnPctPoints: excess.length ? Math.min(...excess) : null,
+      foldResults,
+    };
+  });
+  return {
+    status: ready.length >= 2 ? "ready" : "insufficient_folds",
+    totalFolds,
     benchmark: "buy_and_hold_gross_price_return",
     benchmarkCaveat: "Underlying price return only; excludes trading costs, spread, slippage, fees and financing. It is not exposure-matched; comparisons are directional diagnostics, not like-for-like strategy rankings.",
     buckets,
