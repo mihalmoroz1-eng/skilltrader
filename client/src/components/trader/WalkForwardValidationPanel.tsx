@@ -166,12 +166,15 @@ export default function WalkForwardValidationPanel() {
                 </table>
               </div>
               <div className="walk-forward-result-title"><strong>Regime Stability Aggregator · согласованность между OOS окнами</strong><span>{walkForward.data.regimeStability.totalFolds} независимых fold</span></div>
-              <p className="walk-forward-note">Сводка сравнивает отдельные результаты одного режима между окнами. Доходности и кривые капитала не объединяются. Средние и медианы требуют минимум двух fold с доступным значением; риск-метрики учитывают только fold, где они рассчитаны.</p>
+              <p className="walk-forward-note">Сводка сравнивает независимые fold без объединения доходностей и кривых капитала. Stability Score (0–100) — эвристическая историческая оценка: покрытие fold 25%, достаточность выборки 25%, доля положительных fold 25%, контроль разброса 25%. Разброс нормируется по формуле 100 / (1 + σ / (|медиана доходности| + 5 п.п.)). Score доступен только при ≥3 fold с наблюдениями режима и ≥2 конечных доходностях. Это не вероятность, статистическая значимость или прогноз.</p>
               <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
-                <thead><tr><th>Режим</th><th>Fold с данными</th><th>Покрытие</th><th>Выборка ≥30</th><th>Положит. fold</th><th>Средняя доходность</th><th>Медиана</th><th>Худшая</th><th>Разброс</th><th>Средняя волатильность</th><th>Худший Sharpe</th><th>Худший Sortino</th></tr></thead>
+                <thead><tr><th>Режим</th><th>Stability Score</th><th>Доказательность</th><th>Компоненты: покрытие / выборка / плюс / разброс</th><th>Fold с данными</th><th>Покрытие</th><th>Выборка ≥30</th><th>Положит. fold</th><th>Средняя доходность</th><th>Медиана</th><th>Худшая</th><th>Разброс</th><th>Средняя волатильность</th><th>Худший Sharpe</th><th>Худший Sortino</th></tr></thead>
                 <tbody>{walkForward.data.regimeStability.buckets.map(item => (
                   <tr key={item.regime}>
                     <td>{REGIME_LABELS[item.regime]}</td>
+                    <td>{item.stabilityScore.score === null ? "—" : item.stabilityScore.score.toFixed(1) + " / 100"}</td>
+                    <td>{item.stabilityScore.rating === "high" ? "Высокая" : item.stabilityScore.rating === "moderate" ? "Средняя" : item.stabilityScore.rating === "low" ? "Низкая" : "Недостаточно данных"} · {item.stabilityScore.evidence === "strong" ? "сильная" : item.stabilityScore.evidence === "moderate" ? "умеренная" : item.stabilityScore.evidence === "limited" ? "ограниченная" : "недостаточная"}</td>
+                    <td>{[item.stabilityScore.components.foldCoverage, item.stabilityScore.components.sampleAdequacy, item.stabilityScore.components.positiveReturnConsistency, item.stabilityScore.components.dispersionControl].map(value => value === null ? "—" : value.toFixed(0)).join(" / ")}</td>
                     <td>{item.foldsObserved} / {item.totalFolds}</td>
                     <td>{percent(item.foldCoveragePct)}</td>
                     <td>{item.adequateSampleFolds}</td>
