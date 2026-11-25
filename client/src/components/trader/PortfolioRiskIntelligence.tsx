@@ -16,13 +16,25 @@ type RiskIntelligence = {
     level: "high" | "very_high";
   }>;
 };
-type Props = { risk: RiskIntelligence };
+type RiskForecast = {
+  status: "ready" | "insufficient_data" | "no_exposure" | "stale_marks";
+  method: "historical_covariance_normal_approximation";
+  annualizedPortfolioVolatilityPct: number | null;
+  oneDay95VaR: string | null;
+  oneDay95VaRPctOfEquity: number | null;
+  fiveDay95VaR: string | null;
+  fiveDay95VaRPctOfEquity: number | null;
+  observations: number;
+  annualizationPeriods: number;
+  symbols: Array<{ symbol: string; annualizedVolatilityPct: number | null; observations: number }>;
+};
+type Props = { risk: RiskIntelligence; forecast: RiskForecast };
 
 function percent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : value.toFixed(1) + "%";
 }
 
-export default function PortfolioRiskIntelligence({ risk }: Props) {
+export default function PortfolioRiskIntelligence({ risk, forecast }: Props) {
   const labels: Record<RiskIntelligence["assessment"], string> = {
     insufficient_data: "Недостаточно данных", low: "Низкая взаимосвязанность",
     moderate: "Умеренная взаимосвязанность", high: "Высокая взаимосвязанность",
@@ -46,6 +58,24 @@ export default function PortfolioRiskIntelligence({ risk }: Props) {
       </div> : <p className="pri-empty">{risk.totalHeldPairs === 0
         ? "Нет двух и более позиций с доступной актуальной экспозицией для парного анализа."
         : "Нет готовых пар с корреляцией ≥ 0.80 по модулю."}</p>}
+      <div className="pri-forecast">
+        <div className="pri-forecast-head"><div><span className="portfolio-3d-eyebrow">PORTFOLIO RISK FORECAST</span><h4>Историческая волатильность и VaR</h4></div>
+          <span className={"pri-assessment " + (forecast.status === "ready" ? "low" : "insufficient_data")}>{forecast.status === "ready" ? "Расчёт готов" : forecast.status === "stale_marks" ? "Котировки устарели" : forecast.status === "no_exposure" ? "Нет экспозиции" : "Недостаточно истории"}</span></div>
+        {forecast.status === "ready" ? <>
+          <div className="pri-metrics pri-forecast-metrics">
+            <div><span>Годовая волатильность портфеля</span><strong>{percent(forecast.annualizedPortfolioVolatilityPct)}</strong></div>
+            <div><span>95% VaR · 1 день</span><strong>{forecast.oneDay95VaR ?? "—"}</strong><small>{percent(forecast.oneDay95VaRPctOfEquity)} от equity</small></div>
+            <div><span>95% VaR · 5 дней</span><strong>{forecast.fiveDay95VaR ?? "—"}</strong><small>{percent(forecast.fiveDay95VaRPctOfEquity)} от equity</small></div>
+          </div>
+          <div className="pri-pairs"><strong>Годовая волатильность по активам</strong>
+            {forecast.symbols.map(item => <div className="pri-pair pri-vol-row" key={item.symbol}><span>{item.symbol}</span><b>{percent(item.annualizedVolatilityPct)}</b><small>{item.observations} последовательных доходностей</small></div>)}
+          </div>
+          <p className="pri-foot">Общих наблюдений: {forecast.observations}. VaR — статистическая оценка при нормальном приближении и sqrt(time), не максимальный возможный убыток и не гарантия результата.</p>
+        </> : <p className="pri-empty">{forecast.status === "stale_marks"
+          ? "Оценка скрыта: нет актуальных mark-price. Старые котировки не используются."
+          : forecast.status === "no_exposure" ? "Нет открытой PAPER-экспозиции для оценки портфельной волатильности."
+            : "Для каждого открытого актива требуется минимум 30 последовательных доходностей и общая синхронная история."}</p>}
+      </div>
       <p className="pri-foot">Показатель описывает историческую совместную динамику доходностей, а не вероятность убытка. Он не учитывает волатильность, ликвидацию, плечо или изменение корреляций. Это предупреждающая аналитика, не команда на изменение позиций.</p>
     </section>
   );
