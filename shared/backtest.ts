@@ -51,13 +51,24 @@ export const walkForwardRequestSchema = z.object({
   validationCandles: z.number().int().min(10).max(10_000).default(100),
   stepCandles: z.number().int().min(10).max(10_000).default(100),
   windowCount: z.number().int().min(2).max(12).default(3),
+  regimeLookback: z.number().int().min(10).max(200).default(30),
+  trendThresholdBps: z.number().int().min(10).max(2_000).default(100),
+  rangeThresholdBps: z.number().int().min(5).max(1_000).default(50),
+  highVolatilityThresholdBps: z.number().int().min(10).max(2_000).default(200),
 }).strict().superRefine((value, ctx) => {
   validateBacktestParameters(value, ctx);
-  if (value.trainingCandles < value.slowEmaPeriod + 2) {
+  if (value.trainingCandles < Math.max(value.slowEmaPeriod + 2, value.regimeLookback + 1)) {
     ctx.addIssue({
       code: "custom",
-      message: "trainingCandles must include the EMA warm-up plus at least two completed candles",
+      message: "trainingCandles must include the EMA warm-up, regime lookback and at least two completed candles",
       path: ["trainingCandles"],
+    });
+  }
+  if (value.rangeThresholdBps >= value.trendThresholdBps) {
+    ctx.addIssue({
+      code: "custom",
+      message: "rangeThresholdBps must be below trendThresholdBps",
+      path: ["rangeThresholdBps"],
     });
   }
   if (value.stepCandles < value.validationCandles) {
