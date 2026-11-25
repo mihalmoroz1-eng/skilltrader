@@ -126,8 +126,12 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     });
   });
   it("uses absolute correlation for risk weighting while preserving a negative coefficient", () => {
-    const btc = Array.from({ length: 40 }, (_, i) => 100 * Math.pow(1.01, i));
-    const eth = Array.from({ length: 40 }, (_, i) => 200 * Math.pow(0.99, i));
+    const btc = [100];
+    const eth = [200];
+    for (let i = 0; i < 39; i += 1) {
+      btc.push(btc[i] * (i % 2 === 0 ? 1.01 : 1.02));
+      eth.push(eth[i] * (i % 2 === 0 ? 0.99 : 0.98));
+    }
     const result = run({
       btc: candles("BTCUSDT", btc), eth: candles("ETHUSDT", eth),
       positions: [position({ id: 1, symbol: "BTCUSDT" }), position({ id: 2, symbol: "ETHUSDT" })],
