@@ -143,12 +143,12 @@ export default function WalkForwardValidationPanel() {
             <label>Конец UTC<input type="date" value={endDate} onChange={event => setEndDate(event.target.value)} /></label>
           </div>
           <div className="walk-forward-window-controls">
-            <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout")}>
+            {!compareAllStrategies && <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout")}>
               <option value="ema_crossover">EMA Crossover</option>
               <option value="rsi_mean_reversion">RSI Mean Reversion</option>
               <option value="macd_momentum">MACD Momentum</option>
               <option value="breakout">Breakout</option>
-            </select></label>
+            </select></label>}
             {(strategy === "rsi_mean_reversion" || compareAllStrategies) && <>
               <label>RSI Period<input type="number" min="2" max="100" value={rsiPeriod} onChange={event => setRsiPeriod(event.target.value)} /></label>
               <label>RSI Oversold<input type="number" min="5" max="45" value={rsiOversoldLevel} onChange={event => setRsiOversoldLevel(event.target.value)} /></label>
