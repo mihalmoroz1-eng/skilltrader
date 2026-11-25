@@ -45,9 +45,10 @@ Every result reports executionEligible=false and exchangeOrderSent=false. No pri
 
 
 ## Portfolio Risk Intelligence diagnostics
-- The dashboard derives a read-only cross-position diagnostic from existing server-returned correlation pairs and marked PAPER symbol exposure.
-- Only pairs for which both symbols have open PAPER exposure are included. Pair coverage is ready pairs divided by all possible held-symbol pairs; missing or non-ready pairs are not treated as zero correlation.
-- Weighted absolute correlation uses each pair's product of gross exposure weights. It is a descriptive co-movement indicator, not portfolio volatility, loss probability, VaR, or a substitute for the deterministic Account Risk Engine.
+- The Portfolio Intelligence server engine calculates and returns a typed `riskIntelligence` object; the dashboard component is a renderer and performs no portfolio-risk arithmetic.
+- Only pairs for which both symbols have open PAPER exposure and current validated mark prices are included. Pair coverage is ready pairs divided by all possible held-symbol pairs; missing or non-ready pairs are not treated as zero correlation.
+- Weighted absolute correlation uses each pair's product of gross exposure weights. The server returns eligible/total held pairs, coverage, weighted absolute correlation and the signed coefficients of highlighted pairs.
 - Pairs with absolute Pearson correlation >= 0.80 are highlighted; >= 0.90 is labelled very high. Positive and negative relationships retain their signed coefficient.
 - Overall assessment is withheld unless at least 80% of held-symbol pairs have valid correlation data. Descriptive bands are low (<40%), moderate (40–<70%), and high (>=70%) weighted absolute correlation.
-- The diagnostic does not estimate future correlation, account for individual asset volatility, leverage, liquidation, margin or funding, and does not change positions, limits, approvals, signals or orders.
+- If mark-to-market data is missing or stale, the existing portfolio engine suppresses symbol exposure and the risk diagnostic returns insufficient data rather than reusing stale holdings.
+- The diagnostic does not estimate future correlation, account for individual asset volatility, leverage, liquidation, margin or funding, and does not change positions, limits, approvals, signals or orders. Account Risk Engine remains the sole PAPER eligibility and sizing authority.
