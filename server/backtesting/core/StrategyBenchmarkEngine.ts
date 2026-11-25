@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
+import type { MarketCandle, MarketInterval } from "../../market-data/core/MarketDataTypes";
 import {
   runBacktest,
   validateBacktestCandleSeries,
@@ -22,6 +22,11 @@ export type BenchmarkTrackMetrics = {
   exitTime: number | null;
   entryPrice: number | null;
   exitPrice: number | null;
+  riskMetricObservations: number;
+  annualizedVolatilityPct: number | null;
+  sharpeRatio: number | null;
+  sortinoRatio: number | null;
+  returnToMaxDrawdown: number | null;
 };
 
 export type StrategyBenchmarkResult = {
@@ -57,6 +62,48 @@ export class StrategyBenchmarkInputError extends Error {
   }
 }
 
+const MIN_RISK_OBSERVATIONS = 30;
+const INTERVAL_MS: Partial<Record<MarketInterval, number>> = {
+  "1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "30m": 1_800_000,
+  "1h": 3_600_000, "2h": 7_200_000, "4h": 14_400_000, "6h": 21_600_000,
+  "8h": 28_800_000, "12h": 43_200_000, "1d": 86_400_000, "3d": 259_200_000,
+  "1w": 604_800_000,
+};
+function annualizationPeriods(interval: MarketInterval): number {
+  return interval === "1M" ? 12 : 365.2425 * 86_400_000 / (INTERVAL_MS[interval] ?? 0);
+}
+function riskAdjustedMetrics(
+  curve: Array<{ time: number; equity: number }>,
+  interval: MarketInterval,
+  totalReturnPct: number,
+  maxDrawdownPct: number,
+): Pick<BenchmarkTrackMetrics, "riskMetricObservations" | "annualizedVolatilityPct" | "sharpeRatio" | "sortinoRatio" | "returnToMaxDrawdown"> {
+  const returns: number[] = [];
+  for (let index = 1; index < curve.length; index += 1) {
+    const previous = curve[index - 1].equity;
+    const current = curve[index].equity;
+    if (!Number.isFinite(previous) || previous <= 0 || !Number.isFinite(current)) {
+      return { riskMetricObservations: returns.length, annualizedVolatilityPct: null, sharpeRatio: null, sortinoRatio: null, returnToMaxDrawdown: null };
+    }
+    returns.push(current / previous - 1);
+  }
+  const periods = annualizationPeriods(interval);
+  if (returns.length < MIN_RISK_OBSERVATIONS || !Number.isFinite(periods) || periods <= 0) {
+    return { riskMetricObservations: returns.length, annualizedVolatilityPct: null, sharpeRatio: null, sortinoRatio: null, returnToMaxDrawdown: maxDrawdownPct > 0 ? totalReturnPct / maxDrawdownPct : null };
+  }
+  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const variance = returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (returns.length - 1);
+  const volatility = Math.sqrt(variance);
+  const downside = Math.sqrt(returns.reduce((sum, value) => sum + Math.min(value, 0) ** 2, 0) / returns.length);
+  return {
+    riskMetricObservations: returns.length,
+    annualizedVolatilityPct: Number.isFinite(volatility) ? volatility * Math.sqrt(periods) * 100 : null,
+    sharpeRatio: volatility > 0 ? mean / volatility * Math.sqrt(periods) : null,
+    sortinoRatio: downside > 0 ? mean / downside * Math.sqrt(periods) : null,
+    returnToMaxDrawdown: maxDrawdownPct > 0 ? totalReturnPct / maxDrawdownPct : null,
+  };
+}
+
 function adverseBuyPrice(open: number, slippageRate: number): number {
   return open * (1 + slippageRate);
 }
@@ -65,7 +112,7 @@ function adverseSellPrice(close: number, slippageRate: number): number {
   return close * (1 - slippageRate);
 }
 
-function summarizeStrategy(result: BacktestResult): BenchmarkTrackMetrics {
+function summarizeStrategy(result: BacktestResult, interval: MarketInterval): BenchmarkTrackMetrics {
   return {
     startingCapital: result.metrics.startingCapital,
     finalEquity: result.metrics.finalEquity,
@@ -79,6 +126,7 @@ function summarizeStrategy(result: BacktestResult): BenchmarkTrackMetrics {
     exitTime: result.trades.length ? Math.max(...result.trades.map(trade => trade.exitTime)) : null,
     entryPrice: null,
     exitPrice: null,
+    ...riskAdjustedMetrics(result.equityCurve, interval, result.metrics.totalReturnPct, result.metrics.maxDrawdownPct),
   };
 }
 
@@ -116,12 +164,14 @@ function simulateBuyAndHold(
 
   let peakEquity = config.startingCapital;
   let maxDrawdownPct = 0;
+  const equityCurve: Array<{ time: number; equity: number }> = [{ time: entryCandle.openTime, equity: config.startingCapital }];
   for (let index = evaluationStartIndex; index < candles.length; index += 1) {
     const close = Number(candles[index].close);
     if (!Number.isFinite(close) || close <= 0) {
       throw new StrategyBenchmarkInputError(`Benchmark candle ${index} has an invalid close price`);
     }
     const markedEquity = config.startingCapital - entryFee + (close - entryPrice) * quantity;
+    equityCurve.push({ time: candles[index].closeTime, equity: markedEquity });
     peakEquity = Math.max(peakEquity, markedEquity);
     if (peakEquity > 0) {
       maxDrawdownPct = Math.max(maxDrawdownPct, (peakEquity - markedEquity) / peakEquity * 100);
@@ -156,6 +206,7 @@ function simulateBuyAndHold(
     exitTime: finalCandle.closeTime,
     entryPrice,
     exitPrice,
+    ...riskAdjustedMetrics(equityCurve.map((point, index) => index === equityCurve.length - 1 ? { ...point, equity: finalEquity } : point), config.interval, netProfit / config.startingCapital * 100, maxDrawdownPct),
   };
 }
 
@@ -173,6 +224,11 @@ function cashControl(startingCapital: number): BenchmarkTrackMetrics {
     exitTime: null,
     entryPrice: null,
     exitPrice: null,
+    riskMetricObservations: 0,
+    annualizedVolatilityPct: null,
+    sharpeRatio: null,
+    sortinoRatio: null,
+    returnToMaxDrawdown: null,
   };
 }
 
@@ -194,7 +250,7 @@ export function runStrategyBenchmark(
   const buyAndHoldRiskMatched = simulateBuyAndHold(
     candles, config, riskMatchedExposure, "buy_and_hold_risk_matched", dataDigest,
   );
-  const strategyMetrics = summarizeStrategy(strategyResult);
+  const strategyMetrics = summarizeStrategy(strategyResult, config.interval);
   const cash = cashControl(config.startingCapital);
 
   const runId = createHash("sha256").update(JSON.stringify({
@@ -239,6 +295,8 @@ export function runStrategyBenchmark(
       "Both Buy & Hold tracks apply adverse entry and exit slippage and charge fees on entry and exit. They do not use EMA stops, targets or reversal signals.",
       "Cash control holds the full starting capital without trades, fees or market exposure.",
       "Maximum drawdown is calculated from marked-to-market equity across candle closes and includes entry costs and final exit costs.",
+      "Annualized volatility, Sharpe and Sortino are calculated from the timestamped marked equity curve with a 0% risk-free/target rate; at least 30 interval returns are required. These metrics are unavailable for shorter samples or zero variance.",
+      "Return-to-maximum-drawdown is unavailable when maximum drawdown is zero; no undefined ratio is replaced with zero.",
       "The 1x Buy & Hold benchmark has greater initial market exposure than the EMA strategy when the configured per-trade risk ratio is below 100%; both comparisons are shown to make this difference explicit.",
       "All outputs are historical comparison only, executionEligible=false; no signals, PAPER orders, exchange orders or LIVE execution are created or authorized.",
     ],
