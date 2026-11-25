@@ -80,3 +80,14 @@ Every result reports executionEligible=false and exchangeOrderSent=false. No pri
 - Average recovery duration includes only completed/recovered episodes; if none have recovered, the value is unavailable rather than zero.
 - The curve is sampled for display only; aggregate metrics and episode states are calculated from the full longest uninterrupted return path. The 30-observation minimum, exact common timestamps, consecutive intervals, fresh mark requirement and static-current-exposure approximation remain unchanged.
 - This remains a historical reconstruction using current signed net exposure weights, not actual historical account NAV or a forecast. It does not change positions, limits, signal approvals or orders.
+
+## Portfolio Performance Intelligence
+- Reconstructs the historical portfolio return series from exact common candle timestamps and consecutive intervals for all currently held symbols. Gaps are not interpolated or stitched; at least 30 common sequential returns are required.
+- Portfolio returns use current signed net notionals divided by current gross exposure as fixed weights. This is a static-current-exposure approximation, not actual historical account NAV or a historical position ledger.
+- Compares the reconstructed portfolio with a static long-only Buy & Hold reference using the same held symbols and current gross-exposure weights. The benchmark is a disclosed reference, not a dynamically rebalanced or risk-matched account.
+- Reports compounded total return, benchmark return, excess return, annualized Sharpe and Sortino ratios, maximum drawdown, and return-to-maximum-drawdown ratio.
+- Sharpe and Sortino assume a 0% risk-free/target rate. Annualization follows the selected candle interval. Sortino downside deviation uses negative observations relative to a zero return target.
+- The 1-day, 7-day and 30-day return comparisons are shown only when the sample contains the exact period boundary and complete consecutive interval coverage through the latest observation. Otherwise the period is explicitly unavailable.
+- Return-to-maximum-drawdown is withheld when maximum drawdown is zero; undefined or insufficient statistics are never replaced with zero.
+- Stale/missing marks, no exposure, missing symbols, gaps or fewer than 30 common observations suppress the performance result.
+- This is historical descriptive analytics, not a forecast, guarantee, strategy recommendation or actual account performance statement. No positions, risk limits, approvals, signals or orders are changed.
