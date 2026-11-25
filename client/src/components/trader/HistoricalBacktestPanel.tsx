@@ -39,6 +39,10 @@ export default function HistoricalBacktestPanel() {
   const [stopLossBps, setStopLossBps] = useState("200");
   const [takeProfitBps, setTakeProfitBps] = useState("400");
   const [allowShort, setAllowShort] = useState(false);
+  const [strategy, setStrategy] = useState<"ema_crossover" | "rsi_mean_reversion">("ema_crossover");
+  const [rsiPeriod, setRsiPeriod] = useState("14");
+  const [rsiOversoldLevel, setRsiOversoldLevel] = useState("30");
+  const [rsiOverboughtLevel, setRsiOverboughtLevel] = useState("70");
 
   const startTime = Date.parse(`${startDate}T00:00:00.000Z`);
   const endTime = Date.parse(`${endDate}T23:59:59.999Z`);
@@ -92,6 +96,7 @@ export default function HistoricalBacktestPanel() {
       startingCapital: Number(startingCapital), riskBps: Number(riskBps),
       stopLossBps: Number(stopLossBps), takeProfitBps: Number(takeProfitBps),
       feeBps: 5, slippageBps: 5, fastEmaPeriod: 20, slowEmaPeriod: 50, allowShort,
+      strategy, rsiPeriod: Number(rsiPeriod), rsiOversoldLevel: Number(rsiOversoldLevel), rsiOverboughtLevel: Number(rsiOverboughtLevel),
     });
   };
 
@@ -159,8 +164,17 @@ export default function HistoricalBacktestPanel() {
           )}
 
           <div className="history-backtest-divider" />
-          <div className="history-backtest-subheading"><div><div className="eyebrow">EMA CROSSOVER</div><h3>Параметры backtest</h3></div><span>1x exposure cap</span></div>
+          <div className="history-backtest-subheading"><div><div className="eyebrow">STRATEGY ENGINE</div><h3>Параметры backtest</h3></div><span>1x exposure cap</span></div>
           <div className="history-backtest-settings">
+            <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion")}>
+              <option value="ema_crossover">EMA Crossover</option>
+              <option value="rsi_mean_reversion">RSI Mean Reversion</option>
+            </select></label>
+            {strategy === "rsi_mean_reversion" && <>
+              <label>RSI Period<input type="number" min="2" max="100" value={rsiPeriod} onChange={event => setRsiPeriod(event.target.value)} /></label>
+              <label>RSI Oversold<input type="number" min="5" max="45" value={rsiOversoldLevel} onChange={event => setRsiOversoldLevel(event.target.value)} /></label>
+              <label>RSI Overbought<input type="number" min="55" max="95" value={rsiOverboughtLevel} onChange={event => setRsiOverboughtLevel(event.target.value)} /></label>
+            </>}
             <label>Стартовый капитал, USDT<input type="number" min="1" max="1000000000" step="0.01" value={startingCapital} onChange={event => setStartingCapital(event.target.value)} /></label>
             <label>Риск, bps<input type="number" min="1" max="1000" value={riskBps} onChange={event => setRiskBps(event.target.value)} /></label>
             <label>Stop Loss, bps<input type="number" min="10" max="5000" value={stopLossBps} onChange={event => setStopLossBps(event.target.value)} /></label>
@@ -175,7 +189,7 @@ export default function HistoricalBacktestPanel() {
           {backtest.error && <p className="history-error">{safeError(backtest.error)}</p>}
           {backtest.data && (
             <div className="history-backtest-result">
-              <div className="history-result-heading"><strong>Результат · EMA Crossover</strong><span>{backtest.data.candlesProcessed.toLocaleString("ru-RU")} свечей · {backtest.data.trades.length} сделок</span></div>
+              <div className="history-result-heading"><strong>Результат · {backtest.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : "EMA Crossover"}</strong><span>{backtest.data.candlesProcessed.toLocaleString("ru-RU")} свечей · {backtest.data.trades.length} сделок</span></div>
               <div className="history-metrics">
                 <div><span>Итоговый капитал</span><strong>{money(backtest.data.metrics.finalEquity)} USDT</strong></div>
                 <div><span>Чистая прибыль</span><strong className={backtest.data.metrics.netProfit >= 0 ? "is-positive" : "is-negative"}>{money(backtest.data.metrics.netProfit)} USDT</strong></div>
