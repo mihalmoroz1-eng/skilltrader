@@ -37,9 +37,22 @@ type DrawdownIntelligence = {
   maxDrawdownDurationObservations: number | null;
   currentDrawdownDurationObservations: number | null;
   maxDrawdownRecovered: boolean | null;
+  episodeCount: number;
+  recoveredEpisodeCount: number;
+  unrecoveredEpisodeCount: number;
+  averageRecoveryObservations: number | null;
+  longestEpisodeObservations: number | null;
+  curve: Array<{ time: number; drawdownPct: number }>;
+  recentEpisodes: Array<{
+    peakTime: number; troughTime: number; recoveryTime: number | null;
+    depthPct: number; durationObservations: number; recovered: boolean;
+  }>;
 };
 type Props = { risk: RiskIntelligence; forecast: RiskForecast; drawdown: DrawdownIntelligence };
 
+function dateLabel(value: number) {
+  return new Date(value).toISOString().slice(0, 10);
+}
 function percent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : value.toFixed(1) + "%";
 }
@@ -94,6 +107,30 @@ export default function PortfolioRiskIntelligence({ risk, forecast, drawdown }: 
             <div><span>Максимальная просадка</span><strong>{percent(drawdown.maxDrawdownPct)}</strong></div>
             <div><span>Текущая просадка</span><strong>{percent(drawdown.currentDrawdownPct)}</strong></div>
             <div><span>Длительность максимальной</span><strong>{drawdown.maxDrawdownDurationObservations ?? "—"} баров</strong><small>{drawdown.maxDrawdownRecovered ? "Восстановлена до прежнего пика" : "На конец истории не восстановлена"}</small></div>
+          </div>
+          <div className="pri-recovery-summary">
+            <div><span>Всего периодов ниже пика</span><strong>{drawdown.episodeCount}</strong></div>
+            <div><span>Восстановлено</span><strong>{drawdown.recoveredEpisodeCount}</strong></div>
+            <div><span>Не восстановлено</span><strong>{drawdown.unrecoveredEpisodeCount}</strong></div>
+            <div><span>Среднее восстановление</span><strong>{drawdown.averageRecoveryObservations == null ? "—" : drawdown.averageRecoveryObservations.toFixed(1) + " баров"}</strong></div>
+          </div>
+          <div className="pri-recovery-chart">
+            <div className="pri-chart-head"><strong>История просадки</strong><small>Глубина от предыдущего максимума · выборка до 120 точек</small></div>
+            {drawdown.curve.length > 1 ? <svg viewBox="0 0 600 120" role="img" aria-label="График исторической просадки портфеля">
+              <line x1="0" y1="10" x2="600" y2="10" />
+              <line x1="0" y1="110" x2="600" y2="110" />
+              <polyline points={curvePoints} />
+            </svg> : <p className="pri-empty">Недостаточно точек для графика.</p>}
+            <div className="pri-chart-scale"><span>0%</span><span>{percent(curveMax)}</span></div>
+          </div>
+          <div className="pri-recovery-episodes">
+            <strong>Сравнение периодов просадки</strong>
+            {drawdown.recentEpisodes.length ? drawdown.recentEpisodes.map((episode, index) => <div className="pri-episode" key={episode.peakTime + "-" + index}>
+              <span>{dateLabel(episode.peakTime)} → {dateLabel(episode.troughTime)}</span>
+              <b>{percent(episode.depthPct)}</b>
+              <small>{episode.durationObservations} баров · {episode.recovered && episode.recoveryTime != null
+                ? "восстановлена " + dateLabel(episode.recoveryTime) : "ещё не восстановлена"}</small>
+            </div>) : <p className="pri-empty">Исторических периодов ниже пика не обнаружено.</p>}
           </div>
           <p className="pri-foot">Текущая просадка длится: {drawdown.currentDrawdownDurationObservations == null ? "нет открытой просадки" : drawdown.currentDrawdownDurationObservations + " баров"}. Наблюдений: {drawdown.observations}. Восстановление засчитывается только после достижения предыдущего максимума.</p>
         </> : <p className="pri-empty">{drawdown.status === "stale_marks"
