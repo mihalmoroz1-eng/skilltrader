@@ -1,7 +1,7 @@
 # Walk-Forward Validation Engine
 
 ## Purpose
-The engine evaluates the existing deterministic EMA crossover backtest across sequential rolling training and out-of-sample validation windows. It is a robustness diagnostic, not a strategy optimizer.
+The engine evaluates the selected deterministic EMA Crossover or RSI Mean Reversion strategy across sequential rolling training and out-of-sample validation windows. The strategy and its parameters remain fixed across all folds. It is a robustness diagnostic, not a strategy optimizer.
 
 ## Window model
 - Each fold contains a fixed-size training segment followed by a separate validation segment.
@@ -15,7 +15,7 @@ The engine evaluates the existing deterministic EMA crossover backtest across se
 - The final completed training candle may produce a signal that is filled at the first validation candle open; no validation candle close is used to determine that opening fill.
 - Training results and validation results are separate backtests. Validation starts with fresh configured virtual capital and no training position or PnL carried forward.
 - Every fold resets starting capital. Aggregate returns are per-window statistics, not a compounded portfolio curve.
-- The strategy configuration is fixed across folds. This version does not optimize EMA periods or any risk parameter on the training data.
+- The strategy configuration is fixed across folds. EMA uses its slow-period warm-up; RSI uses its RSI-period warm-up. This workflow does not optimize EMA periods, RSI thresholds, or any risk parameter on the training data.
 
 ## Metrics
 Reports per-fold in-sample and out-of-sample return, drawdown, trade count and win rate. Aggregate out-of-sample diagnostics include mean and median return, return dispersion, percentage of positive windows, worst validation drawdown, total validation trades, weighted win rate and profit factor based on winning and losing trade PnL.
@@ -32,7 +32,7 @@ Reports per-fold in-sample and out-of-sample return, drawdown, trade count and w
 ## Limits and safety
 - Only stored historical Binance Spot candles are read; the engine does not fetch data directly.
 - Each run is limited to 50,000 candles, 2–12 validation folds, 10–10,000 candles per validation segment and 30,000 training candles per fold.
-- The existing backtesting execution rules, fees, adverse slippage, conservative stop-first OHLC handling and 1x notional cap are reused.
+- The shared backtesting execution rules for the selected strategy, fees, adverse slippage, direction-specific strategy exits, conservative stop-first OHLC handling and 1x notional cap are reused.
 - Results are research-only and always include `executionEligible=false`.
 - Risk-adjusted metrics are descriptive historical statistics, not forecasts, guarantees, strategy rankings or execution authorization.
 - No signals, PAPER orders, exchange orders or LIVE execution are created or authorized.
@@ -48,7 +48,7 @@ Each independent out-of-sample fold now includes regime-conditional performance 
 - Volatility, Sharpe and Sortino require at least 30 observations within a regime. Sample labels are insufficient below five, limited from five through 29, and adequate at 30 or more; these are display thresholds, not statistical significance tests.
 - Annualization adjusts by the observed share of intervals assigned to a regime. This is a descriptive frequency approximation; grouped compounded returns are conditional statistics, not standalone realizable strategy returns.
 - Drawdown is measured only within uninterrupted episodes of the same regime. Non-contiguous episodes are never concatenated.
-- The training window must cover both EMA warm-up and the configured regime lookback. Defaults: 30-candle lookback, 100 bps trend threshold, 50 bps range threshold and 200 bps high-volatility threshold.
+- The training window must cover the selected strategy's warm-up and the configured regime lookback. Defaults: 30-candle lookback, 100 bps trend threshold, 50 bps range threshold and 200 bps high-volatility threshold.
 - The classifier is deterministic and shared with Market Regime Intelligence. It uses completed OHLC candles only.
 - Research-only: no parameter optimization, regime-based strategy selection, automatic switching, signals, PAPER mutation, risk-limit change or exchange order is performed. `executionEligible=false`.
 
