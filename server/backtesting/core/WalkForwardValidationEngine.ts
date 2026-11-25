@@ -3,6 +3,12 @@ import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
 import { analyzeWalkForwardRegimes, type WalkForwardRegimePerformance } from "./WalkForwardRegimeAnalytics";
 import { aggregateWalkForwardRegimeStability, type WalkForwardRegimeStability } from "./WalkForwardRegimeStability";
 import {
+  aggregateWalkForwardRegimeAdaptive,
+  analyzeWalkForwardRegimeAdaptive,
+  type WalkForwardRegimeAdaptiveAnalytics,
+  type WalkForwardRegimeAdaptiveSummary,
+} from "./WalkForwardRegimeAdaptiveAnalytics";
+import {
   runBacktest,
   validateBacktestCandleSeries,
   type BacktestConfig,
@@ -53,6 +59,7 @@ export type WalkForwardWindowResult = {
     sortinoRatio: number | null;
     returnToMaxDrawdown: number | null;
     regimePerformance: WalkForwardRegimePerformance;
+    regimeAdaptive: WalkForwardRegimeAdaptiveAnalytics;
   };
 };
 
@@ -65,6 +72,7 @@ export type WalkForwardValidationResult = {
   candlesProcessed: number;
   windows: WalkForwardWindowResult[];
   regimeStability: WalkForwardRegimeStability;
+  regimeAdaptive: WalkForwardRegimeAdaptiveSummary;
   metrics: {
     windowCount: number;
     averageTrainingReturnPct: number;
@@ -297,6 +305,19 @@ export function runWalkForwardValidation(
             highVolatilityThresholdBps,
           },
         ),
+        regimeAdaptive: analyzeWalkForwardRegimeAdaptive(
+          trainingAndValidation,
+          trainingCandles,
+          validationResult.equityCurve,
+          fold + 1,
+          {
+            interval: config.interval,
+            lookback: regimeLookback,
+            trendThresholdBps,
+            rangeThresholdBps,
+            highVolatilityThresholdBps,
+          },
+        ),
       },
     });
   }
@@ -311,6 +332,9 @@ export function runWalkForwardValidation(
 
   const regimeStability = aggregateWalkForwardRegimeStability(
     windows.map(window => window.validation.regimePerformance),
+  );
+  const regimeAdaptive = aggregateWalkForwardRegimeAdaptive(
+    windows.map(window => window.validation.regimeAdaptive),
   );
   const dataDigest = createHash("sha256").update(JSON.stringify(selectedCandles)).digest("hex");
   const runId = createHash("sha256").update(JSON.stringify({
@@ -335,6 +359,7 @@ export function runWalkForwardValidation(
     candlesProcessed: requiredCandles,
     windows,
     regimeStability,
+    regimeAdaptive,
     metrics: {
       windowCount,
       averageTrainingReturnPct,
@@ -377,6 +402,7 @@ export function runWalkForwardValidation(
       "Per-regime volatility, Sharpe and Sortino require at least 30 observations. Annualization adjusts by the observed regime share and is a descriptive frequency approximation.",
       "Per-regime drawdown is measured within uninterrupted regime episodes; non-adjacent episodes are never concatenated. Regime sample labels are display thresholds, not statistical significance tests.",
       "Cross-fold regime stability summarizes fold-local conditional metrics only; it never pools interval returns or concatenates equity curves. Return summaries require at least two folds with observations, while risk summaries use only folds where the risk metric is defined.",
+      "Regime Adaptive Intelligence compares each OOS strategy equity return with the underlying asset's gross Buy & Hold price return in the causally known prior-close regime. The price benchmark excludes fees, slippage, spread and financing and is not exposure-matched; results are directional diagnostics, not like-for-like strategy rankings. Cross-fold summaries retain independent fold outcomes.",
       "No parameter search, strategy selection, leverage, exchange orders, PAPER orders or LIVE execution are performed.",
     ],
     executionEligible: false,
