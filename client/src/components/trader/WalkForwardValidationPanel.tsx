@@ -62,7 +62,11 @@ export default function WalkForwardValidationPanel() {
     Number.isInteger(validation) && validation >= 10 && validation <= 10_000 &&
     Number.isInteger(step) && step >= validation && step <= 10_000 &&
     Number.isInteger(windows) && windows >= 2 && windows <= 12 &&
-    barsRequired <= 50_000;
+    barsRequired <= 50_000 &&
+    (strategy !== "rsi_mean_reversion" || (Number.isInteger(Number(rsiPeriod)) && Number(rsiPeriod) >= 2 && Number(rsiPeriod) <= 100 &&
+      Number.isInteger(Number(rsiOversoldLevel)) && Number(rsiOversoldLevel) >= 5 && Number(rsiOversoldLevel) <= 45 &&
+      Number.isInteger(Number(rsiOverboughtLevel)) && Number(rsiOverboughtLevel) <= 95 && Number(rsiOverboughtLevel) >= 55 &&
+      Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10));
 
   const walkForward = trpc.backtesting.walkForward.useMutation();
   useEffect(() => { walkForward.reset(); }, [
