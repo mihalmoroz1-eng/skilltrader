@@ -201,7 +201,7 @@ export function runWalkForwardValidation(
 ): WalkForwardValidationResult {
   if (!Number.isInteger(config.trainingCandles) ||
       config.trainingCandles < Math.max(config.strategy === "rsi_mean_reversion" ? (config.rsiPeriod ?? 14) + 3 :
-         config.strategy === "macd_momentum" ? (config.macdSlowPeriod ?? 26) + (config.macdSignalPeriod ?? 9) : config.slowEmaPeriod + 2, config.regimeLookback + 1) ||
+         config.strategy === "macd_momentum" ? (config.macdSlowPeriod ?? 26) + (config.macdSignalPeriod ?? 9) + 1 : config.slowEmaPeriod + 2, config.regimeLookback + 1) ||
       config.trainingCandles > 30_000) {
     throw new WalkForwardInputError("Training window must include the selected strategy warm-up, regime lookback and at least two completed candles");
   }
