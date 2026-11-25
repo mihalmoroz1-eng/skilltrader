@@ -21,7 +21,7 @@ export const macdMomentumStrategy: BacktestStrategy<MacdMomentumConfig> = {
     validateConfig(config);
     // Need two valid MACD/signal observations to detect a crossing, plus
     // the following candle boundary for next-open execution.
-    return config.slowPeriod + config.signalPeriod;
+    return config.slowPeriod + config.signalPeriod + 1;
   },
 
   createSignalProvider(
