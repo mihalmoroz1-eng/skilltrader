@@ -256,7 +256,7 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
   it("returns zero drawdown for a monotonically rising path and respects SHORT direction", () => {
     const rising = run({
       btc: candles("BTCUSDT", Array.from({ length: 40 }, (_, i) => 100 + i)),
-      positions: [position({ side: "SHORT" })],
+      positions: [position({ side: "LONG" })],
       markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
     });
     expect(rising.drawdownIntelligence.status).toBe("ready");
