@@ -148,6 +148,8 @@ describe("strategy robustness engine", () => {
       item.sampleStatus === (item.observations < 5 ? "insufficient_sample"
         : item.observations < 30 ? "limited_sample" : "adequate_sample"),
     )).toBe(true);
+    expect(first.regimePerformance.buckets.filter(item => item.observations === 0)
+      .every(item => item.totalReturnPct === null && item.maxEpisodeDrawdownPct === null)).toBe(true);
     expect(first.regimePerformance.transitions.reduce((sum, item) => sum + item.count, 0))
       .toBe(first.regimePerformance.transitionCount);
     expect(first.regimePerformance.transitionRatePct === null ||
