@@ -82,6 +82,25 @@ describe("Walk-forward regime adaptive analytics", () => {
     expect(uptrend.medianExcessReturnPctPoints).toBeNull();
   });
 
+  it("keeps unavailable excess-return extrema null when percentage conversion overflows", () => {
+    const candles = makeCandles(15);
+    const result = analyzeWalkForwardRegimeAdaptive(
+      candles,
+      11,
+      [
+        { time: candles[10].openTime, equity: 1 },
+        { time: candles[11].closeTime, equity: 1e306 },
+      ],
+      1,
+      config,
+    );
+    const populated = result.buckets.filter(item => item.observations > 0);
+    expect(populated).toHaveLength(1);
+    expect(populated[0].foldResults[0].strategyReturnPct).toBeNull();
+    expect(populated[0].foldResults[0].excessReturnPctPoints).toBeNull();
+    expect(populated[0].worstExcessReturnPctPoints).toBeNull();
+  });
+
   it("rejects misaligned equity timestamps rather than silently assigning returns", () => {
     const candles = makeCandles(15);
     expect(() => analyzeWalkForwardRegimeAdaptive(
