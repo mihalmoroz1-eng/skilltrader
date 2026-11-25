@@ -67,10 +67,11 @@ describe("strategy benchmark engine", () => {
       { strategy: "breakout" as const, breakoutLookbackPeriod: 4, breakoutBufferBps: 10, expectedIndex: 5 },
     ];
     for (const scenario of cases) {
-      const result = runStrategyBenchmark(candles, { ...config, ...scenario });
+      const { expectedIndex, ...strategyConfig } = scenario;
+      const result = runStrategyBenchmark(candles, { ...config, ...strategyConfig });
       expect(result.strategy).toBe(scenario.strategy);
-      expect(result.benchmarks.buyAndHoldOneX.entryTime).toBe(candles[scenario.expectedIndex].openTime);
-      expect(result.benchmarks.buyAndHoldRiskMatched.entryTime).toBe(candles[scenario.expectedIndex].openTime);
+      expect(result.benchmarks.buyAndHoldOneX.entryTime).toBe(candles[expectedIndex].openTime);
+      expect(result.benchmarks.buyAndHoldRiskMatched.entryTime).toBe(candles[expectedIndex].openTime);
       expect(result.executionEligible).toBe(false);
     }
   });
