@@ -77,7 +77,7 @@ export const walkForwardRequestSchema = z.object({
 }).strict().superRefine((value, ctx) => {
   validateBacktestParameters(value, ctx);
   const strategyWarmup = value.strategy === "ema_crossover" ? value.slowEmaPeriod + 2 :
-    value.strategy === "rsi_mean_reversion" ? value.rsiPeriod + 3 : value.macdSlowPeriod + value.macdSignalPeriod;
+    value.strategy === "rsi_mean_reversion" ? value.rsiPeriod + 3 : value.macdSlowPeriod + value.macdSignalPeriod + 1;
   if (value.trainingCandles < Math.max(strategyWarmup, value.regimeLookback + 1)) {
     ctx.addIssue({
       code: "custom",
