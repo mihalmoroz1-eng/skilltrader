@@ -51,3 +51,16 @@ Each independent out-of-sample fold now includes regime-conditional performance 
 - The training window must cover both EMA warm-up and the configured regime lookback. Defaults: 30-candle lookback, 100 bps trend threshold, 50 bps range threshold and 200 bps high-volatility threshold.
 - The classifier is deterministic and shared with Market Regime Intelligence. It uses completed OHLC candles only.
 - Research-only: no parameter optimization, regime-based strategy selection, automatic switching, signals, PAPER mutation, risk-limit change or exchange order is performed. `executionEligible=false`.
+
+
+## Cross-fold Regime Stability Aggregator
+
+The result includes a separate regime stability summary across the independent OOS folds.
+
+- A regime is counted as observed in a fold only when that fold has at least one interval assigned to the regime. Coverage is reported as observed folds / total folds.
+- Each fold contributes its own conditional compounded return as one fold-level observation. The aggregator reports the mean, median, worst, best and population dispersion across those fold-level values; it does not concatenate interval returns or equity curves and does not calculate a synthetic combined return.
+- Positive-fold share is calculated only from finite, available fold returns and is withheld unless at least two folds contribute.
+- Per-regime sample adequacy is reported as counts of insufficient (<5), limited (5–29) and adequate (>=30) fold samples. These are descriptive coverage labels, not significance tests.
+- Volatility, Sharpe and Sortino summaries include only finite fold-level values already made available by the per-regime analytics. Descriptive aggregates require at least two contributing folds; unavailable values are never treated as zero.
+- A regime can have high fold coverage but weak within-fold sample adequacy. Both dimensions are shown separately.
+- The aggregator is descriptive and does not rank or select strategies, tune parameters, switch regimes, generate signals, mutate PAPER positions or authorize orders. It does not change execution eligibility.
