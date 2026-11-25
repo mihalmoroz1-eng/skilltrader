@@ -171,6 +171,53 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     expect(stale.riskIntelligence.totalHeldPairs).toBe(0);
     expect(stale.riskIntelligence.correlatedPairs).toEqual([]);
   });
+  it("estimates annualized portfolio volatility and 1-day/5-day 95% VaR from aligned historical returns", () => {
+    const result = run({
+      btc: candles("BTCUSDT", [100, 101, 99, 103, 100, 104, 102, 106, 103, 108, 105, 110, 107, 112, 109, 115, 111, 116, 113, 118, 114, 120, 116, 122, 117, 124, 119, 126, 121, 128, 123, 130, 125, 133, 127, 135, 129, 138, 132, 140]),
+      eth: candles("ETHUSDT", [200, 202, 198, 205, 201, 207, 203, 210, 206, 213, 208, 216, 211, 219, 214, 223, 217, 225, 220, 230, 224, 233, 226, 236, 229, 240, 232, 243, 235, 247, 238, 250, 242, 255, 245, 258, 249, 263, 253, 267]),
+      positions: [position({ id: 1, symbol: "BTCUSDT", quantity: "1" }), position({ id: 2, symbol: "ETHUSDT", quantity: "0.5" })],
+      markPrices: {
+        BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+        ETHUSDT: { markPrice: "200", fetchedAt: now - 500, source: "binance" },
+      },
+    });
+    expect(result.riskForecast.status).toBe("ready");
+    expect(result.riskForecast.method).toBe("historical_covariance_normal_approximation");
+    expect(result.riskForecast.annualizedPortfolioVolatilityPct).toBeGreaterThan(0);
+    expect(result.riskForecast.oneDay95VaR).not.toBeNull();
+    expect(result.riskForecast.fiveDay95VaR).not.toBeNull();
+    expect(result.riskForecast.fiveDay95VaRPctOfEquity).toBeGreaterThan(result.riskForecast.oneDay95VaRPctOfEquity!);
+    expect(result.riskForecast.observations).toBe(39);
+    expect(result.riskForecast.symbols).toHaveLength(2);
+    expect(result.executionEligible).toBe(false);
+    expect(result.exchangeOrderSent).toBe(false);
+  });
+  it("withholds volatility and VaR when any held symbol lacks sufficient history", () => {
+    const result = run({
+      btc: candles("BTCUSDT", Array.from({ length: 20 }, (_, i) => 100 + i)),
+      eth: candles("ETHUSDT", Array.from({ length: 40 }, (_, i) => 200 + i * 2)),
+      positions: [position({ id: 1, symbol: "BTCUSDT" }), position({ id: 2, symbol: "ETHUSDT" })],
+      markPrices: {
+        BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+        ETHUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+      },
+    });
+    expect(result.riskForecast.status).toBe("insufficient_data");
+    expect(result.riskForecast.annualizedPortfolioVolatilityPct).toBeNull();
+    expect(result.riskForecast.oneDay95VaR).toBeNull();
+    expect(result.riskForecast.observations).toBe(19);
+  });
+  it("does not produce a volatility forecast from stale marks or an empty portfolio", () => {
+    const stale = run({
+      positions: [position()],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 31_000, source: "binance" } },
+    });
+    expect(stale.riskForecast.status).toBe("stale_marks");
+    expect(stale.riskForecast.oneDay95VaR).toBeNull();
+    const empty = run();
+    expect(empty.riskForecast.status).toBe("no_exposure");
+    expect(empty.riskForecast.fiveDay95VaR).toBeNull();
+  });
   it("is deterministic and rejects a range above the candle cap", () => {
     expect(run()).toEqual(run());
     expect(() => runPortfolioIntelligence({
