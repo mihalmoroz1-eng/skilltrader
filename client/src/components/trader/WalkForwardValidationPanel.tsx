@@ -165,6 +165,27 @@ export default function WalkForwardValidationPanel() {
                   ))}</tbody>
                 </table>
               </div>
+              <div className="walk-forward-result-title"><strong>Regime Stability Aggregator · согласованность между OOS окнами</strong><span>{walkForward.data.regimeStability.totalFolds} независимых fold</span></div>
+              <p className="walk-forward-note">Сводка сравнивает отдельные результаты одного режима между окнами. Доходности и кривые капитала не объединяются. Средние и медианы требуют минимум двух fold с доступным значением; риск-метрики учитывают только fold, где они рассчитаны.</p>
+              <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                <thead><tr><th>Режим</th><th>Fold с данными</th><th>Покрытие</th><th>Выборка ≥30</th><th>Положит. fold</th><th>Средняя доходность</th><th>Медиана</th><th>Худшая</th><th>Разброс</th><th>Средняя волатильность</th><th>Худший Sharpe</th><th>Худший Sortino</th></tr></thead>
+                <tbody>{walkForward.data.regimeStability.buckets.map(item => (
+                  <tr key={item.regime}>
+                    <td>{REGIME_LABELS[item.regime]}</td>
+                    <td>{item.foldsObserved} / {item.totalFolds}</td>
+                    <td>{percent(item.foldCoveragePct)}</td>
+                    <td>{item.adequateSampleFolds}</td>
+                    <td>{item.positiveReturnSharePct === null ? "—" : item.positiveReturnFolds + " (" + percent(item.positiveReturnSharePct) + ")"}</td>
+                    <td>{percent(item.meanConditionalReturnPct)}</td>
+                    <td>{percent(item.medianConditionalReturnPct)}</td>
+                    <td>{percent(item.worstConditionalReturnPct)}</td>
+                    <td>{percent(item.conditionalReturnStdDevPct)}</td>
+                    <td>{percent(item.meanAnnualizedVolatilityPct)}</td>
+                    <td>{ratio(item.worstSharpeRatio)}</td>
+                    <td>{ratio(item.worstSortinoRatio)}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
               <div className="walk-forward-result-title"><strong>Regime Walk-Forward · режимы внутри каждого OOS окна</strong><span>Классификация по предыдущей закрытой свече</span></div>
               {walkForward.data.windows.map(window => (
                 <details className="walk-forward-assumptions" key={window.index}>
