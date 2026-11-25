@@ -214,6 +214,44 @@ export default function WalkForwardValidationPanel() {
                       <td>{percent(fold.maxDrawdownPct)}</td><td>{ratio(fold.sharpeRatio)}</td><td>{ratio(fold.sortinoRatio)}</td><td>{fold.totalTrades}</td>
                     </tr>)}</tbody>
                   </table></div>
+                  <div className="walk-forward-result-title"><strong>Результаты по рыночным режимам</strong><span>Сводка только по независимым fold</span></div>
+                  <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                    <thead><tr><th>Режим</th><th>Fold с данными</th><th>Достаточная выборка</th><th>Медиана условной доходности</th><th>Положительные fold</th><th>Худшая просадка эпизода</th><th>Средняя год. волатильность</th><th>Sharpe</th><th>Sortino</th></tr></thead>
+                    <tbody>{item.regimeSummary.map(regime => (
+                      <tr key={regime.regime}>
+                        <td>{regime.regime === "uptrend" ? "Восходящий" : regime.regime === "downtrend" ? "Нисходящий" : regime.regime === "ranging" ? "Боковой" : regime.regime === "high_volatility" ? "Высокая волатильность" : "Переходный"}</td>
+                        <td>{regime.foldsObserved} / {regime.totalFolds}</td>
+                        <td>{regime.adequateSampleFolds}</td>
+                        <td>{percent(regime.medianConditionalReturnPct)}</td>
+                        <td>{regime.positiveReturnFolds}{regime.positiveReturnSharePct === null ? "" : " (" + percent(regime.positiveReturnSharePct) + ")"}</td>
+                        <td>{percent(regime.worstEpisodeDrawdownPct)}</td>
+                        <td>{percent(regime.averageAnnualizedVolatilityPct)}</td>
+                        <td>{ratio(regime.averageSharpeRatio)}</td>
+                        <td>{ratio(regime.averageSortinoRatio)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table></div>
+                  {item.folds.map(fold => (
+                    <details className="walk-forward-assumptions" key={fold.index}>
+                      <summary>Fold {fold.index} · режимная детализация</summary>
+                      <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                        <thead><tr><th>Режим</th><th>Интервалов</th><th>Выборка</th><th>Условная доходность</th><th>Год. волатильность</th><th>Sharpe</th><th>Sortino</th><th>Макс. просадка эпизода</th><th>Эпизодов</th></tr></thead>
+                        <tbody>{fold.regimes.map(regime => (
+                          <tr key={regime.regime}>
+                            <td>{regime.regime === "uptrend" ? "Восходящий" : regime.regime === "downtrend" ? "Нисходящий" : regime.regime === "ranging" ? "Боковой" : regime.regime === "high_volatility" ? "Высокая волатильность" : "Переходный"}</td>
+                            <td>{regime.observations}</td>
+                            <td>{regime.sampleStatus === "adequate_sample" ? "Достаточная" : regime.sampleStatus === "limited_sample" ? "Ограниченная" : "Недостаточная"}</td>
+                            <td>{percent(regime.compoundedReturnPct)}</td>
+                            <td>{percent(regime.annualizedVolatilityPct)}</td>
+                            <td>{ratio(regime.sharpeRatio)}</td>
+                            <td>{ratio(regime.sortinoRatio)}</td>
+                            <td>{percent(regime.maxEpisodeDrawdownPct)}</td>
+                            <td>{regime.episodeCount}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table></div>
+                    </details>
+                  ))}
                 </details>
               ))}
               <div className="walk-forward-result-foot">Run ID: {strategyPortfolio.data.runId} · SHA-256: {strategyPortfolio.data.dataDigest.slice(0, 16)}… · executionEligible=false · exchangeOrderSent=false</div>
