@@ -36,3 +36,18 @@ Reports per-fold in-sample and out-of-sample return, drawdown, trade count and w
 - Results are research-only and always include `executionEligible=false`.
 - Risk-adjusted metrics are descriptive historical statistics, not forecasts, guarantees, strategy rankings or execution authorization.
 - No signals, PAPER orders, exchange orders or LIVE execution are created or authorized.
+
+## Regime Walk-Forward Intelligence
+
+Each independent out-of-sample fold now includes regime-conditional performance diagnostics using the canonical five Market Regime labels.
+
+- The first validation interval is classified using only the final completed training candle and its preceding lookback window.
+- Every subsequent validation interval is classified using the regime known at the previous candle close. The current interval's return is never classified using its own closing candle, avoiding same-interval look-ahead.
+- Every fold has its own regime counts, conditional compounded interval return, annualized volatility, Sharpe, Sortino, episode-local maximum drawdown, episode count and transition diagnostics.
+- Each fold is analyzed independently. No OOS equity curves are stitched, and no fold's regime statistics are pooled into a synthetic cross-fold equity curve.
+- Volatility, Sharpe and Sortino require at least 30 observations within a regime. Sample labels are insufficient below five, limited from five through 29, and adequate at 30 or more; these are display thresholds, not statistical significance tests.
+- Annualization adjusts by the observed share of intervals assigned to a regime. This is a descriptive frequency approximation; grouped compounded returns are conditional statistics, not standalone realizable strategy returns.
+- Drawdown is measured only within uninterrupted episodes of the same regime. Non-contiguous episodes are never concatenated.
+- The training window must cover both EMA warm-up and the configured regime lookback. Defaults: 30-candle lookback, 100 bps trend threshold, 50 bps range threshold and 200 bps high-volatility threshold.
+- The classifier is deterministic and shared with Market Regime Intelligence. It uses completed OHLC candles only.
+- Research-only: no parameter optimization, regime-based strategy selection, automatic switching, signals, PAPER mutation, risk-limit change or exchange order is performed. `executionEligible=false`.
