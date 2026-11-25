@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runBacktest } from "../core/BacktestEngine";
+import { classifyMarketRegimeWindow } from "../../market-regime/core/MarketRegimeClassifier";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
 import {
   runStrategyRobustness,
@@ -100,6 +101,37 @@ describe("strategy robustness engine", () => {
     expect(result.metrics.regimeCoveragePct).toBeGreaterThanOrEqual(0);
     expect(result.metrics.regimeCoveragePct).toBeLessThanOrEqual(100);
     expect(result.regimes.every(regime => regime.tradeCount >= 0 && Number.isFinite(regime.netPnl))).toBe(true);
+  });
+
+  it("attributes trades using only the canonical window closed before each entry", () => {
+    const input = series(240);
+    const {
+      regimeLookback, trendThresholdBps, rangeThresholdBps, highVolatilityThresholdBps,
+      ...backtestConfig
+    } = config;
+    const baseline = runBacktest(input, backtestConfig);
+    const expected = new Map<string, number>();
+    for (const trade of baseline.trades) {
+      const entryIndex = input.findIndex(candle => candle.openTime === trade.entryTime);
+      const lastCompletedIndex = entryIndex - 1;
+      const firstIndex = lastCompletedIndex - regimeLookback;
+      let regime = "insufficient_history";
+      if (entryIndex >= 0 && firstIndex >= 0) {
+        expect(input[lastCompletedIndex].closeTime).toBeLessThan(input[entryIndex].openTime);
+        regime = classifyMarketRegimeWindow(input.slice(firstIndex, lastCompletedIndex + 1), {
+          interval: config.interval,
+          lookback: regimeLookback,
+          trendThresholdBps,
+          rangeThresholdBps,
+          highVolatilityThresholdBps,
+        }).regime;
+      }
+      expected.set(regime, (expected.get(regime) ?? 0) + 1);
+    }
+    const result = runStrategyRobustness(input, config);
+    for (const group of result.regimes) {
+      expect(group.tradeCount).toBe(expected.get(group.id) ?? 0);
+    }
   });
 
   it("keeps the baseline metrics equal to the existing backtesting engine", () => {
