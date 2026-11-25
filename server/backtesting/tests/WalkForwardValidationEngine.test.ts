@@ -256,3 +256,56 @@ describe("Walk-forward regime stability aggregation", () => {
     expect(uptrend.meanAnnualizedVolatilityPct).toBeNull();
   });
 });
+
+
+describe("Regime stability scoring", () => {
+  it("scores only regimes with at least three observed independent folds", async () => {
+    const { aggregateWalkForwardRegimeStability } = await import("../core/WalkForwardRegimeStability");
+    const { makeFold } = await import("./walkForwardRegimeStability.fixtures");
+    const result = aggregateWalkForwardRegimeStability([
+      makeFold(30, "adequate_sample", 3, 10, 1),
+      makeFold(30, "adequate_sample", -1, 12, 0.5),
+      makeFold(12, "limited_sample", 2, null, null),
+      { status: "insufficient_history", observations: 0, currentRegime: null,
+        transitionCount: 0, transitionRatePct: null, transitionIntervalReturnPct: null,
+        buckets: [], transitions: [] },
+    ]);
+    const uptrend = result.buckets.find(item => item.regime === "uptrend")!;
+    expect(uptrend.stabilityScore.score).not.toBeNull();
+    expect(uptrend.stabilityScore.score!).toBeGreaterThanOrEqual(0);
+    expect(uptrend.stabilityScore.score!).toBeLessThanOrEqual(100);
+    expect(uptrend.stabilityScore.evidence).toBe("limited");
+    expect(uptrend.stabilityScore.components.foldCoverage).toBe(75);
+    expect(uptrend.stabilityScore.components.sampleAdequacy).toBeCloseTo(66.6667, 3);
+    expect(uptrend.stabilityScore.components.positiveReturnConsistency).toBeCloseTo(66.6667, 3);
+    expect(uptrend.stabilityScore.dispersionScalePct).toBe(5);
+    expect(uptrend.stabilityScore.scoringVersion).toBe("1.0");
+  });
+
+  it("withholds scores when fewer than three folds observed the regime", async () => {
+    const { aggregateWalkForwardRegimeStability } = await import("../core/WalkForwardRegimeStability");
+    const { makeFold } = await import("./walkForwardRegimeStability.fixtures");
+    const result = aggregateWalkForwardRegimeStability([
+      makeFold(30, "adequate_sample", 2, 10, 1),
+      makeFold(30, "adequate_sample", 1, 10, 1),
+    ]);
+    const uptrend = result.buckets.find(item => item.regime === "uptrend")!;
+    expect(uptrend.stabilityScore.score).toBeNull();
+    expect(uptrend.stabilityScore.rating).toBe("insufficient_evidence");
+    expect(uptrend.stabilityScore.evidence).toBe("insufficient");
+  });
+
+  it("keeps a score unavailable when fold return dispersion cannot be calculated", async () => {
+    const { aggregateWalkForwardRegimeStability } = await import("../core/WalkForwardRegimeStability");
+    const { makeFold } = await import("./walkForwardRegimeStability.fixtures");
+    const result = aggregateWalkForwardRegimeStability([
+      makeFold(30, "adequate_sample", 2, 10, 1),
+      makeFold(30, "adequate_sample", Number.NaN, 10, 1),
+      makeFold(30, "adequate_sample", Number.POSITIVE_INFINITY, 10, 1),
+    ]);
+    const uptrend = result.buckets.find(item => item.regime === "uptrend")!;
+    expect(uptrend.stabilityScore.score).toBeNull();
+    expect(uptrend.stabilityScore.components.positiveReturnConsistency).toBeNull();
+    expect(uptrend.stabilityScore.components.dispersionControl).toBeNull();
+  });
+});
