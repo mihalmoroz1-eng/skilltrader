@@ -5,7 +5,8 @@ import { MARKET_DATA_INTERVALS } from "@shared/marketData";
 import "./WalkForwardValidationPanel.css";
 
 const OFFLINE_MODE = import.meta.env.VITE_APP_MODE === "android-demo";
-const INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;\nconst REGIME_LABELS = { uptrend: "Восходящий тренд", downtrend: "Нисходящий тренд", ranging: "Боковое движение", high_volatility: "Высокая волатильность", transition: "Переходный режим" } as const;
+const INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+const REGIME_LABELS = { uptrend: "Восходящий тренд", downtrend: "Нисходящий тренд", ranging: "Боковое движение", high_volatility: "Высокая волатильность", transition: "Переходный режим" } as const;
 
 function utcDateInput(daysAgo = 0): string {
   return new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
