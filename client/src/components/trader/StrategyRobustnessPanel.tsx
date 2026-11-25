@@ -7,12 +7,11 @@ import "./StrategyRobustnessPanel.css";
 const OFFLINE_MODE = import.meta.env.VITE_APP_MODE === "android-demo";
 const INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 const regimeLabels: Record<string, string> = {
-  bullish_low_volatility: "Рост · низкая волатильность",
-  bullish_high_volatility: "Рост · высокая волатильность",
-  bearish_low_volatility: "Падение · низкая волатильность",
-  bearish_high_volatility: "Падение · высокая волатильность",
-  range_low_volatility: "Боковой рынок · низкая волатильность",
-  range_high_volatility: "Боковой рынок · высокая волатильность",
+  uptrend: "Восходящий тренд",
+  downtrend: "Нисходящий тренд",
+  ranging: "Боковой рынок",
+  high_volatility: "Высокая волатильность",
+  transition: "Переходный режим",
   insufficient_history: "Недостаточно истории до входа",
 };
 
@@ -48,9 +47,10 @@ export default function StrategyRobustnessPanel() {
   const [slowEmaPeriod, setSlowEmaPeriod] = useState("50");
   const [feeBps, setFeeBps] = useState("5");
   const [slippageBps, setSlippageBps] = useState("5");
-  const [regimeLookback, setRegimeLookback] = useState("20");
+  const [regimeLookback, setRegimeLookback] = useState("30");
   const [trendThresholdBps, setTrendThresholdBps] = useState("100");
-  const [volatilityThresholdBps, setVolatilityThresholdBps] = useState("25");
+  const [rangeThresholdBps, setRangeThresholdBps] = useState("50");
+  const [highVolatilityThresholdBps, setHighVolatilityThresholdBps] = useState("200");
   const [allowShort, setAllowShort] = useState(false);
 
   const startTime = Date.parse(`${startDate}T00:00:00.000Z`);
@@ -61,7 +61,8 @@ export default function StrategyRobustnessPanel() {
   const slippage = Number(slippageBps);
   const lookback = Number(regimeLookback);
   const trendThreshold = Number(trendThresholdBps);
-  const volatilityThreshold = Number(volatilityThresholdBps);
+  const rangeThreshold = Number(rangeThresholdBps);
+  const highVolatilityThreshold = Number(highVolatilityThresholdBps);
   const rangeValid = Number.isFinite(startTime) && Number.isFinite(endTime) &&
     endTime > startTime && endTime - startTime <= 366 * 86_400_000 &&
     /^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase());
@@ -69,16 +70,18 @@ export default function StrategyRobustnessPanel() {
     Number.isInteger(slow) && slow > fast && slow <= 300 &&
     Number.isInteger(fees) && fees >= 0 && fees <= 50 &&
     Number.isInteger(slippage) && slippage >= 0 && slippage <= 50 &&
-    Number.isInteger(lookback) && lookback >= 5 && lookback <= 200 &&
+    Number.isInteger(lookback) && lookback >= 10 && lookback <= 200 &&
     Number.isInteger(trendThreshold) && trendThreshold >= 10 && trendThreshold <= 5_000 &&
-    Number.isInteger(volatilityThreshold) && volatilityThreshold >= 1 && volatilityThreshold <= 2_000;
+    Number.isInteger(rangeThreshold) && rangeThreshold >= 5 && rangeThreshold <= 1_000 &&
+    rangeThreshold < trendThreshold &&
+    Number.isInteger(highVolatilityThreshold) && highVolatilityThreshold >= 10 && highVolatilityThreshold <= 2_000;
 
   const robustness = trpc.backtesting.robustness.useMutation();
   useEffect(() => {
     robustness.reset();
   }, [
     symbol, interval, startDate, endDate, fastEmaPeriod, slowEmaPeriod,
-    feeBps, slippageBps, regimeLookback, trendThresholdBps, volatilityThresholdBps, allowShort,
+    feeBps, slippageBps, regimeLookback, trendThresholdBps, rangeThresholdBps, highVolatilityThresholdBps, allowShort,
   ]);
 
   const run = () => {
@@ -88,7 +91,8 @@ export default function StrategyRobustnessPanel() {
       startingCapital: 10_000, riskBps: 50, stopLossBps: 200, takeProfitBps: 400,
       feeBps: fees, slippageBps: slippage, fastEmaPeriod: fast, slowEmaPeriod: slow, allowShort,
       regimeLookback: lookback, trendThresholdBps: trendThreshold,
-      volatilityThresholdBps: volatilityThreshold,
+      rangeThresholdBps: rangeThreshold,
+      highVolatilityThresholdBps: highVolatilityThreshold,
     });
   };
 
@@ -104,7 +108,7 @@ export default function StrategyRobustnessPanel() {
   return (
     <section className="panel strategy-robustness-panel" id="strategy-robustness" aria-labelledby="strategy-robustness-title">
       <div className="robustness-heading">
-        <div><div className="eyebrow">STRATEGY ROBUSTNESS ENGINE</div><h2 id="strategy-robustness-title">Стресс-тест стратегии</h2><p>Чувствительность EMA Crossover к затратам, параметрам и состояниям рынка.</p></div>
+        <div><div className="eyebrow">STRATEGY ROBUSTNESS ENGINE</div><h2 id="strategy-robustness-title">Стресс-тест стратегии</h2><p>Чувствительность EMA Crossover к затратам, параметрам и пяти каноническим режимам рынка.</p></div>
         <span className="robustness-tag"><ShieldCheck size={13} /> RESEARCH ONLY</span>
       </div>
       <div className="robustness-safety"><ShieldCheck size={14} /> Набор проверок фиксирован. Движок не ищет лучшие параметры, не выдаёт торговых рекомендаций и не создаёт ордера.</div>
@@ -126,16 +130,17 @@ export default function StrategyRobustnessPanel() {
             <label>Медленная EMA<input type="number" min="3" max="300" value={slowEmaPeriod} onChange={event => setSlowEmaPeriod(event.target.value)} /></label>
             <label>Комиссия, bps<input type="number" min="0" max="50" value={feeBps} onChange={event => setFeeBps(event.target.value)} /></label>
             <label>Проскальзывание, bps<input type="number" min="0" max="50" value={slippageBps} onChange={event => setSlippageBps(event.target.value)} /></label>
-            <label>Окно режима<input type="number" min="5" max="200" value={regimeLookback} onChange={event => setRegimeLookback(event.target.value)} /></label>
+            <label>Окно режима<input type="number" min="10" max="200" value={regimeLookback} onChange={event => setRegimeLookback(event.target.value)} /></label>
             <label>Порог тренда, bps<input type="number" min="10" max="5000" value={trendThresholdBps} onChange={event => setTrendThresholdBps(event.target.value)} /></label>
-            <label>Порог волатильности, bps<input type="number" min="1" max="2000" value={volatilityThresholdBps} onChange={event => setVolatilityThresholdBps(event.target.value)} /></label>
+            <label>Порог бокового рынка, bps<input type="number" min="5" max="1000" value={rangeThresholdBps} onChange={event => setRangeThresholdBps(event.target.value)} /></label>
+            <label>Порог высокой волатильности, bps<input type="number" min="10" max="2000" value={highVolatilityThresholdBps} onChange={event => setHighVolatilityThresholdBps(event.target.value)} /></label>
           </div>
           <div className="robustness-extra">
             <label><input type="checkbox" checked={allowShort} onChange={event => setAllowShort(event.target.checked)} /> Разрешить SHORT</label>
-            <span>Тесты: <strong>3 сценария затрат · до 8 EMA-вариантов · 6 рыночных режимов</strong></span>
+            <span>Тесты: <strong>3 сценария затрат · до 8 EMA-вариантов · 5 рыночных режимов</strong></span>
           </div>
           {!rangeValid && <p className="robustness-error">Укажите символ и корректный диапазон до 366 дней.</p>}
-          {!configValid && <p className="robustness-error"><AlertTriangle size={13} /> Проверьте EMA, пороги и издержки. Комиссия и проскальзывание должны быть не выше 50 bps: стресс-тест увеличивает их до 2x.</p>}
+          {!configValid && <p className="robustness-error"><AlertTriangle size={13} /> Проверьте EMA, пороги и издержки. Порог бокового рынка должен быть ниже порога тренда. Комиссия и проскальзывание — не выше 50 bps.</p>}
           <button className="robustness-run" type="button" onClick={run} disabled={!rangeValid || !configValid || !auth.data || robustness.isPending}>
             <Play size={14} /> {robustness.isPending ? "Выполняется стресс-тест…" : "Запустить проверку устойчивости"}
           </button>
@@ -165,9 +170,9 @@ export default function StrategyRobustnessPanel() {
                 </table></div>
               </div>
               <div className="robustness-table-section">
-                <h3>Распределение сделок по режимам рынка</h3>
-                <div className="robustness-table-wrap"><table><thead><tr><th>Режим</th><th>Сделок</th><th>Win rate</th><th>Чистый PnL</th><th>Средняя сделка</th><th>Profit Factor</th></tr></thead>
-                  <tbody>{robustness.data.regimes.map(item => <tr key={item.id}><td>{regimeLabels[item.id] ?? item.label}</td><td>{item.tradeCount}</td><td>{pct(item.winRatePct)}</td><td>{money(item.netPnl)}</td><td>{money(item.averageTradePnl)}</td><td>{item.profitFactor === null ? "∞" : item.profitFactor.toFixed(2)}</td></tr>)}</tbody>
+                <h3>Распределение сделок по режиму на момент входа</h3>
+                <div className="robustness-table-wrap"><table><thead><tr><th>Режим</th><th>Сделок</th><th>Выборка</th><th>Win rate</th><th>Чистый PnL</th><th>Средняя сделка</th><th>Profit Factor</th></tr></thead>
+                  <tbody>{robustness.data.regimes.map(item => <tr key={item.id}><td>{regimeLabels[item.id] ?? item.label}</td><td>{item.tradeCount}</td><td>{item.sampleStatus === "adequate_sample" ? "Достаточная" : "Мало данных"}</td><td>{pct(item.winRatePct)}</td><td>{money(item.netPnl)}</td><td>{money(item.averageTradePnl)}</td><td>{item.profitFactor === null ? "∞" : item.profitFactor.toFixed(2)}</td></tr>)}</tbody>
                 </table></div>
               </div>
               <div className="robustness-result-foot">Run ID: {robustness.data.runId} · SHA-256: {robustness.data.dataDigest.slice(0, 16)}… · executionEligible=false</div>
