@@ -105,7 +105,7 @@ export default function PortfolioIntelligencePanel() {
                 <div><span>Крупнейшая доля</span><strong>{pct(result.portfolio.concentration.largestWeightPct)}</strong></div>
               </div>
               <div className="portfolio-subtitle"><BarChart3 size={14} /> Корреляция доходностей по совпадающим свечам</div>
-              <PortfolioRiskIntelligence risk={result.riskIntelligence} forecast={result.riskForecast} drawdown={result.drawdownIntelligence} />
+              <PortfolioRiskIntelligence risk={result.riskIntelligence} forecast={result.riskForecast} drawdown={result.drawdownIntelligence} performance={result.performanceIntelligence} />
               <PortfolioCorrelationMatrix correlations={result.correlations} />
               <Portfolio3DMap correlations={result.correlations} exposure={result.portfolio.symbolExposure} />
               <Portfolio3DConcentration exposure={result.portfolio.symbolExposure} largestSymbol={result.portfolio.concentration.largestSymbol} largestWeightPct={result.portfolio.concentration.largestWeightPct} herfindahlIndex={result.portfolio.concentration.herfindahlIndex} grossExposure={result.portfolio.grossExposure} grossExposureUtilizationBps={result.portfolio.grossExposureUtilizationBps} grossExposureLimitBps={result.portfolio.grossExposureLimitBps} withinConfiguredGrossExposure={result.portfolio.withinConfiguredGrossExposure} />
