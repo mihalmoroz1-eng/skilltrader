@@ -92,3 +92,16 @@ Each independent out-of-sample fold now includes a regime-conditioned comparison
 - Cross-fold summaries report observed-fold coverage, median fold-local strategy return, median gross asset return, median and worst excess return, and positive-excess fold share. At least two finite folds are required for medians and positive-fold share. Independent fold results are retained; interval returns and equity curves are never concatenated or pooled.
 - Sample labels are descriptive: insufficient (<5), limited (5–29), adequate (>=30). These thresholds are not significance tests. Missing or non-finite metrics remain unavailable.
 - The analysis is limited to the fixed EMA crossover strategy already evaluated by Walk-Forward. It does not select among strategies, optimize parameters, switch strategies, create signals, alter risk limits, mutate PAPER positions or submit exchange orders. Results remain research-only and executionEligible=false.
+
+
+## Strategy Portfolio Intelligence
+
+The Strategy Portfolio Intelligence endpoint runs EMA Crossover, RSI Mean Reversion, MACD Momentum and Breakout through the same Walk-Forward boundaries.
+
+- All four strategies receive the same validated contiguous closed-candle series, training length, validation length, step size, fold count, starting capital, risk settings, fees and adverse slippage.
+- The common training length must cover the largest configured strategy warm-up plus the Market Regime lookback. With default parameters this is governed by the EMA slow-period warm-up.
+- Each strategy and each OOS fold starts with independent virtual capital. No positions, PnL or parameter changes carry between strategies or folds.
+- The result reports per-strategy average and median OOS return, return dispersion, positive-fold share, worst fold drawdown, trade count and available average Sharpe/Sortino. Fold breakdowns retain the identical validation boundaries for audit.
+- The API returns compact fold summaries rather than duplicating all regime-level diagnostics four times. The individual Walk-Forward endpoint remains available for the full per-strategy regime and regime-adaptive detail.
+- Cross-strategy returns are never summed, compounded, weighted or presented as a combined equity curve. This is a side-by-side research comparison, not an investable multi-strategy portfolio.
+- No strategy is ranked or automatically selected. No optimization, switching, signals, PAPER mutation, risk-limit changes or exchange orders are performed. `executionEligible=false` and `exchangeOrderSent=false`.
