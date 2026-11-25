@@ -154,7 +154,7 @@ export default function WalkForwardValidationPanel() {
           {walkForward.error && <p className="walk-forward-error">{safeError(walkForward.error)}</p>}
           {walkForward.data && (
             <div className="walk-forward-results">
-              <div className="walk-forward-result-title"><strong>Результаты OOS проверки · {walkForward.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : strategy === "macd_momentum" ? "MACD Momentum" : "EMA Crossover"}</strong><span>{walkForward.data.windows.length} независимых окон · {walkForward.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
+              <div className="walk-forward-result-title"><strong>Результаты OOS проверки · {walkForward.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : walkForward.data.strategy === "macd_momentum" ? "MACD Momentum" : "EMA Crossover"}</strong><span>{walkForward.data.windows.length} независимых окон · {walkForward.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
               <div className="walk-forward-metrics">
                 <div><span>Средняя доходность OOS</span><strong>{percent(walkForward.data.metrics.averageValidationReturnPct)}</strong></div>
                 <div><span>Медиана OOS</span><strong>{percent(walkForward.data.metrics.medianValidationReturnPct)}</strong></div>
