@@ -142,7 +142,11 @@ function foldRiskMetrics(
     if (!Number.isFinite(previous) || previous <= 0 || !Number.isFinite(current) || current <= 0) {
       return { ...unavailable, riskMetricObservations: returns.length };
     }
-    returns.push(current / previous - 1);
+    const intervalReturn = current / previous - 1;
+    if (!Number.isFinite(intervalReturn)) {
+      return { ...unavailable, riskMetricObservations: returns.length };
+    }
+    returns.push(intervalReturn);
   }
   const periods = annualizationPeriods(interval);
   if (returns.length < MIN_RISK_OBSERVATIONS || !Number.isFinite(periods) || periods <= 0) {
@@ -152,12 +156,17 @@ function foldRiskMetrics(
   const variance = returns.reduce((sum, value) => sum + (value - average) ** 2, 0) / (returns.length - 1);
   const volatility = Math.sqrt(variance);
   const downside = Math.sqrt(returns.reduce((sum, value) => sum + Math.min(value, 0) ** 2, 0) / returns.length);
+  const annualizedVolatility = volatility * Math.sqrt(periods) * 100;
+  const sharpe = volatility > 0 ? average / volatility * Math.sqrt(periods) : null;
+  const sortino = downside > 0 ? average / downside * Math.sqrt(periods) : null;
+  const returnToDrawdown = maxDrawdownPct > 0 ? totalReturnPct / maxDrawdownPct : null;
   return {
     riskMetricObservations: returns.length,
-    annualizedVolatilityPct: Number.isFinite(volatility) ? volatility * Math.sqrt(periods) * 100 : null,
-    sharpeRatio: volatility > 0 ? average / volatility * Math.sqrt(periods) : null,
-    sortinoRatio: downside > 0 ? average / downside * Math.sqrt(periods) : null,
-    returnToMaxDrawdown: maxDrawdownPct > 0 ? totalReturnPct / maxDrawdownPct : null,
+    annualizedVolatilityPct: Number.isFinite(annualizedVolatility) ? annualizedVolatility : null,
+    sharpeRatio: sharpe !== null && Number.isFinite(sharpe) ? sharpe : null,
+    sortinoRatio: sortino !== null && Number.isFinite(sortino) ? sortino : null,
+    returnToMaxDrawdown: returnToDrawdown !== null && Number.isFinite(returnToDrawdown)
+      ? returnToDrawdown : null,
   };
 }
 
@@ -317,7 +326,9 @@ export function runWalkForwardValidation(
       validationProfitFactor: totalNegativePnl === 0
         ? (totalPositivePnl > 0 ? null : 0)
         : totalPositivePnl / totalNegativePnl,
-      riskAdjustedFoldCount: windows.filter(window => window.validation.sharpeRatio !== null).length,
+      riskAdjustedFoldCount: windows.filter(window =>
+        window.validation.sharpeRatio !== null && Number.isFinite(window.validation.sharpeRatio),
+      ).length,
       averageValidationSharpe: aggregateFoldMetric(windows.map(window => window.validation.sharpeRatio), "average"),
       medianValidationSharpe: aggregateFoldMetric(windows.map(window => window.validation.sharpeRatio), "median"),
       worstValidationSharpe: aggregateFoldMetric(windows.map(window => window.validation.sharpeRatio), "worst"),
