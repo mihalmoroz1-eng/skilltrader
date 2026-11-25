@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
-import { BacktestInputError, runBacktest } from "../core/BacktestEngine";
+import { BacktestInputError, runBacktest, runBacktestWithStrategy } from "../core/BacktestEngine";
+import { rsiMeanReversionStrategy } from "../strategies/RsiMeanReversionStrategy";
+import { emaCrossoverStrategy } from "../strategies/EmaCrossoverStrategy";
 
 function series(closes: number[]): MarketCandle[] {
   const start = 1_700_000_000_000;
@@ -70,5 +72,37 @@ describe("historical backtesting engine", () => {
     const costly = runBacktest(candles, { ...config, feeBps: 10, slippageBps: 5 });
     expect(costly.metrics.feesPaid).toBeGreaterThan(0);
     expect(costly.metrics.finalEquity).toBeLessThan(free.metrics.finalEquity);
+  });
+  it("runs RSI through the shared execution engine with directional exits", () => {
+    const candles = series([100, 90, 80, 90, 100, 110, 100, 90, 80, 70]);
+    const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, ...executionConfig } = {
+      ...config, stopLossBps: 2_000, takeProfitBps: 5_000, allowShort: true,
+    };
+    const result = runBacktestWithStrategy(
+      candles,
+      executionConfig,
+      rsiMeanReversionStrategy,
+      { rsiPeriod: 2, oversoldLevel: 30, overboughtLevel: 70 },
+    );
+    expect(result.strategy).toBe("rsi_mean_reversion");
+    expect(result.executionEligible).toBe(false);
+    expect(result.trades.map(trade => trade.side)).toEqual(["LONG", "SHORT"]);
+    expect(result.trades.map(trade => trade.exitReason)).toEqual(["strategy_exit", "strategy_exit"]);
+    expect(result.trades[0].entryTime).toBe(candles[4].openTime);
+    expect(result.trades[0].exitTime).toBe(candles[5].openTime);
+    expect(result.trades[1].entryTime).toBe(candles[7].openTime);
+    expect(result.trades[1].exitTime).toBe(candles[8].openTime);
+  });
+
+  it("keeps EMA wrapper behavior identical to the shared strategy executor", () => {
+    const candles = series([10, 10, 10, 11, 13, 15, 17, 18, 17, 15, 13, 11]);
+    const wrapped = runBacktest(candles, config);
+    const { fastEmaPeriod, slowEmaPeriod, ...executionConfig } = config;
+    const shared = runBacktestWithStrategy(
+      candles, executionConfig, emaCrossoverStrategy, { fastEmaPeriod, slowEmaPeriod },
+    );
+    expect(shared.trades).toEqual(wrapped.trades);
+    expect(shared.metrics).toEqual(wrapped.metrics);
+    expect(shared.strategy).toBe(wrapped.strategy);
   });
 });
