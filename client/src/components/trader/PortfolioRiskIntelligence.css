@@ -50,3 +50,9 @@
 .pri-episode b{font-size:11px;color:#f0b77c;font-variant-numeric:tabular-nums}
 .pri-episode small{grid-column:1/-1;font-size:9px;color:var(--muted-foreground)}
 @media(max-width:620px){.pri-recovery-summary{grid-template-columns:1fr 1fr}.pri-chart-head{align-items:flex-start;flex-direction:column}}
+
+.pri-performance{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.pri-performance-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pri-performance-row{border-color:var(--border);background:transparent}
+.pri-performance-row b{color:var(--foreground)}
+@media(max-width:620px){.pri-performance-metrics{grid-template-columns:1fr 1fr}.pri-performance-metrics>div:first-child{grid-column:1/-1}}
