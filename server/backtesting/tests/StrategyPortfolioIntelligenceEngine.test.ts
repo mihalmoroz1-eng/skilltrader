@@ -66,6 +66,17 @@ describe("strategy portfolio intelligence", () => {
     ).join("|"))).size).toBe(1);
     expect(new Set(result.strategies.map(item => item.runId)).size).toBe(4);
     expect(result.strategies.every(item => item.folds.length === 2)).toBe(true);
+    expect(result.strategies.every(item =>
+      item.folds.every(fold => fold.regimes.length === 5) && item.regimeSummary.length === 5,
+    )).toBe(true);
+    const regimeCoverageByStrategy = result.strategies.map(item =>
+      item.folds.map(fold => fold.regimes.map(bucket => bucket.observations)),
+    );
+    expect(new Set(regimeCoverageByStrategy.map(value => JSON.stringify(value))).size).toBe(1);
+    expect(result.strategies.every(item => item.regimeSummary.every(summary =>
+      summary.totalFolds === 2 && summary.foldsObserved <= 2 &&
+      (summary.foldsObserved < 2 ? summary.positiveReturnSharePct === null : true),
+    ))).toBe(true);
     expect(result.executionEligible).toBe(false);
     expect(result.exchangeOrderSent).toBe(false);
   });
