@@ -38,7 +38,7 @@ const config = {
   fastEmaPeriod: 2,
   slowEmaPeriod: 3,
   allowShort: false,
-  trainingCandles: 8,
+  trainingCandles: 11,
   validationCandles: 10,
   stepCandles: 10,
   windowCount: 2,
@@ -62,9 +62,9 @@ describe("walk-forward validation engine", () => {
   it("scores only the out-of-sample bars while using prior training bars as warm-up", () => {
     const candles = series(closes);
     const result = runWalkForwardValidation(candles, config);
-    const selected = candles.slice(candles.length - 28);
-    expect(result.windows[0].validationStartTime).toBe(selected[8].openTime);
-    expect(result.windows[0].validationEndTime).toBe(selected[17].closeTime);
+    const selected = candles.slice(candles.length - 31);
+    expect(result.windows[0].validationStartTime).toBe(selected[11].openTime);
+    expect(result.windows[0].validationEndTime).toBe(selected[20].closeTime);
     expect(result.windows[0].validation.runId).not.toBe(result.windows[0].training.runId);
     expect(result.windows[0].validation.firstTradeEntryTime === null ||
       result.windows[0].validation.firstTradeEntryTime >= selected[8].openTime).toBe(true);
@@ -79,7 +79,7 @@ describe("walk-forward validation engine", () => {
     const result = runWalkForwardValidation(candles, config);
     expect(result.windows[0].validationEndTime).toBeLessThan(result.windows[1].validationStartTime);
     const selected = candles.slice(candles.length - 28);
-    expect(result.windows[1].validationStartTime).toBe(selected[18].openTime);
+    expect(result.windows[1].validationStartTime).toBe(selected[21].openTime);
   });
 
   it("uses the latest required history and binds the run id to its candle digest", () => {
