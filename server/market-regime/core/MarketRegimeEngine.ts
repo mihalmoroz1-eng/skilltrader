@@ -39,12 +39,16 @@ function finitePositive(value: string): number {
   if (!Number.isFinite(n) || n <= 0) throw new MarketRegimeInputError("Candle contains an invalid or non-positive price");
   return n;
 }
+function requireFinite(value: number, label: string): number {
+  if (!Number.isFinite(value)) throw new MarketRegimeInputError(`Non-finite ${label}; analysis was withheld`);
+  return value;
+}
 function classify(
   window: MarketCandle[], config: MarketRegimeConfig,
 ): Omit<MarketRegimePoint, "time"> {
   const first = finitePositive(window[0].close);
   const last = finitePositive(window[window.length-1].close);
-  const netChangeBps = (last / first - 1) * 10_000;
+  const netChangeBps = requireFinite((last / first - 1) * 10_000, "net change");
   let path = 0;
   let trueRangeBps = 0;
   for (let i=1;i<window.length;i++) {
@@ -52,11 +56,11 @@ function classify(
     const close = finitePositive(window[i].close);
     const high = finitePositive(window[i].high);
     const low = finitePositive(window[i].low);
-    path += Math.abs(close / previous - 1) * 10_000;
-    trueRangeBps += Math.max(high-low, Math.abs(high-previous), Math.abs(low-previous)) / previous * 10_000;
+    path = requireFinite(path + Math.abs(close / previous - 1) * 10_000, "price path");
+    trueRangeBps = requireFinite(trueRangeBps + Math.max(high-low, Math.abs(high-previous), Math.abs(low-previous)) / previous * 10_000, "true range");
   }
-  const efficiencyRatio = path > 0 ? Math.min(1, Math.abs(netChangeBps) / path) : 0;
-  const averageTrueRangeBps = trueRangeBps / (window.length-1);
+  const efficiencyRatio = path > 0 ? requireFinite(Math.min(1, Math.abs(netChangeBps) / path), "efficiency ratio") : 0;
+  const averageTrueRangeBps = requireFinite(trueRangeBps / (window.length-1), "average true range");
   let regime: MarketRegime;
   let confidence: number;
   if (averageTrueRangeBps >= config.highVolatilityThresholdBps) {
@@ -87,6 +91,15 @@ export function runMarketRegimeAnalysis(candles: MarketCandle[], config: MarketR
   if (!Number.isInteger(config.lookback) || config.lookback < 10 || config.lookback > 200) {
     throw new MarketRegimeInputError("Lookback must be between 10 and 200 candles");
   }
+  if (!config.symbol || !config.symbol.trim() || !Number.isFinite(config.trendThresholdBps) ||
+      !Number.isFinite(config.rangeThresholdBps) || !Number.isFinite(config.highVolatilityThresholdBps) ||
+      config.trendThresholdBps <= 0 || config.rangeThresholdBps <= 0 ||
+      config.highVolatilityThresholdBps <= 0 || config.rangeThresholdBps >= config.trendThresholdBps) {
+    throw new MarketRegimeInputError("Regime thresholds or symbol are invalid");
+  }
+  if (stepFor(config.interval, 0) <= 0) {
+    throw new MarketRegimeInputError("Unsupported market interval");
+  }
   if (candles.length > 50_000) throw new MarketRegimeInputError("Market regime analysis is limited to 50,000 candles");
   if (candles.length < config.lookback + 1) {
     throw new MarketRegimeInputError(`Insufficient history: at least ${config.lookback+1} candles are required`);
@@ -104,6 +117,10 @@ export function runMarketRegimeAnalysis(candles: MarketCandle[], config: MarketR
     const open=finitePositive(c.open), high=finitePositive(c.high), low=finitePositive(c.low), close=finitePositive(c.close);
     if (low > Math.min(open,close) || high < Math.max(open,close) || low > high) {
       throw new MarketRegimeInputError("Candle OHLC relationship is invalid");
+    }
+    const candleStep = stepFor(config.interval, c.openTime);
+    if (candleStep <= 0 || c.closeTime !== c.openTime + candleStep - 1) {
+      throw new MarketRegimeInputError("Candle close time does not match the selected interval");
     }
     if (i>0) {
       const expected=ordered[i-1].openTime+stepFor(config.interval,ordered[i-1].openTime);
