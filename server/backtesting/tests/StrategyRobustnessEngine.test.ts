@@ -134,6 +134,35 @@ describe("strategy robustness engine", () => {
     }
   });
 
+  it("reports deterministic per-regime marked-equity performance and transition diagnostics", () => {
+    const candles = series(240);
+    const first = runStrategyRobustness(candles, config);
+    const second = runStrategyRobustness(candles, config);
+    expect(first.regimePerformance).toEqual(second.regimePerformance);
+    expect(first.regimePerformance.status).toBe("ready");
+    expect(first.regimePerformance.buckets).toHaveLength(5);
+    expect(first.regimePerformance.classifiedCandles).toBe(first.regimePerformance.observations);
+    expect(first.regimePerformance.buckets.reduce((sum, item) => sum + item.observations, 0))
+      .toBe(first.regimePerformance.observations);
+    expect(first.regimePerformance.buckets.every(item =>
+      item.sampleStatus === (item.observations < 5 ? "insufficient_sample"
+        : item.observations < 30 ? "limited_sample" : "adequate_sample"),
+    )).toBe(true);
+    expect(first.regimePerformance.transitions.reduce((sum, item) => sum + item.count, 0))
+      .toBe(first.regimePerformance.transitionCount);
+    expect(first.regimePerformance.transitionRatePct === null ||
+      Number.isFinite(first.regimePerformance.transitionRatePct)).toBe(true);
+  });
+
+  it("keeps insufficient regime samples unavailable instead of fabricating zero metrics", () => {
+    const result = runStrategyRobustness(series(80), { ...config, regimeLookback: 30 });
+    const sparse = result.regimePerformance.buckets.filter(item => item.observations < 30);
+    expect(sparse.length).toBeGreaterThan(0);
+    expect(sparse.every(item =>
+      item.annualizedVolatilityPct === null && item.sharpeRatio === null && item.sortinoRatio === null,
+    )).toBe(true);
+  });
+
   it("keeps the baseline metrics equal to the existing backtesting engine", () => {
     const candles = series(240);
     const base = runBacktest(candles, {
