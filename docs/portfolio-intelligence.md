@@ -35,3 +35,10 @@ Every result reports executionEligible=false and exchangeOrderSent=false. No pri
 - The largest symbol, largest weight, Herfindahl index, gross exposure and gross-limit utilization are passed through from the deterministic portfolio result without recalculation in the UI.
 - Missing or stale marks leave exposure fields unavailable; the visualization displays an empty/unavailable state rather than substituting entry prices or estimated values.
 - These views are read-only, do not generate trading signals and do not alter risk controls or PAPER positions.
+
+
+## Correlation matrix view
+- The dashboard matrix is built only from the returned pair records; each ready Pearson value is mirrored across the matrix for readability.
+- The diagonal is intentionally omitted, and absent, non-ready or non-finite pairs remain unavailable rather than being estimated.
+- Cell color encodes correlation sign and absolute strength; exact coefficient and observation count remain visible in each populated cell.
+- The matrix is a presentation layer only and does not calculate portfolio risk, alter the server result or generate signals.
