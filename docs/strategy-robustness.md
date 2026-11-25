@@ -30,3 +30,20 @@ The engine evaluates whether the existing EMA crossover backtest is sensitive to
 
 
 The classifier is implemented in `server/market-regime/core/MarketRegimeClassifier.ts` and is shared with the Market Regime Intelligence rolling analysis. Regime attribution remains descriptive by entry regime; it is not a regime-conditioned strategy simulation.
+
+## Regime Performance Analytics
+
+The robustness response also includes a separate, read-only analysis of marked-to-market strategy equity across the canonical five regimes.
+
+- Each close-to-close equity return is assigned to the regime classified from the current candle's completed OHLC data. This is retrospective after-close attribution; it is not a prediction or a signal.
+- The analysis starts at the existing backtest evaluation boundary and uses the same contiguous closed candles and deterministic equity curve. It does not fetch or synthesize data.
+- Per regime it reports interval count, baseline trades attributed at entry, grouped compounded interval return, annualized volatility, Sharpe, Sortino, maximum drawdown within any uninterrupted episode, and episode count.
+- Grouped compounded return combines only the observed intervals assigned to that regime. Because these intervals may be non-contiguous, it is a conditional descriptive statistic, not a continuous standalone equity curve or a realizable standalone strategy return.
+- Maximum drawdown is computed independently inside each uninterrupted episode of a regime. Episodes are never concatenated to create a synthetic drawdown path.
+- Volatility, Sharpe and Sortino require at least 30 interval observations. Sample labels are insufficient below five, limited from five through 29, and adequate at 30 or more; these are display thresholds, not statistical significance tests.
+- Empty regime buckets return unavailable values, not zero-performance claims.
+- Transition diagnostics report observed regime-to-regime changes, transition frequency and the average marked-equity return of intervals where the regime label changed.
+- Trade counts remain entry-regime attribution and are not interchangeable with candle-interval observation counts.
+- This module does not rank regimes, choose or switch strategies, tune parameters, create signals, mutate PAPER positions, change risk limits or authorize LIVE/exchange orders. `executionEligible=false` remains in force.
+
+Implementation: `server/backtesting/core/RegimePerformanceAnalytics.ts`; dashboard: `StrategyRobustnessPanel`.
