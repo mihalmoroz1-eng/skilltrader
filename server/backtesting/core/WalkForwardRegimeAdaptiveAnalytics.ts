@@ -153,6 +153,11 @@ export function analyzeWalkForwardRegimeAdaptive(
       strategyOutperformed: Number.isFinite(strategyPct - benchmarkPct) ? strategyPct > benchmarkPct : null,
     }] : [];
     const excessFold = foldResults[0]?.excessReturnPctPoints;
+    const finiteExcessReturns = foldResults.flatMap(item =>
+      item.excessReturnPctPoints !== null && Number.isFinite(item.excessReturnPctPoints)
+        ? [item.excessReturnPctPoints]
+        : [],
+    );
     return {
       regime,
       observations,
@@ -163,7 +168,7 @@ export function analyzeWalkForwardRegimeAdaptive(
       medianStrategyReturnPct: median(foldResults.flatMap(item => item.strategyReturnPct === null ? [] : [item.strategyReturnPct])),
       medianBuyAndHoldGrossReturnPct: median(foldResults.flatMap(item => item.buyAndHoldGrossReturnPct === null ? [] : [item.buyAndHoldGrossReturnPct])),
       medianExcessReturnPctPoints: median(foldResults.flatMap(item => item.excessReturnPctPoints === null ? [] : [item.excessReturnPctPoints])),
-      worstExcessReturnPctPoints: foldResults.length ? Math.min(...foldResults.flatMap(item => item.excessReturnPctPoints === null ? [] : [item.excessReturnPctPoints])) : null,
+      worstExcessReturnPctPoints: finiteExcessReturns.length ? Math.min(...finiteExcessReturns) : null,
       foldResults,
     };
   });
