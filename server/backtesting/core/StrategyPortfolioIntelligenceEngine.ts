@@ -6,6 +6,8 @@ import {
   type WalkForwardValidationConfig,
   type WalkForwardValidationResult,
 } from "./WalkForwardValidationEngine";
+import type { CanonicalMarketRegime } from "../../market-regime/core/MarketRegimeClassifier";
+import type { WalkForwardRegimeBucket } from "./WalkForwardRegimeAnalytics";
 
 export type StrategyPortfolioConfig = Omit<WalkForwardValidationConfig, "strategy">;
 
@@ -23,6 +25,21 @@ export type StrategyPortfolioEntry = {
     sharpeRatio: number | null;
     sortinoRatio: number | null;
     totalTrades: number;
+    regimes: WalkForwardRegimeBucket[];
+  }>;
+  regimeSummary: Array<{
+    regime: CanonicalMarketRegime;
+    foldsObserved: number;
+    totalFolds: number;
+    observations: number;
+    adequateSampleFolds: number;
+    positiveReturnFolds: number;
+    positiveReturnSharePct: number | null;
+    medianConditionalReturnPct: number | null;
+    worstEpisodeDrawdownPct: number | null;
+    averageAnnualizedVolatilityPct: number | null;
+    averageSharpeRatio: number | null;
+    averageSortinoRatio: number | null;
   }>;
   metrics: {
     averageValidationReturnPct: number;
@@ -58,6 +75,60 @@ export class StrategyPortfolioInputError extends Error {
 }
 
 const STRATEGIES = ["ema_crossover", "rsi_mean_reversion", "macd_momentum", "breakout"] as const;
+const REGIMES: CanonicalMarketRegime[] = [
+  "uptrend", "downtrend", "ranging", "high_volatility", "transition",
+];
+
+function finiteValues(values: Array<number | null>): number[] {
+  return values.filter((value): value is number => value !== null && Number.isFinite(value));
+}
+
+function median(values: number[]): number | null {
+  if (values.length < 2) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+  return Number.isFinite(value) ? value : null;
+}
+
+function mean(values: number[]): number | null {
+  if (values.length < 2) return null;
+  const value = values.reduce((sum, item) => sum + item, 0) / values.length;
+  return Number.isFinite(value) ? value : null;
+}
+
+function summarizeRegimes(
+  windows: WalkForwardValidationResult["windows"],
+): StrategyPortfolioEntry["regimeSummary"] {
+  return REGIMES.map(regime => {
+    const buckets = windows.flatMap(window => {
+      const bucket = window.validation.regimePerformance.buckets.find(item => item.regime === regime);
+      return bucket && bucket.observations > 0 ? [bucket] : [];
+    });
+    const returns = finiteValues(buckets.map(bucket => bucket.compoundedReturnPct));
+    const volatilities = finiteValues(buckets.map(bucket => bucket.annualizedVolatilityPct));
+    const sharpes = finiteValues(buckets.map(bucket => bucket.sharpeRatio));
+    const sortinos = finiteValues(buckets.map(bucket => bucket.sortinoRatio));
+    const drawdowns = finiteValues(buckets.map(bucket => bucket.maxEpisodeDrawdownPct));
+    return {
+      regime,
+      foldsObserved: buckets.length,
+      totalFolds: windows.length,
+      observations: buckets.reduce((sum, bucket) => sum + bucket.observations, 0),
+      adequateSampleFolds: buckets.filter(bucket => bucket.sampleStatus === "adequate_sample").length,
+      positiveReturnFolds: returns.filter(value => value > 0).length,
+      positiveReturnSharePct: returns.length >= 2
+        ? returns.filter(value => value > 0).length / returns.length * 100 : null,
+      medianConditionalReturnPct: median(returns),
+      worstEpisodeDrawdownPct: drawdowns.length > 0 ? Math.max(...drawdowns) : null,
+      averageAnnualizedVolatilityPct: mean(volatilities),
+      averageSharpeRatio: mean(sharpes),
+      averageSortinoRatio: mean(sortinos),
+    };
+  });
+}
 
 function strategyWarmup(config: StrategyPortfolioConfig, strategy: typeof STRATEGIES[number]): number {
   switch (strategy) {
@@ -124,7 +195,9 @@ export function runStrategyPortfolioIntelligence(
         sharpeRatio: window.validation.sharpeRatio,
         sortinoRatio: window.validation.sortinoRatio,
         totalTrades: window.validation.totalTrades,
+        regimes: window.validation.regimePerformance.buckets,
       })),
+      regimeSummary: summarizeRegimes(validation.windows),
       metrics: summarize(validation),
     };
   });
