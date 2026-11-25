@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { MarketCandle, MarketInterval } from "../../market-data/core/MarketDataTypes";
+import { classifyMarketRegimeWindow, MarketRegimeClassificationError } from "./MarketRegimeClassifier";
 
 export type MarketRegime = "uptrend" | "downtrend" | "ranging" | "high_volatility" | "transition";
 export type MarketRegimeConfig = {
@@ -34,59 +35,6 @@ function stepFor(interval: MarketInterval, openTime: number): number {
   }
   return FIXED_INTERVAL_MS[interval] ?? 0;
 }
-function finitePositive(value: string): number {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) throw new MarketRegimeInputError("Candle contains an invalid or non-positive price");
-  return n;
-}
-function requireFinite(value: number, label: string): number {
-  if (!Number.isFinite(value)) throw new MarketRegimeInputError(`Non-finite ${label}; analysis was withheld`);
-  return value;
-}
-function classify(
-  window: MarketCandle[], config: MarketRegimeConfig,
-): Omit<MarketRegimePoint, "time"> {
-  const first = finitePositive(window[0].close);
-  const last = finitePositive(window[window.length-1].close);
-  const netChangeBps = requireFinite((last / first - 1) * 10_000, "net change");
-  let path = 0;
-  let trueRangeBps = 0;
-  for (let i=1;i<window.length;i++) {
-    const previous = finitePositive(window[i-1].close);
-    const close = finitePositive(window[i].close);
-    const high = finitePositive(window[i].high);
-    const low = finitePositive(window[i].low);
-    path = requireFinite(path + Math.abs(close / previous - 1) * 10_000, "price path");
-    trueRangeBps = requireFinite(trueRangeBps + Math.max(high-low, Math.abs(high-previous), Math.abs(low-previous)) / previous * 10_000, "true range");
-  }
-  const efficiencyRatio = path > 0 ? requireFinite(Math.min(1, Math.abs(netChangeBps) / path), "efficiency ratio") : 0;
-  const averageTrueRangeBps = requireFinite(trueRangeBps / (window.length-1), "average true range");
-  let regime: MarketRegime;
-  let confidence: number;
-  if (averageTrueRangeBps >= config.highVolatilityThresholdBps) {
-    regime = "high_volatility";
-    confidence = Math.min(100, 50 + (averageTrueRangeBps / config.highVolatilityThresholdBps - 1) * 25);
-  } else if (netChangeBps >= config.trendThresholdBps && efficiencyRatio >= 0.35) {
-    regime = "uptrend";
-    confidence = Math.min(100, 50 + Math.min(netChangeBps/config.trendThresholdBps-1, efficiencyRatio) * 25);
-  } else if (netChangeBps <= -config.trendThresholdBps && efficiencyRatio >= 0.35) {
-    regime = "downtrend";
-    confidence = Math.min(100, 50 + Math.min(Math.abs(netChangeBps)/config.trendThresholdBps-1, efficiencyRatio) * 25);
-  } else if (Math.abs(netChangeBps) <= config.rangeThresholdBps && efficiencyRatio <= 0.25) {
-    regime = "ranging";
-    confidence = Math.min(100, 50 + (1-efficiencyRatio) * 25);
-  } else {
-    regime = "transition";
-    confidence = 50;
-  }
-  return {
-    regime, confidence: Number.isFinite(confidence) ? Math.round(confidence*100)/100 : 50,
-    netChangeBps: Number.isFinite(netChangeBps) ? Math.round(netChangeBps*100)/100 : 0,
-    efficiencyRatio: Number.isFinite(efficiencyRatio) ? Math.round(efficiencyRatio*10_000)/10_000 : 0,
-    averageTrueRangeBps: Number.isFinite(averageTrueRangeBps) ? Math.round(averageTrueRangeBps*100)/100 : 0,
-  };
-}
-
 export function runMarketRegimeAnalysis(candles: MarketCandle[], config: MarketRegimeConfig): MarketRegimeResult {
   if (!Number.isInteger(config.lookback) || config.lookback < 10 || config.lookback > 200) {
     throw new MarketRegimeInputError("Lookback must be between 10 and 200 candles");
@@ -131,7 +79,14 @@ export function runMarketRegimeAnalysis(candles: MarketCandle[], config: MarketR
   const history: MarketRegimePoint[]=[];
   for (let i=config.lookback;i<ordered.length;i++) {
     const window=ordered.slice(i-config.lookback,i+1);
-    history.push({time:ordered[i].closeTime,...classify(window,config)});
+    try {
+      history.push({ time: ordered[i].closeTime, ...classifyMarketRegimeWindow(window, config) });
+    } catch (error) {
+      if (error instanceof MarketRegimeClassificationError) {
+        throw new MarketRegimeInputError(error.message);
+      }
+      throw error;
+    }
   }
   const regimes: MarketRegime[]=["uptrend","downtrend","ranging","high_volatility","transition"];
   const counts=new Map<MarketRegime,number>(regimes.map(r=>[r,0]));
