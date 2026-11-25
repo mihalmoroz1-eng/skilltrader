@@ -118,7 +118,10 @@ export type BacktestRequest = z.infer<typeof backtestRequestSchema>;
 export type WalkForwardRequest = z.infer<typeof walkForwardRequestSchema>;
 
 /** Reuses the strict Walk-Forward input contract; the engine evaluates all four strategies. */
-export const strategyPortfolioRequestSchema = walkForwardRequestSchema;
+export const strategyPortfolioRequestSchema = walkForwardRequestSchema.transform(value => {
+  const { strategy: _strategy, ...config } = value;
+  return config;
+});
 export type StrategyPortfolioRequest = z.infer<typeof strategyPortfolioRequestSchema>;
 
 export const robustnessRequestSchema = z.object({
