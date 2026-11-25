@@ -89,7 +89,7 @@ describe("Walk-forward regime adaptive analytics", () => {
       11,
       [
         { time: candles[10].openTime, equity: 1 },
-        { time: candles[11].closeTime, equity: 1e306 },
+        { time: candles[11].closeTime, equity: 1e307 },
       ],
       1,
       config,
