@@ -7,7 +7,7 @@
 .history-safety-note svg { flex: 0 0 auto; color: #62b99a; }
 .history-controls, .history-backtest-settings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .history-controls label, .history-backtest-settings label { display: flex; flex-direction: column; gap: 6px; color: var(--muted-foreground, #aab4c0); font-size: 11px; font-weight: 600; }
-.history-controls input, .history-controls select, .history-backtest-settings input { width: 100%; min-width: 0; min-height: 38px; box-sizing: border-box; border: 1px solid var(--border, #303744); border-radius: 8px; background: var(--background, #111722); color: var(--foreground, #edf1f5); padding: 8px 10px; font: inherit; font-size: 12px; color-scheme: dark; }
+.history-controls input, .history-controls select, .history-backtest-settings input, .history-backtest-settings select { width: 100%; min-width: 0; min-height: 38px; box-sizing: border-box; border: 1px solid var(--border, #303744); border-radius: 8px; background: var(--background, #111722); color: var(--foreground, #edf1f5); padding: 8px 10px; font: inherit; font-size: 12px; color-scheme: dark; }
 .history-actions { display: flex; flex-wrap: wrap; gap: 9px; }
 .history-actions button, .history-backtest-run { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; border: 1px solid transparent; border-radius: 8px; padding: 8px 13px; background: #267d68; color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .history-actions button.history-secondary { border-color: var(--border, #303744); background: transparent; color: var(--foreground, #e5eaf0); }
