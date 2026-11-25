@@ -101,7 +101,7 @@ describe("walk-forward validation engine", () => {
   it("rejects training windows that do not cover indicator warm-up", () => {
     expect(() => runWalkForwardValidation(series(closes), {
       ...config, trainingCandles: 4,
-    })).toThrow(/EMA warm-up/);
+    })).toThrow(/Training window/);
   });
 
   it("rejects incomplete historical ranges", () => {
@@ -144,7 +144,7 @@ describe("walk-forward validation engine", () => {
       100 + index * 0.08 + Math.sin(index / 2.7) * 3,
     );
     const result = runWalkForwardValidation(series(longCloses), {
-      ...config, trainingCandles: 8, validationCandles: 40, stepCandles: 40, windowCount: 2,
+      ...config, trainingCandles: 11, validationCandles: 40, stepCandles: 40, windowCount: 2,
     });
     expect(result.windows).toHaveLength(2);
     for (const window of result.windows) {
@@ -205,7 +205,7 @@ describe("walk-forward validation engine", () => {
   it("does not invent Sharpe or Sortino for a zero-variance fold", () => {
     const flat = Array.from({ length: 100 }, () => 100);
     const result = runWalkForwardValidation(series(flat), {
-      ...config, trainingCandles: 8, validationCandles: 40, stepCandles: 40, windowCount: 2,
+      ...config, trainingCandles: 11, validationCandles: 40, stepCandles: 40, windowCount: 2,
     });
     for (const window of result.windows) {
       expect(window.validation.annualizedVolatilityPct).toBe(0);
