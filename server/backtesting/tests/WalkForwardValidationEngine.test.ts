@@ -80,6 +80,16 @@ describe("walk-forward validation engine", () => {
     expect(result.executionEligible).toBe(false);
   });
 
+  it("runs Breakout through independent walk-forward folds with range warm-up", () => {
+    const result = runWalkForwardValidation(series(closes), {
+      ...config, strategy: "breakout", breakoutLookbackPeriod: 3, breakoutBufferBps: 10,
+    });
+    expect(result.strategy).toBe("breakout");
+    expect(result.windows).toHaveLength(2);
+    expect(result.windows.every(window => window.validation.runId.length > 0)).toBe(true);
+    expect(result.executionEligible).toBe(false);
+  });
+
   it("scores only the out-of-sample bars while using prior training bars as warm-up", () => {
     const candles = series(closes);
     const result = runWalkForwardValidation(candles, config);
