@@ -4,6 +4,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  Box,
   Bell,
   Check,
   ClipboardList,
@@ -27,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import PriceChart from "@/components/trader/PriceChart";
+import Market3DScene from "@/components/trader/Market3DScene";
 import LiveMarketDataPanel from "@/components/trader/LiveMarketDataPanel";
 import MarketIntelligencePanel from "@/components/trader/MarketIntelligencePanel";
 import PaperExecutionPanel from "@/components/trader/PaperExecutionPanel";
@@ -62,6 +64,7 @@ const MARKETS: Market[] = [
 const NAV_ITEMS = [
   { label: "Рабочий стол", icon: LayoutDashboard, anchor: "top" },
   { label: "График цены", icon: BarChart3, anchor: "price-chart" },
+  { label: "3D обзор рынка", icon: Box, anchor: "market-3d-scene" },
   { label: "Машина времени", icon: Sparkles, anchor: "time-machine" },
   { label: "Риск и бюджет", icon: ShieldCheck, anchor: "risk-manager" },
   { label: "Журнал", icon: ClipboardList, anchor: "demo-journal" },
@@ -217,7 +220,7 @@ export default function Home() {
   const formatDirection = side === "long" ? "Покупка" : "Продажа";
 
   return (
-    <div className="app-shell" id="top">
+    <div className="app-shell st-3d-dashboard" id="top">
       <aside className={`sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark"><span>S</span><i /></div>
@@ -294,6 +297,8 @@ export default function Home() {
               <div className="summary-icon market-icon"><Activity size={17} /></div><div className="summary-copy"><span>Активный инструмент</span><strong>{market.symbol}</strong><small><span className={market.changePct >= 0 ? "summary-positive" : "summary-negative"}>{market.changePct >= 0 ? "+" : ""}{market.changePct.toFixed(2)}%</span> · условное изменение</small></div>
             </div>
           </section>
+
+          <Market3DScene candles={candles} symbol={market.symbol} timeframe={timeframe} formatPrice={priceFormatter} />
 
           <div className="market-and-form">
             <section className="panel quote-panel">
