@@ -79,3 +79,16 @@ Each cross-fold regime summary now includes a versioned heuristic Stability Scor
 - Score, rating and evidence tier are not probabilities, statistical significance tests, forecasts or recommendations. Scores are not comparable across different validation horizons or materially different scoring configurations without considering their methodology.
 - Scoring version is exposed as `1.0` so later methodology changes can be distinguished.
 - The score does not rank or select strategies, switch strategies by regime, tune parameters, generate signals, change risk limits, mutate PAPER positions or authorize exchange orders.
+
+
+## Regime Adaptive Intelligence
+
+Each independent out-of-sample fold now includes a regime-conditioned comparison between the EMA strategy's marked-to-market equity returns and a gross underlying-asset price-return reference.
+
+- Each OOS interval is assigned to the canonical regime known at the previous candle close. The first OOS interval uses the final completed training candle for classification; no current-interval close is used to classify its own return.
+- The strategy return is derived from the fold's own marked-to-market validation equity curve, which includes the strategy's configured fees, slippage and existing backtest execution assumptions.
+- The reference is the underlying asset's gross Buy & Hold price return: first OOS interval open-to-close, then close-to-close. It excludes fees, spread, slippage, financing and execution constraints and is not exposure-matched to the strategy. It is therefore a directional context reference, not a like-for-like benchmark or an investable performance comparison.
+- Per regime and per fold, the result retains observation count, sample adequacy, conditional strategy return, gross asset return, excess return in percentage points and whether strategy return exceeded the reference.
+- Cross-fold summaries report observed-fold coverage, median fold-local strategy return, median gross asset return, median and worst excess return, and positive-excess fold share. At least two finite folds are required for medians and positive-fold share. Independent fold results are retained; interval returns and equity curves are never concatenated or pooled.
+- Sample labels are descriptive: insufficient (<5), limited (5–29), adequate (>=30). These thresholds are not significance tests. Missing or non-finite metrics remain unavailable.
+- The analysis is limited to the fixed EMA crossover strategy already evaluated by Walk-Forward. It does not select among strategies, optimize parameters, switch strategies, create signals, alter risk limits, mutate PAPER positions or submit exchange orders. Results remain research-only and executionEligible=false.
