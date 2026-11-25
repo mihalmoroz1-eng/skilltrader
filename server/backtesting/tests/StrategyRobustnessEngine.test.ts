@@ -39,9 +39,10 @@ const config = {
   fastEmaPeriod: 3,
   slowEmaPeriod: 8,
   allowShort: true,
-  regimeLookback: 5,
-  trendThresholdBps: 40,
-  volatilityThresholdBps: 10,
+  regimeLookback: 10,
+  trendThresholdBps: 100,
+  rangeThresholdBps: 50,
+  highVolatilityThresholdBps: 200,
 };
 
 describe("strategy robustness engine", () => {
@@ -89,7 +90,13 @@ describe("strategy robustness engine", () => {
     const result = runStrategyRobustness(series(240), config);
     const attributedTrades = result.regimes.reduce((sum, regime) => sum + regime.tradeCount, 0);
     expect(attributedTrades).toBe(result.baseline.totalTrades);
-    expect(result.regimes).toHaveLength(7);
+    expect(result.regimes).toHaveLength(6);
+    expect(result.regimes.map(item => item.id)).toEqual([
+      "uptrend", "downtrend", "ranging", "high_volatility", "transition", "insufficient_history",
+    ]);
+    expect(result.regimes.every(item =>
+      item.sampleStatus === (item.tradeCount < 5 ? "insufficient_sample" : "adequate_sample"),
+    )).toBe(true);
     expect(result.metrics.regimeCoveragePct).toBeGreaterThanOrEqual(0);
     expect(result.metrics.regimeCoveragePct).toBeLessThanOrEqual(100);
     expect(result.regimes.every(regime => regime.tradeCount >= 0 && Number.isFinite(regime.netPnl))).toBe(true);
@@ -125,9 +132,9 @@ describe("strategy robustness engine", () => {
   });
 
   it("rejects invalid regime thresholds", () => {
-    expect(() => runStrategyRobustness(series(240), { ...config, regimeLookback: 4 }))
+    expect(() => runStrategyRobustness(series(240), { ...config, regimeLookback: 9 }))
       .toThrow(StrategyRobustnessInputError);
-    expect(() => runStrategyRobustness(series(240), { ...config, volatilityThresholdBps: 0 }))
+    expect(() => runStrategyRobustness(series(240), { ...config, highVolatilityThresholdBps: 0 }))
       .toThrow(StrategyRobustnessInputError);
   });
 
