@@ -135,11 +135,12 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       !Number.isInteger(config.slippageBps) || config.slippageBps < 0 || config.slippageBps > 100) {
     throw new BacktestInputError("Risk, stop, target, fee or slippage parameters are invalid");
   }
-  if (candles.length <= config.slowEmaPeriod + 1) throw new BacktestInputError("Insufficient candles for EMA warm-up");
+  const minimumHistory = emaCrossoverStrategy.minimumHistory(config);
+  if (candles.length < minimumHistory) throw new BacktestInputError("Insufficient candles for EMA warm-up");
   const evaluationStartIndex = config.evaluationStartIndex ?? 0;
   if (!Number.isInteger(evaluationStartIndex) || evaluationStartIndex < 0 ||
       evaluationStartIndex >= candles.length ||
-      (evaluationStartIndex > 0 && evaluationStartIndex < config.slowEmaPeriod + 1)) {
+      (evaluationStartIndex > 0 && evaluationStartIndex < minimumHistory - 1)) {
     throw new BacktestInputError("Evaluation boundary must follow the EMA warm-up period and precede the final candle");
   }
   validateBacktestCandleSeries(candles, config.interval);
@@ -161,7 +162,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   let feesPaid = 0;
   let position: Position | null = null;
   const trades: BacktestTrade[] = [];
-  const evaluationIndex = Math.max(config.slowEmaPeriod + 1, evaluationStartIndex);
+  const evaluationIndex = Math.max(minimumHistory - 1, evaluationStartIndex);
   const equityCurve: Array<{ time: number; equity: number }> = [
     { time: candles[evaluationIndex].openTime, equity },
   ];
@@ -193,7 +194,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     position = null;
   };
 
-  for (let i = Math.max(config.slowEmaPeriod + 1, evaluationStartIndex); i < candles.length; i += 1) {
+  for (let i = Math.max(minimumHistory - 1, evaluationStartIndex); i < candles.length; i += 1) {
     const candle = candles[i];
     const signal = signalProvider.signalAt(i - 1);
     const crossUp = signal === "LONG";
