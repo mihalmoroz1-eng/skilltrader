@@ -10,8 +10,11 @@ const INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 function utcDateInput(daysAgo = 0): string {
   return new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
 }
-function percent(value: number): string {
-  return Number.isFinite(value) ? `${value.toFixed(2)}%` : "—";
+function percent(value: number | null): string {
+  return value !== null && Number.isFinite(value) ? `${value.toFixed(2)}%` : "—";
+}
+function ratio(value: number | null): string {
+  return value !== null && Number.isFinite(value) ? value.toFixed(2) : "—";
 }
 function date(value: number): string {
   return new Date(value).toLocaleDateString("ru-RU", { timeZone: "UTC" });
@@ -131,9 +134,21 @@ export default function WalkForwardValidationPanel() {
                 <div><span>Win rate OOS</span><strong>{percent(walkForward.data.metrics.validationWinRatePct)}</strong></div>
                 <div><span>OOS − обучение</span><strong>{percent(walkForward.data.metrics.validationMinusTrainingReturnPct)}</strong></div>
               </div>
+              <div className="walk-forward-result-title"><strong>Риск-скорректированная устойчивость OOS</strong><span>{walkForward.data.metrics.riskAdjustedFoldCount} окон с валидным Sharpe</span></div>
+              <div className="walk-forward-metrics">
+                <div><span>Средний Sharpe</span><strong>{ratio(walkForward.data.metrics.averageValidationSharpe)}</strong></div>
+                <div><span>Медианный Sharpe</span><strong>{ratio(walkForward.data.metrics.medianValidationSharpe)}</strong></div>
+                <div><span>Худший Sharpe</span><strong>{ratio(walkForward.data.metrics.worstValidationSharpe)}</strong></div>
+                <div><span>Разброс Sharpe</span><strong>{ratio(walkForward.data.metrics.validationSharpeStdDev)}</strong></div>
+                <div><span>Средний Sortino</span><strong>{ratio(walkForward.data.metrics.averageValidationSortino)}</strong></div>
+                <div><span>Медианный Sortino</span><strong>{ratio(walkForward.data.metrics.medianValidationSortino)}</strong></div>
+                <div><span>Худший Sortino</span><strong>{ratio(walkForward.data.metrics.worstValidationSortino)}</strong></div>
+                <div><span>Разброс Sortino</span><strong>{ratio(walkForward.data.metrics.validationSortinoStdDev)}</strong></div>
+              </div>
+              <p className="walk-forward-note">Sharpe: средняя доходность / выборочное стандартное отклонение; Sortino: средняя доходность / downside deviation. Ставка без риска и целевая доходность — 0%. Годовая нормализация зависит от интервала. Для каждого окна требуется минимум 30 доходностей; агрегаты требуют минимум два валидных окна. «—» означает недостаточную выборку или неопределённый знаменатель.</p>
               <div className="walk-forward-fold-table-wrap">
                 <table className="walk-forward-fold-table">
-                  <thead><tr><th>Окно</th><th>Проверка UTC</th><th>In-sample</th><th>Out-of-sample</th><th>Просадка OOS</th><th>Сделок</th></tr></thead>
+                  <thead><tr><th>Окно</th><th>Проверка UTC</th><th>In-sample</th><th>Out-of-sample</th><th>Просадка OOS</th><th>Sharpe</th><th>Sortino</th><th>Год. волатильность</th><th>Сделок</th></tr></thead>
                   <tbody>{walkForward.data.windows.map(window => (
                     <tr key={window.index}>
                       <td>{window.index}</td>
@@ -141,6 +156,9 @@ export default function WalkForwardValidationPanel() {
                       <td>{percent(window.training.returnPct)}</td>
                       <td>{percent(window.validation.returnPct)}</td>
                       <td>{percent(window.validation.maxDrawdownPct)}</td>
+                      <td>{ratio(window.validation.sharpeRatio)}</td>
+                      <td>{ratio(window.validation.sortinoRatio)}</td>
+                      <td>{percent(window.validation.annualizedVolatilityPct)}</td>
                       <td>{window.validation.totalTrades}</td>
                     </tr>
                   ))}</tbody>
