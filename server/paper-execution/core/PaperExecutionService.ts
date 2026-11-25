@@ -104,11 +104,14 @@ export class PaperExecutionService {
     const storedOpenNotional = sumPaperDecimals(openPositions.map(position => position.notional));
     const day = utcDate(now);
     const dailyLossForToday = account.dailyLossDate === day ? account.realizedDailyLoss : "0";
-    const marks = await Promise.all([...new Set(openPositions.map(position => position.symbol))].map(async symbol => {
+    const markSnapshots = await Promise.all([...new Set(openPositions.map(position => position.symbol))].map(async symbol => {
       const snapshot = await this.futuresProvider.fetchSnapshot(symbol, 5);
-      return [symbol, snapshot.markPrice] as const;
+      return [symbol, snapshot] as const;
     }));
-    const markBySymbol = new Map(marks);
+    const markBySymbol = new Map(markSnapshots.map(([symbol, snapshot]) => [symbol, snapshot.markPrice] as const));
+    const markPrices = Object.fromEntries(markSnapshots.map(([symbol, snapshot]) => [symbol, {
+      markPrice: snapshot.markPrice, fetchedAt: snapshot.fetchedAt, source: snapshot.source,
+    }]));
     const markedNotionals = openPositions.map(position => calculatePaperMarkedNotional(
       position, markBySymbol.get(position.symbol)!,
     ));
@@ -127,7 +130,7 @@ export class PaperExecutionService {
       currentOpenNotional, openPositions: openPositions.length, snapshotAt: now,
     };
     if (parseScaled(equity) <= 0n) throw new PaperExecutionError("PAPER account equity is exhausted");
-    return { account, openPositions, snapshot, riskDailyLoss, realizedDailyLossForToday: dailyLossForToday, currentOpenNotional, storedOpenNotional };
+    return { account, openPositions, snapshot, riskDailyLoss, realizedDailyLossForToday: dailyLossForToday, currentOpenNotional, storedOpenNotional, markPrices };
   }
 
   async openPosition(userOpenId: string, input: PaperOpenPositionInput) {
@@ -232,7 +235,7 @@ export class PaperExecutionService {
     const now = this.now();
     const portfolio = await this.store.getPortfolio(userOpenId);
     if (!portfolio.account) {
-      return { ...portfolio, equity: null, currentOpenNotional: "0", markToMarketAvailable: false, executionMode: "PAPER" as const };
+      return { ...portfolio, equity: null, currentOpenNotional: "0", markPrices: {}, markToMarketAvailable: false, executionMode: "PAPER" as const, exchangeOrderSent: false as const, executionEligible: false as const };
     }
     const openPositions = portfolio.positions.filter(position => position.status === "open");
     const currentOpenNotional = sumPaperDecimals(openPositions.map(position => position.notional));
@@ -244,6 +247,7 @@ export class PaperExecutionService {
         signals: portfolio.signals,
         equity: snapshot.snapshot.equity,
         currentOpenNotional: snapshot.currentOpenNotional,
+        markPrices: snapshot.markPrices,
         openPositions: snapshot.openPositions.length,
         markToMarketAvailable: true,
         executionMode: "PAPER" as const,
@@ -257,6 +261,7 @@ export class PaperExecutionService {
         signals: portfolio.signals,
         equity: null,
         currentOpenNotional,
+        markPrices: null,
         openPositions: openPositions.length,
         markToMarketAvailable: false,
         executionMode: "PAPER" as const,

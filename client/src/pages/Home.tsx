@@ -30,6 +30,7 @@ import PriceChart from "@/components/trader/PriceChart";
 import LiveMarketDataPanel from "@/components/trader/LiveMarketDataPanel";
 import MarketIntelligencePanel from "@/components/trader/MarketIntelligencePanel";
 import PaperExecutionPanel from "@/components/trader/PaperExecutionPanel";
+import PortfolioIntelligencePanel from "@/components/trader/PortfolioIntelligencePanel";
 import HistoricalBacktestPanel from "@/components/trader/HistoricalBacktestPanel";
 import WalkForwardValidationPanel from "@/components/trader/WalkForwardValidationPanel";
 import StrategyRobustnessPanel from "@/components/trader/StrategyRobustnessPanel";
@@ -66,6 +67,7 @@ const NAV_ITEMS = [
   { label: "Журнал", icon: ClipboardList, anchor: "demo-journal" },
   { label: "Skill Trader AI", icon: Sparkles, anchor: "skill-trader-ai" },
   { label: "PAPER Execution", icon: ShieldCheck, anchor: "paper-execution" },
+  { label: "Портфель и корреляции", icon: Activity, anchor: "portfolio-intelligence" },
   { label: "История и Backtest", icon: Database, anchor: "historical-backtesting" },
   { label: "Walk-Forward", icon: Target, anchor: "walk-forward-validation" },
   { label: "Устойчивость стратегии", icon: ShieldCheck, anchor: "strategy-robustness" },
@@ -331,6 +333,7 @@ export default function Home() {
               <LiveMarketDataPanel />
               <MarketIntelligencePanel />
               <PaperExecutionPanel />
+              <PortfolioIntelligencePanel />
               <HistoricalBacktestPanel />
               <WalkForwardValidationPanel />
               <StrategyRobustnessPanel />

@@ -32,6 +32,8 @@ import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futu
 import { researchAgentRequestSchema } from "@shared/researchAgent";
 import { ResearchAgent, ResearchAgentCallError, ResearchAgentOutputError, ResearchAgentTrustGateError } from "./research-agent/core/ResearchAgent";
 import { paperAccountInitializeSchema, paperSignalActionSchema, paperOpenPositionSchema, paperClosePositionSchema } from "@shared/paperExecution";
+import { portfolioIntelligenceRequestSchema } from "@shared/portfolioIntelligence";
+import { runPortfolioIntelligence, PortfolioIntelligenceInputError } from "./portfolio-intelligence/core/PortfolioIntelligenceEngine";
 import { PaperExecutionService } from "./paper-execution/core/PaperExecutionService";
 import { DrizzlePaperExecutionStore, PaperStateConflictError } from "./paper-execution/core/DrizzlePaperExecutionStore";
 import { PaperExecutionError } from "./paper-execution/core/PaperExecutionEngine";
@@ -85,6 +87,51 @@ export const appRouter = router({
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "PAPER-портфель временно недоступен." });
       }
     }),
+    intelligence: protectedProcedure
+      .input(portfolioIntelligenceRequestSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        }
+        try {
+          const portfolio = await paperExecutionService.getPortfolio(ctx.user.openId);
+          const openPositions = portfolio.positions.filter(position => position.status === "open");
+          const symbols = [...new Set([...input.symbols, ...openPositions.map(position => position.symbol)])].sort();
+          if (symbols.length > 10) {
+            throw new PortfolioIntelligenceInputError("Portfolio analysis supports at most 10 symbols, including open PAPER positions");
+          }
+          const series = await Promise.all(symbols.map(async symbol => ({
+            symbol,
+            interval: input.interval,
+            candles: await historicalDataService.query({
+              symbol, interval: input.interval, startTime: input.startTime, endTime: input.endTime, limit: 5_001,
+            }),
+          })));
+          return runPortfolioIntelligence({
+            request: { ...input, symbols },
+            series,
+            portfolio: {
+              account: portfolio.account && typeof portfolio.equity === "string"
+                ? { equity: portfolio.equity, maxGrossExposureBps: portfolio.account.maxGrossExposureBps }
+                : null,
+              positions: openPositions,
+              markPrices: portfolio.markPrices,
+              markToMarketAvailable: portfolio.markToMarketAvailable,
+            },
+            now: Date.now(),
+          });
+        } catch (error) {
+          if (error instanceof PortfolioIntelligenceInputError || error instanceof HistoricalDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          }
+          if (error instanceof FuturesProviderError) {
+            throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Публичные mark-price данные временно недоступны." });
+          }
+          console.error("[Portfolio Intelligence] Analysis failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Анализ портфеля или исторических данных временно недоступен." });
+        }
+      }),
     acceptSignal: protectedProcedure
       .input(paperSignalActionSchema)
       .mutation(async ({ ctx, input }) => {
