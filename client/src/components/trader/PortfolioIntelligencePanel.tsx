@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, Play, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { MARKET_DATA_INTERVALS } from "@shared/marketData";
+import Portfolio3DMap from "./Portfolio3DMap";
 import "./PortfolioIntelligencePanel.css";
 
 const OFFLINE_MODE = import.meta.env.VITE_APP_MODE === "android-demo";
@@ -100,6 +101,7 @@ export default function PortfolioIntelligencePanel() {
                 <div><span>Крупнейшая доля</span><strong>{pct(result.portfolio.concentration.largestWeightPct)}</strong></div>
               </div>
               <div className="portfolio-subtitle"><BarChart3 size={14} /> Корреляция доходностей по совпадающим свечам</div>
+              <Portfolio3DMap correlations={result.correlations} exposure={result.portfolio.symbolExposure} />
               <div className="portfolio-table-wrap"><table>
                 <thead><tr><th>Пара</th><th>Pearson</th><th>Наблюдений</th><th>Статус</th></tr></thead>
                 <tbody>{result.correlations.map(pair => (
