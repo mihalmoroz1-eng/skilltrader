@@ -105,3 +105,13 @@ The Strategy Portfolio Intelligence endpoint runs EMA Crossover, RSI Mean Revers
 - The API returns compact fold summaries rather than duplicating all regime-level diagnostics four times. The individual Walk-Forward endpoint remains available for the full per-strategy regime and regime-adaptive detail.
 - Cross-strategy returns are never summed, compounded, weighted or presented as a combined equity curve. This is a side-by-side research comparison, not an investable multi-strategy portfolio.
 - No strategy is ranked or automatically selected. No optimization, switching, signals, PAPER mutation, risk-limit changes or exchange orders are performed. `executionEligible=false` and `exchangeOrderSent=false`.
+
+### Cross-strategy market-regime diagnostics
+
+- Strategy Portfolio Intelligence now retains each strategy's five canonical regime buckets inside each independent OOS fold: uptrend, downtrend, ranging, high volatility and transition.
+- Regime assignment is shared across strategies and uses only the regime known at the previous candle close. The current interval's return is not classified using its own close.
+- Per-strategy summaries report observed folds, adequate-sample folds, median fold-local conditional return, positive-return fold share, worst episode drawdown and available average volatility / Sharpe / Sortino.
+- Fold-local regime returns remain separate observations. Median, positive-fold share and average risk metrics are withheld unless at least two finite contributing folds exist. Missing regimes and undefined metrics remain unavailable rather than being treated as zero.
+- The worst episode drawdown is the maximum of the available fold-local regime episode drawdowns; it is not a stitched historical drawdown curve.
+- The dashboard exposes both the cross-fold regime summary and each fold's own regime table. A regime with one or a few observations is not interpreted as reliable evidence; sample labels retain the existing <5 / 5–29 / >=30 thresholds.
+- Regime diagnostics do not use the EMA-only Regime Adaptive benchmark comparison, do not rank strategies and do not create a combined strategy portfolio. No strategy selection, optimization, switching, signal generation, PAPER mutation or exchange execution is performed.
