@@ -42,6 +42,7 @@ export default function WalkForwardValidationPanel() {
   const [stepCandles, setStepCandles] = useState("100");
   const [windowCount, setWindowCount] = useState("3");
   const [allowShort, setAllowShort] = useState(false);
+  const [compareAllStrategies, setCompareAllStrategies] = useState(false);
   const [strategy, setStrategy] = useState<"ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout">("ema_crossover");
   const [rsiPeriod, setRsiPeriod] = useState("14");
   const [rsiOversoldLevel, setRsiOversoldLevel] = useState("30");
@@ -62,7 +63,9 @@ export default function WalkForwardValidationPanel() {
   const rangeValid = Number.isFinite(startTime) && Number.isFinite(endTime) &&
     endTime > startTime && endTime - startTime <= 366 * 86_400_000 &&
     /^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase());
-  const minimumTraining = Math.max(strategy === "ema_crossover" ? 52 : strategy === "rsi_mean_reversion" ? Number(rsiPeriod) + 3 : strategy === "macd_momentum" ? Number(macdSlowPeriod) + Number(macdSignalPeriod) + 1 : Number(breakoutLookbackPeriod) + 2, 31);
+  const selectedWarmup = strategy === "ema_crossover" ? Number(50) + 2 : strategy === "rsi_mean_reversion" ? Number(rsiPeriod) + 3 : strategy === "macd_momentum" ? Number(macdSlowPeriod) + Number(macdSignalPeriod) + 1 : Number(breakoutLookbackPeriod) + 2;
+  const allStrategiesWarmup = Math.max(52, Number(rsiPeriod) + 3, Number(macdSlowPeriod) + Number(macdSignalPeriod) + 1, Number(breakoutLookbackPeriod) + 2, 31);
+  const minimumTraining = compareAllStrategies ? allStrategiesWarmup : Math.max(selectedWarmup, 31);
   const configValid = Number.isInteger(training) && training >= minimumTraining && training <= 30_000 &&
     Number.isInteger(validation) && validation >= 10 && validation <= 10_000 &&
     Number.isInteger(step) && step >= validation && step <= 10_000 &&
@@ -73,17 +76,29 @@ export default function WalkForwardValidationPanel() {
       Number.isInteger(Number(rsiOversoldLevel)) && Number(rsiOversoldLevel) >= 5 && Number(rsiOversoldLevel) <= 45 &&
       Number.isInteger(Number(rsiOverboughtLevel)) && Number(rsiOverboughtLevel) <= 95 && Number(rsiOverboughtLevel) >= 55 &&
       Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10)) &&
-    (strategy !== "breakout" || (Number.isInteger(Number(breakoutLookbackPeriod)) && Number(breakoutLookbackPeriod) >= 2 && Number(breakoutLookbackPeriod) <= 500 &&
-      Number.isInteger(Number(breakoutBufferBps)) && Number(breakoutBufferBps) >= 0 && Number(breakoutBufferBps) <= 500));
+    (strategy !== "breakout" || compareAllStrategies || (Number.isInteger(Number(breakoutLookbackPeriod)) && Number(breakoutLookbackPeriod) >= 2 && Number(breakoutLookbackPeriod) <= 500 &&
+      Number.isInteger(Number(breakoutBufferBps)) && Number(breakoutBufferBps) >= 0 && Number(breakoutBufferBps) <= 500)) &&
+    (!compareAllStrategies || (
+      Number.isInteger(Number(rsiPeriod)) && Number(rsiPeriod) >= 2 && Number(rsiPeriod) <= 100 &&
+      Number.isInteger(Number(rsiOversoldLevel)) && Number(rsiOversoldLevel) >= 5 && Number(rsiOversoldLevel) <= 45 &&
+      Number.isInteger(Number(rsiOverboughtLevel)) && Number(rsiOverboughtLevel) >= 55 && Number(rsiOverboughtLevel) <= 95 &&
+      Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10 &&
+      Number.isInteger(Number(macdFastPeriod)) && Number(macdFastPeriod) >= 2 && Number(macdFastPeriod) <= 100 &&
+      Number.isInteger(Number(macdSlowPeriod)) && Number(macdSlowPeriod) > Number(macdFastPeriod) && Number(macdSlowPeriod) <= 300 &&
+      Number.isInteger(Number(macdSignalPeriod)) && Number(macdSignalPeriod) >= 2 && Number(macdSignalPeriod) <= 100 &&
+      Number.isInteger(Number(breakoutLookbackPeriod)) && Number(breakoutLookbackPeriod) >= 2 && Number(breakoutLookbackPeriod) <= 500 &&
+      Number.isInteger(Number(breakoutBufferBps)) && Number(breakoutBufferBps) >= 0 && Number(breakoutBufferBps) <= 500
+    ));
 
   const walkForward = trpc.backtesting.walkForward.useMutation();
-  useEffect(() => { walkForward.reset(); }, [
-    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, breakoutLookbackPeriod, breakoutBufferBps,
+  const strategyPortfolio = trpc.backtesting.strategyPortfolio.useMutation();
+  useEffect(() => { walkForward.reset(); strategyPortfolio.reset(); }, [
+    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, compareAllStrategies, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, breakoutLookbackPeriod, breakoutBufferBps,
   ]);
 
   const run = () => {
     if (!rangeValid || !configValid || !auth.data) return;
-    walkForward.mutate({
+    const request = {
       symbol: symbol.trim().toUpperCase(), interval, startTime, endTime,
       startingCapital: 10_000, riskBps: 50, stopLossBps: 200, takeProfitBps: 400,
       feeBps: 5, slippageBps: 5, fastEmaPeriod: 20, slowEmaPeriod: 50, allowShort,
@@ -91,7 +106,9 @@ export default function WalkForwardValidationPanel() {
       macdFastPeriod: Number(macdFastPeriod), macdSlowPeriod: Number(macdSlowPeriod), macdSignalPeriod: Number(macdSignalPeriod),
       breakoutLookbackPeriod: Number(breakoutLookbackPeriod), breakoutBufferBps: Number(breakoutBufferBps),
       trainingCandles: training, validationCandles: validation, stepCandles: step, windowCount: windows,
-    });
+    };
+    if (compareAllStrategies) strategyPortfolio.mutate(request);
+    else walkForward.mutate(request);
   };
 
   if (OFFLINE_MODE) {
@@ -132,17 +149,17 @@ export default function WalkForwardValidationPanel() {
               <option value="macd_momentum">MACD Momentum</option>
               <option value="breakout">Breakout</option>
             </select></label>
-            {strategy === "rsi_mean_reversion" && <>
+            {(strategy === "rsi_mean_reversion" || compareAllStrategies) && <>
               <label>RSI Period<input type="number" min="2" max="100" value={rsiPeriod} onChange={event => setRsiPeriod(event.target.value)} /></label>
               <label>RSI Oversold<input type="number" min="5" max="45" value={rsiOversoldLevel} onChange={event => setRsiOversoldLevel(event.target.value)} /></label>
               <label>RSI Overbought<input type="number" min="55" max="95" value={rsiOverboughtLevel} onChange={event => setRsiOverboughtLevel(event.target.value)} /></label>
             </>}
-            {strategy === "macd_momentum" && <>
+            {(strategy === "macd_momentum" || compareAllStrategies) && <>
               <label>MACD Fast<input type="number" min="2" max="100" value={macdFastPeriod} onChange={event => setMacdFastPeriod(event.target.value)} /></label>
               <label>MACD Slow<input type="number" min="3" max="300" value={macdSlowPeriod} onChange={event => setMacdSlowPeriod(event.target.value)} /></label>
               <label>MACD Signal<input type="number" min="2" max="100" value={macdSignalPeriod} onChange={event => setMacdSignalPeriod(event.target.value)} /></label>
             </>}
-            {strategy === "breakout" && <>
+            {(strategy === "breakout" || compareAllStrategies) && <>
               <label>Breakout Lookback<input type="number" min="2" max="500" value={breakoutLookbackPeriod} onChange={event => setBreakoutLookbackPeriod(event.target.value)} /></label>
               <label>Breakout Buffer, bps<input type="number" min="0" max="500" value={breakoutBufferBps} onChange={event => setBreakoutBufferBps(event.target.value)} /></label>
             </>}
@@ -152,16 +169,57 @@ export default function WalkForwardValidationPanel() {
             <label>Количество окон<input type="number" min="2" max="12" value={windowCount} onChange={event => setWindowCount(event.target.value)} /></label>
           </div>
           <div className="walk-forward-extra">
+            <label><input type="checkbox" checked={compareAllStrategies} onChange={event => setCompareAllStrategies(event.target.checked)} /> Сравнить все 4 стратегии на одинаковых OOS окнах</label>
             <label><input type="checkbox" checked={allowShort} onChange={event => setAllowShort(event.target.checked)} /> Разрешить SHORT</label>
             <span>Нужно свечей: <strong>{Number.isFinite(barsRequired) ? barsRequired.toLocaleString("ru-RU") : "—"}</strong> / 50 000</span>
           </div>
           {!rangeValid && <p className="walk-forward-error">Укажите символ и корректный диапазон до 366 дней.</p>}
           {!configValid && <p className="walk-forward-error"><AlertTriangle size={13} /> Проверьте размеры окон: обучение должно покрывать warm-up выбранной стратегии, проверка — от 10 свечей, шаг не меньше проверочного окна, всего от 2 до 12 окон и не более 50 000 свечей.</p>}
-          <button type="button" className="walk-forward-run" onClick={run} disabled={!rangeValid || !configValid || !auth.data || walkForward.isPending}>
-            <Play size={14} /> {walkForward.isPending ? "Проверка выполняется…" : "Запустить Walk-Forward"}
+          <button type="button" className="walk-forward-run" onClick={run} disabled={!rangeValid || !configValid || !auth.data || walkForward.isPending || strategyPortfolio.isPending}>
+            <Play size={14} /> {walkForward.isPending || strategyPortfolio.isPending ? "Проверка выполняется…" : compareAllStrategies ? "Сравнить 4 стратегии" : "Запустить Walk-Forward"}
           </button>
           <p className="walk-forward-note">Перед запуском загрузите выбранный период на панели «История и Backtest». Здесь выполняется чтение сохранённых данных без повторной загрузки с биржи.</p>
           {walkForward.error && <p className="walk-forward-error">{safeError(walkForward.error)}</p>}
+          {strategyPortfolio.error && <p className="walk-forward-error">{safeError(strategyPortfolio.error)}</p>}
+          {strategyPortfolio.data && (
+            <div className="walk-forward-results">
+              <div className="walk-forward-result-title"><strong>Strategy Portfolio Intelligence · сравнение четырёх стратегий</strong><span>{strategyPortfolio.data.strategies.length} стратегий · {strategyPortfolio.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
+              <p className="walk-forward-note">Все стратегии проверены на одинаковых границах обучения и OOS. Капитал каждого fold независим; доходности стратегий не объединяются в общий портфель и не используются для автоматического выбора.</p>
+              <div className="walk-forward-fold-table-wrap">
+                <table className="walk-forward-fold-table">
+                  <thead><tr><th>Стратегия</th><th>Средняя OOS</th><th>Медиана OOS</th><th>Положит. окна</th><th>Разброс</th><th>Худшая просадка</th><th>Сделок</th><th>Средний Sharpe</th><th>Средний Sortino</th></tr></thead>
+                  <tbody>{strategyPortfolio.data.strategies.map(item => (
+                    <tr key={item.strategy}>
+                      <td>{item.strategy === "ema_crossover" ? "EMA Crossover" : item.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : item.strategy === "macd_momentum" ? "MACD Momentum" : "Breakout"}</td>
+                      <td>{percent(item.metrics.averageValidationReturnPct)}</td>
+                      <td>{percent(item.metrics.medianValidationReturnPct)}</td>
+                      <td>{item.metrics.positiveValidationWindows} ({percent(item.metrics.positiveValidationWindowPct)})</td>
+                      <td>{percent(item.metrics.validationReturnStdDevPct)}</td>
+                      <td>{percent(item.metrics.worstValidationDrawdownPct)}</td>
+                      <td>{item.metrics.totalValidationTrades}</td>
+                      <td>{ratio(item.metrics.averageValidationSharpe)}</td>
+                      <td>{ratio(item.metrics.averageValidationSortino)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {strategyPortfolio.data.strategies.map(item => (
+                <details className="walk-forward-assumptions" key={item.strategy}>
+                  <summary>{item.strategy === "ema_crossover" ? "EMA Crossover" : item.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : item.strategy === "macd_momentum" ? "MACD Momentum" : "Breakout"} · fold breakdown</summary>
+                  <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                    <thead><tr><th>Fold</th><th>Период UTC</th><th>Обучение</th><th>OOS</th><th>Просадка</th><th>Sharpe</th><th>Sortino</th><th>Сделок</th></tr></thead>
+                    <tbody>{item.folds.map(fold => <tr key={fold.index}>
+                      <td>{fold.index}</td><td>{date(fold.validationStartTime)} — {date(fold.validationEndTime)}</td>
+                      <td>{percent(fold.trainingReturnPct)}</td><td>{percent(fold.validationReturnPct)}</td>
+                      <td>{percent(fold.maxDrawdownPct)}</td><td>{ratio(fold.sharpeRatio)}</td><td>{ratio(fold.sortinoRatio)}</td><td>{fold.totalTrades}</td>
+                    </tr>)}</tbody>
+                  </table></div>
+                </details>
+              ))}
+              <div className="walk-forward-result-foot">Run ID: {strategyPortfolio.data.runId} · SHA-256: {strategyPortfolio.data.dataDigest.slice(0, 16)}… · executionEligible=false · exchangeOrderSent=false</div>
+              <details className="walk-forward-assumptions"><summary>Методика сравнения</summary><ul>{strategyPortfolio.data.methodology.map(item => <li key={item}>{item}</li>)}</ul></details>
+            </div>
+          )}
           {walkForward.data && (
             <div className="walk-forward-results">
               <div className="walk-forward-result-title"><strong>Результаты OOS проверки · {walkForward.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : walkForward.data.strategy === "macd_momentum" ? "MACD Momentum" : walkForward.data.strategy === "breakout" ? "Breakout" : "EMA Crossover"}</strong><span>{walkForward.data.windows.length} независимых окон · {walkForward.data.candlesProcessed.toLocaleString("ru-RU")} свечей</span></div>
