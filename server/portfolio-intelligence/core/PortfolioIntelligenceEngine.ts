@@ -37,6 +37,19 @@ export type PortfolioRiskIntelligenceResult = {
   weightedAbsoluteCorrelationPct: number | null; correlatedPairs: PortfolioRiskPair[];
 };
 
+export type PortfolioRiskForecastResult = {
+  status: "ready" | "insufficient_data" | "no_exposure" | "stale_marks";
+  method: "historical_covariance_normal_approximation";
+  annualizedPortfolioVolatilityPct: number | null;
+  oneDay95VaR: string | null;
+  oneDay95VaRPctOfEquity: number | null;
+  fiveDay95VaR: string | null;
+  fiveDay95VaRPctOfEquity: number | null;
+  observations: number;
+  annualizationPeriods: number;
+  symbols: Array<{ symbol: string; annualizedVolatilityPct: number | null; observations: number }>;
+};
+
 export type PortfolioIntelligenceResult = {
   runId: string;
   dataDigest: string;
@@ -47,6 +60,7 @@ export type PortfolioIntelligenceResult = {
   series: Array<{ symbol: string; closedCandles: number; excludedUnclosedCandles: number; gaps: number; firstOpenTime: number | null; lastOpenTime: number | null }>;
   correlations: Array<{ symbolA: string; symbolB: string; correlation: number | null; observations: number; status: "ready" | "insufficient_history" | "constant_returns" }>;
   riskIntelligence: PortfolioRiskIntelligenceResult;
+  riskForecast: PortfolioRiskForecastResult;
   portfolio: {
     accountAvailable: boolean; markToMarketAvailable: boolean; openPositions: number;
     equity: string | null; grossExposure: string | null; netDirectionalExposure: string | null;
@@ -276,6 +290,97 @@ function calculateRiskIntelligence(
   return { assessment, eligiblePairs, totalHeldPairs, coveragePct, weightedAbsoluteCorrelationPct, correlatedPairs };
 }
 
+function sampleVolatility(values: number[]): number | null {
+  if (values.length < MIN_OBSERVATIONS || values.some(value => !Number.isFinite(value))) return null;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+  const volatility = Math.sqrt(variance);
+  return Number.isFinite(volatility) ? volatility : null;
+}
+function calculateRiskForecast(
+  interval: MarketInterval,
+  series: Map<string, MarketCandle[]>,
+  portfolio: PortfolioIntelligenceResult["portfolio"],
+  now: number,
+): PortfolioRiskForecastResult {
+  const annualizationPeriods = interval === "1M"
+    ? 12 : 365.2425 * 86_400_000 / (INTERVAL_MS[interval] ?? 0);
+  const base = {
+    method: "historical_covariance_normal_approximation" as const,
+    annualizationPeriods: Number.isFinite(annualizationPeriods) ? annualizationPeriods : 0,
+  };
+  if (!portfolio.accountAvailable || !portfolio.openPositions) return {
+    ...base, status: "no_exposure", annualizedPortfolioVolatilityPct: null,
+    oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
+    fiveDay95VaRPctOfEquity: null, observations: 0, symbols: [],
+  };
+  if (!portfolio.markToMarketAvailable || !portfolio.equity || !portfolio.grossExposure) return {
+    ...base, status: "stale_marks", annualizedPortfolioVolatilityPct: null,
+    oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
+    fiveDay95VaRPctOfEquity: null, observations: 0, symbols: [],
+  };
+  const gross = parseFixed(portfolio.grossExposure, "gross exposure");
+  const equity = parseFixed(portfolio.equity, "PAPER equity");
+  if (gross <= 0n || equity <= 0n) return {
+    ...base, status: "no_exposure", annualizedPortfolioVolatilityPct: null,
+    oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
+    fiveDay95VaRPctOfEquity: null, observations: 0, symbols: [],
+  };
+  const holdings = portfolio.symbolExposure;
+  const perSymbol = holdings.map(holding => {
+    const candles = series.get(holding.symbol) ?? [];
+    const closes = new Map(candles.map(candle => [candle.openTime, Number(candle.close)] as const));
+    const times = [...closes.keys()].sort((a, b) => a - b);
+    const returns = new Map<number, number>();
+    const samples: number[] = [];
+    for (let i = 1; i < times.length; i += 1) {
+      const previous = times[i - 1], current = times[i];
+      if (current !== previous + intervalStep(interval, previous)) continue;
+      const oldClose = closes.get(previous)!, newClose = closes.get(current)!;
+      const value = (newClose - oldClose) / oldClose;
+      if (!Number.isFinite(value)) continue;
+      returns.set(current, value); samples.push(value);
+    }
+    const volatility = sampleVolatility(samples);
+    return { symbol: holding.symbol, netWeight: Number(holding.netNotional) / Number(gross), returns, volatility, observations: samples.length };
+  });
+  const symbols = perSymbol.map(item => ({
+    symbol: item.symbol,
+    annualizedVolatilityPct: item.volatility === null ? null : item.volatility * Math.sqrt(annualizationPeriods) * 100,
+    observations: item.observations,
+  }));
+  if (!perSymbol.length || perSymbol.some(item => item.volatility === null || !series.has(item.symbol)) ||
+      !Number.isFinite(annualizationPeriods) || annualizationPeriods <= 0) return {
+    ...base, status: "insufficient_data", annualizedPortfolioVolatilityPct: null,
+    oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
+    fiveDay95VaRPctOfEquity: null, observations: Math.min(...perSymbol.map(item => item.observations), 0), symbols,
+  };
+  const commonTimes = [...perSymbol[0].returns.keys()].filter(time => perSymbol.every(item => item.returns.has(time))).sort((a, b) => a - b);
+  const portfolioReturns: number[] = commonTimes.map(time => perSymbol.reduce((sum, item) => sum + item.netWeight * item.returns.get(time)!, 0));
+  const dailyVolatility = sampleVolatility(portfolioReturns);
+  if (dailyVolatility === null) return {
+    ...base, status: "insufficient_data", annualizedPortfolioVolatilityPct: null,
+    oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
+    fiveDay95VaRPctOfEquity: null, observations: portfolioReturns.length, symbols,
+  };
+  const annualized = dailyVolatility * Math.sqrt(annualizationPeriods);
+  const oneDayVaR = gross * BigInt(Math.round(dailyVolatility * 1.645 * 100_000_000)) / 100_000_000n;
+  const fiveDayVaR = gross * BigInt(Math.round(dailyVolatility * 1.645 * Math.sqrt(5) * 100_000_000)) / 100_000_000n;
+  const oneDayPct = Number(oneDayVaR) / Number(equity) * 100;
+  const fiveDayPct = Number(fiveDayVaR) / Number(equity) * 100;
+  if (![annualized, oneDayPct, fiveDayPct].every(Number.isFinite)) return {
+    ...base, status: "insufficient_data", annualizedPortfolioVolatilityPct: null,
+    oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
+    fiveDay95VaRPctOfEquity: null, observations: portfolioReturns.length, symbols,
+  };
+  return {
+    ...base, status: "ready", annualizedPortfolioVolatilityPct: annualized * 100,
+    oneDay95VaR: formatFixed(oneDayVaR), oneDay95VaRPctOfEquity: oneDayPct,
+    fiveDay95VaR: formatFixed(fiveDayVaR), fiveDay95VaRPctOfEquity: fiveDayPct,
+    observations: portfolioReturns.length, symbols,
+  };
+}
+
 export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): PortfolioIntelligenceResult {
   validateRequest(input.request, input.now);
   const symbols = [...input.request.symbols].sort();
@@ -303,6 +408,7 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
   const dataDigest = createHash("sha256").update(JSON.stringify(digestPayload)).digest("hex");
   const portfolio = calculatePortfolio(input);
   const riskIntelligence = calculateRiskIntelligence(pairs, portfolio);
+  const riskForecast = calculateRiskForecast(input.request.interval, map, portfolio, input.now);
   const warnings: string[] = [];
   if (diagnostics.some(item => item.gaps > 0)) warnings.push("Исторические пропуски обнаружены; свечи не синтезировались, корреляция учитывает только соседние совпадающие интервалы.");
   if (diagnostics.some(item => item.excludedUnclosedCandles > 0)) warnings.push("Незакрытые свечи исключены.");
@@ -319,6 +425,8 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
     "Экспозиция рассчитывается по public mark price × quantity × contract multiplier с fixed-point арифметикой.",
     "Стресс-шоки -5%, -10% и -20% применяются параллельно ко всем открытым линейным позициям; LONG и SHORT имеют разные знаки PnL.",
     "Не моделируются ликвидация, маржин-колл, funding, заём, плечо, рыночное воздействие, проскальзывание выхода, новые комиссии и изменение корреляций.",
+    "Историческая оценка волатильности и 95% VaR использует sample covariance по точным общим последовательным доходностям, нормальное приближение и sqrt(time); это сценарная статистика, не прогноз гарантированного убытка.",
+    "Для портфельной доходности используются signed net exposures, нормированные на текущую gross exposure; VaR денежно масштабируется на gross exposure и сравнивается с текущей PAPER equity.",
     "Модуль только читает данные. Account Risk Engine остаётся источником допуска к PAPER и расчёта размера позиции.",
   ];
   const runId = createHash("sha256").update(JSON.stringify({
@@ -333,7 +441,7 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
     runId, dataDigest, symbols, interval: input.request.interval,
     range: { startTime: input.request.startTime, endTime: input.request.endTime },
     minimumCorrelationObservations: MIN_OBSERVATIONS,
-    series: diagnostics, correlations: pairs, riskIntelligence, portfolio, warnings, assumptions,
+    series: diagnostics, correlations: pairs, riskIntelligence, riskForecast, portfolio, warnings, assumptions,
     executionEligible: false, exchangeOrderSent: false,
   };
 }
