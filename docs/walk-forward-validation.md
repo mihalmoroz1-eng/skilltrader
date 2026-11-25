@@ -64,3 +64,18 @@ The result includes a separate regime stability summary across the independent O
 - Volatility, Sharpe and Sortino summaries include only finite fold-level values already made available by the per-regime analytics. Descriptive aggregates require at least two contributing folds; unavailable values are never treated as zero.
 - A regime can have high fold coverage but weak within-fold sample adequacy. Both dimensions are shown separately.
 - The aggregator is descriptive and does not rank or select strategies, tune parameters, switch regimes, generate signals, mutate PAPER positions or authorize orders. It does not change execution eligibility.
+
+
+## Regime Stability Scoring
+
+Each cross-fold regime summary now includes a versioned heuristic Stability Score (0–100), component breakdown, rating and evidence tier.
+
+- Four equally weighted components (25% each): observed-fold coverage, adequate-sample share, positive-return fold consistency and dispersion control.
+- Coverage is observed folds divided by all requested folds. Sample adequacy is the share of observed folds with at least 30 regime observations.
+- Positive-return consistency is the share of finite fold-local conditional returns greater than zero. It is unavailable unless at least two finite fold returns exist.
+- Dispersion control is `100 / (1 + σ / (|median fold return| + 5 percentage points))`, where σ is the population standard deviation across independent fold-local conditional returns. The 5 percentage-point floor avoids division by a near-zero median and is a fixed heuristic scale, not a calibrated risk threshold.
+- The total score is withheld unless at least three folds observed the regime and at least two finite fold returns are available. Missing components are not replaced with zero.
+- Ratings are descriptive score bands: high (>=80), moderate (>=60 and <80), low (<60). Evidence tiers depend on observed folds: insufficient (<3), limited (3–4), moderate (5–7), strong (>=8).
+- Score, rating and evidence tier are not probabilities, statistical significance tests, forecasts or recommendations. Scores are not comparable across different validation horizons or materially different scoring configurations without considering their methodology.
+- Scoring version is exposed as `1.0` so later methodology changes can be distinguished.
+- The score does not rank or select strategies, switch strategies by regime, tune parameters, generate signals, change risk limits, mutate PAPER positions or authorize exchange orders.
