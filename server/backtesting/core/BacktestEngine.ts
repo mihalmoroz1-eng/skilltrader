@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { MarketCandle, MarketInterval } from "../../market-data/core/MarketDataTypes";
 import { validateCandles } from "../../market-data/core/MarketDataValidator";
 import { emaCrossoverStrategy, type EmaCrossoverConfig } from "../strategies/EmaCrossoverStrategy";
-import type { BacktestStrategy } from "../strategies/Strategy";
+import type { BacktestStrategy, StrategySignalProvider } from "../strategies/Strategy";
 
 export type BacktestConfig = {
   symbol: string;
@@ -162,7 +162,7 @@ export function runBacktestWithStrategy<TConfig>(
   if (closes.some(value => !Number.isFinite(value) || value <= 0)) {
     throw new BacktestInputError("Candle prices cannot be represented safely");
   }
-  let signalProvider;
+  let signalProvider: StrategySignalProvider;
   try { signalProvider = strategy.createSignalProvider(candles, strategyConfig); }
   catch (error) { throw new BacktestInputError(error instanceof Error ? error.message : "Strategy signal provider could not be created"); }
   const feeRate = config.feeBps / 10_000;
@@ -283,7 +283,7 @@ export function runBacktestWithStrategy<TConfig>(
   const profitFactor = grossLosses === 0 ? (grossWins > 0 ? null : 0) : grossWins / grossLosses;
   const dataDigest = createHash("sha256").update(JSON.stringify(candles)).digest("hex");
   const runId = createHash("sha256").update(JSON.stringify({
-    config, dataDigest,
+    config, strategy: strategy.id, strategyConfig, dataDigest,
   })).digest("hex").slice(0, 24);
 
   return {
