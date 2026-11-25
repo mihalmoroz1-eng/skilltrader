@@ -85,6 +85,12 @@ function parseFixed(value: string, name: string): bigint {
   const [whole, fraction = ""] = value.split(".");
   return BigInt(whole) * SCALE + BigInt(fraction.padEnd(8, "0"));
 }
+function parseSignedFixed(value: string, name: string): bigint {
+  if (typeof value !== "string" || !/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})?$/.test(value)) {
+    throw new PortfolioIntelligenceInputError(name + " is not a valid signed fixed-point decimal");
+  }
+  return value.startsWith("-") ? -parseFixed(value.slice(1), name) : parseFixed(value, name);
+}
 function formatFixed(value: bigint): string {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
@@ -365,8 +371,8 @@ function calculateRiskForecast(
   const annualized = dailyVolatility * Math.sqrt(annualizationPeriods);
   const oneDayVaR = gross * BigInt(Math.round(dailyVolatility * 1.645 * 100_000_000)) / 100_000_000n;
   const fiveDayVaR = gross * BigInt(Math.round(dailyVolatility * 1.645 * Math.sqrt(5) * 100_000_000)) / 100_000_000n;
-  const oneDayPct = Number(oneDayVaR) / Number(equity) * 100;
-  const fiveDayPct = Number(fiveDayVaR) / Number(equity) * 100;
+  const oneDayPct = Number(oneDayVaR * 1_000_000n / equity) / 10_000;
+  const fiveDayPct = Number(fiveDayVaR * 1_000_000n / equity) / 10_000;
   if (![annualized, oneDayPct, fiveDayPct].every(Number.isFinite)) return {
     ...base, status: "insufficient_data", annualizedPortfolioVolatilityPct: null,
     oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
