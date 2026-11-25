@@ -216,3 +216,43 @@ describe("walk-forward validation engine", () => {
     expect(result.metrics.worstValidationSharpe).toBeNull();
   });
 });
+
+describe("Walk-forward regime stability aggregation", () => {
+  it("summarizes fold-local regime results without pooling returns", async () => {
+    const { aggregateWalkForwardRegimeStability } = await import("../core/WalkForwardRegimeStability");
+    const { makeFold } = await import("./walkForwardRegimeStability.fixtures");
+    const result = aggregateWalkForwardRegimeStability([
+      makeFold(10, "limited_sample", 10, null, null),
+      makeFold(30, "adequate_sample", -10, 12, 0.8),
+    ]);
+    const uptrend = result.buckets.find(item => item.regime === "uptrend")!;
+    expect(result.status).toBe("ready");
+    expect(uptrend.foldsObserved).toBe(2);
+    expect(uptrend.foldCoveragePct).toBe(100);
+    expect(uptrend.positiveReturnSharePct).toBe(50);
+    expect(uptrend.meanConditionalReturnPct).toBe(0);
+    expect(uptrend.medianConditionalReturnPct).toBe(0);
+    expect(uptrend.conditionalReturnStdDevPct).toBe(10);
+    expect(uptrend.meanAnnualizedVolatilityPct).toBeNull();
+    expect(uptrend.medianSharpeRatio).toBeNull();
+  });
+
+  it("excludes unavailable folds and reports regime sample coverage", async () => {
+    const { aggregateWalkForwardRegimeStability } = await import("../core/WalkForwardRegimeStability");
+    const { makeFold } = await import("./walkForwardRegimeStability.fixtures");
+    const result = aggregateWalkForwardRegimeStability([
+      makeFold(4, "insufficient_sample", 2, null, null),
+      makeFold(35, "adequate_sample", 4, 20, 1.2),
+      { status: "insufficient_history", observations: 0, currentRegime: null,
+        transitionCount: 0, transitionRatePct: null, transitionIntervalReturnPct: null,
+        buckets: [], transitions: [] },
+    ]);
+    const uptrend = result.buckets.find(item => item.regime === "uptrend")!;
+    expect(uptrend.foldsObserved).toBe(2);
+    expect(uptrend.foldCoveragePct).toBeCloseTo(66.6667, 3);
+    expect(uptrend.insufficientSampleFolds).toBe(1);
+    expect(uptrend.adequateSampleFolds).toBe(1);
+    expect(uptrend.meanConditionalReturnPct).toBe(3);
+    expect(uptrend.meanAnnualizedVolatilityPct).toBeNull();
+  });
+});
