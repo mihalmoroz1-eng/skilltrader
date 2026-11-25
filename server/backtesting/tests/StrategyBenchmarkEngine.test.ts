@@ -118,7 +118,7 @@ describe("strategy benchmark engine", () => {
     expect(result.benchmarks.buyAndHoldOneX.sharpeRatio).not.toBeNull();
     expect(result.benchmarks.cashControl.sharpeRatio).toBeNull();
     const base = runBacktest(series(closes), config);
-    expect(base.equityCurve.length).toBe(base.candlesProcessed + 1);
+    expect(base.equityCurve.length).toBe(closes.length - (config.slowEmaPeriod + 1) + 1);
     expect(base.equityCurve[0].equity).toBe(config.startingCapital);
     expect(base.equityCurve.at(-1)?.equity).toBe(base.metrics.finalEquity);
     expect(base.equityCurve.every((point, index) => index === 0 || point.time > base.equityCurve[index - 1].time)).toBe(true);
