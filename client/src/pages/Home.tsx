@@ -32,6 +32,7 @@ import MarketIntelligencePanel from "@/components/trader/MarketIntelligencePanel
 import PaperExecutionPanel from "@/components/trader/PaperExecutionPanel";
 import HistoricalBacktestPanel from "@/components/trader/HistoricalBacktestPanel";
 import WalkForwardValidationPanel from "@/components/trader/WalkForwardValidationPanel";
+import StrategyRobustnessPanel from "@/components/trader/StrategyRobustnessPanel";
 import FuturesResearchPanel from "@/components/trader/FuturesResearchPanel";
 import ScenarioChart from "@/components/trader/ScenarioChart";
 import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
@@ -66,6 +67,7 @@ const NAV_ITEMS = [
   { label: "PAPER Execution", icon: ShieldCheck, anchor: "paper-execution" },
   { label: "История и Backtest", icon: Database, anchor: "historical-backtesting" },
   { label: "Walk-Forward", icon: Target, anchor: "walk-forward-validation" },
+  { label: "Устойчивость стратегии", icon: ShieldCheck, anchor: "strategy-robustness" },
   { label: "Futures и Research", icon: Activity, anchor: "futures-research" },
 ];
 
@@ -329,6 +331,7 @@ export default function Home() {
               <PaperExecutionPanel />
               <HistoricalBacktestPanel />
               <WalkForwardValidationPanel />
+              <StrategyRobustnessPanel />
               <FuturesResearchPanel />
               <PriceChart candles={candles} symbol={market.symbol} entry={entry} stop={stop} target={target} side={side} timeframe={timeframe} onTimeframeChange={setTimeframe} formatPrice={priceFormatter} />
               <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} isStale={!simulationIsReady} levelsValid={validLevels} />

@@ -76,3 +76,28 @@ export const walkForwardRequestSchema = z.object({
 
 export type BacktestRequest = z.infer<typeof backtestRequestSchema>;
 export type WalkForwardRequest = z.infer<typeof walkForwardRequestSchema>;
+
+export const robustnessRequestSchema = z.object({
+  ...backtestShape,
+  regimeLookback: z.number().int().min(5).max(200).default(20),
+  trendThresholdBps: z.number().int().min(10).max(5_000).default(100),
+  volatilityThresholdBps: z.number().int().min(1).max(2_000).default(25),
+}).strict().superRefine((value, ctx) => {
+  validateBacktestParameters(value, ctx);
+  if (value.feeBps > 50) {
+    ctx.addIssue({
+      code: "custom",
+      message: "feeBps must be at most 50 because robustness includes a 2x cost stress case",
+      path: ["feeBps"],
+    });
+  }
+  if (value.slippageBps > 50) {
+    ctx.addIssue({
+      code: "custom",
+      message: "slippageBps must be at most 50 because robustness includes a 2x cost stress case",
+      path: ["slippageBps"],
+    });
+  }
+});
+
+export type RobustnessRequest = z.infer<typeof robustnessRequestSchema>;
