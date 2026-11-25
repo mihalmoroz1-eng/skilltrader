@@ -301,7 +301,6 @@ function calculateRiskForecast(
   interval: MarketInterval,
   series: Map<string, MarketCandle[]>,
   portfolio: PortfolioIntelligenceResult["portfolio"],
-  now: number,
 ): PortfolioRiskForecastResult {
   const annualizationPeriods = interval === "1M"
     ? 12 : 365.2425 * 86_400_000 / (INTERVAL_MS[interval] ?? 0);
@@ -353,7 +352,7 @@ function calculateRiskForecast(
       !Number.isFinite(annualizationPeriods) || annualizationPeriods <= 0) return {
     ...base, status: "insufficient_data", annualizedPortfolioVolatilityPct: null,
     oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null,
-    fiveDay95VaRPctOfEquity: null, observations: Math.min(...perSymbol.map(item => item.observations), 0), symbols,
+    fiveDay95VaRPctOfEquity: null, observations: perSymbol.length ? Math.min(...perSymbol.map(item => item.observations)) : 0, symbols,
   };
   const commonTimes = [...perSymbol[0].returns.keys()].filter(time => perSymbol.every(item => item.returns.has(time))).sort((a, b) => a - b);
   const portfolioReturns: number[] = commonTimes.map(time => perSymbol.reduce((sum, item) => sum + item.netWeight * item.returns.get(time)!, 0));
@@ -408,7 +407,7 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
   const dataDigest = createHash("sha256").update(JSON.stringify(digestPayload)).digest("hex");
   const portfolio = calculatePortfolio(input);
   const riskIntelligence = calculateRiskIntelligence(pairs, portfolio);
-  const riskForecast = calculateRiskForecast(input.request.interval, map, portfolio, input.now);
+  const riskForecast = calculateRiskForecast(input.request.interval, map, portfolio);
   const warnings: string[] = [];
   if (diagnostics.some(item => item.gaps > 0)) warnings.push("Исторические пропуски обнаружены; свечи не синтезировались, корреляция учитывает только соседние совпадающие интервалы.");
   if (diagnostics.some(item => item.excludedUnclosedCandles > 0)) warnings.push("Незакрытые свечи исключены.");
