@@ -21,9 +21,10 @@ describe("strategy robustness request schema", () => {
   it("accepts a bounded, normalized request", () => {
     const parsed = robustnessRequestSchema.parse({ ...base, symbol: "btcusdt" });
     expect(parsed.symbol).toBe("BTCUSDT");
-    expect(parsed.regimeLookback).toBe(20);
+    expect(parsed.regimeLookback).toBe(30);
     expect(parsed.trendThresholdBps).toBe(100);
-    expect(parsed.volatilityThresholdBps).toBe(25);
+    expect(parsed.rangeThresholdBps).toBe(50);
+    expect(parsed.highVolatilityThresholdBps).toBe(200);
   });
 
   it("rejects cost inputs that make a 2x stress scenario exceed 100 bps", () => {
