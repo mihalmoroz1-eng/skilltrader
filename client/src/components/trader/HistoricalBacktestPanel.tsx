@@ -70,7 +70,7 @@ export default function HistoricalBacktestPanel() {
     setQueryEnabled(false);
     ingest.reset();
     backtest.reset();
-  }, [symbol, interval, startDate, endDate]);
+  }, [symbol, interval, startDate, endDate, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel]);
 
   const loadedCandles = candles.data ?? [];
   const canBacktest = rangeValid && loadedCandles.length > 0 && loadedCandles.length <= 50_000 &&
@@ -78,7 +78,11 @@ export default function HistoricalBacktestPanel() {
     Number.isInteger(Number(riskBps)) && Number(riskBps) >= 1 && Number(riskBps) <= 1_000 &&
     Number.isInteger(Number(stopLossBps)) && Number(stopLossBps) >= 10 && Number(stopLossBps) <= 5_000 &&
     Number.isInteger(Number(takeProfitBps)) && Number(takeProfitBps) >= 10 && Number(takeProfitBps) <= 10_000 &&
-    Number(riskBps) < Number(stopLossBps);
+    Number(riskBps) < Number(stopLossBps) &&
+    (strategy !== "rsi_mean_reversion" || (Number.isInteger(Number(rsiPeriod)) && Number(rsiPeriod) >= 2 && Number(rsiPeriod) <= 100 &&
+      Number.isInteger(Number(rsiOversoldLevel)) && Number(rsiOversoldLevel) >= 5 && Number(rsiOversoldLevel) <= 45 &&
+      Number.isInteger(Number(rsiOverboughtLevel)) && Number(rsiOverboughtLevel) >= 55 && Number(rsiOverboughtLevel) <= 95 &&
+      Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10));
 
   const startIngestion = () => {
     setQueryEnabled(false);
