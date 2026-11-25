@@ -15,6 +15,8 @@ export type BacktestConfig = {
   fastEmaPeriod: number;
   slowEmaPeriod: number;
   allowShort: boolean;
+  /** Internal evaluation boundary; preceding candles are indicator warm-up only. */
+  evaluationStartIndex?: number;
 };
 
 export type BacktestTrade = {
@@ -92,6 +94,20 @@ function nextOpenTime(openTime: number, interval: MarketInterval): number {
   return openTime + step;
 }
 
+export function validateBacktestCandleSeries(candles: MarketCandle[], interval: MarketInterval): void {
+  if (candles.length > 50_000) throw new BacktestInputError("Backtest is limited to 50,000 candles");
+  validateCandles(candles);
+  for (let i = 0; i < candles.length; i += 1) {
+    const expectedClose = nextOpenTime(candles[i].openTime, interval) - 1;
+    if (candles[i].closeTime !== expectedClose) {
+      throw new BacktestInputError(`Candle ${i} does not match the requested interval`);
+    }
+    if (i > 0 && candles[i].openTime !== nextOpenTime(candles[i - 1].openTime, interval)) {
+      throw new BacktestInputError("Historical series contains a gap; backtest requires contiguous candles");
+    }
+  }
+}
+
 function finitePositive(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) throw new BacktestInputError(`${name} must be finite and positive`);
 }
@@ -118,17 +134,14 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       !Number.isInteger(config.slippageBps) || config.slippageBps < 0 || config.slippageBps > 100) {
     throw new BacktestInputError("Risk, stop, target, fee or slippage parameters are invalid");
   }
-  if (candles.length > 50_000) throw new BacktestInputError("Backtest is limited to 50,000 candles");
   if (candles.length <= config.slowEmaPeriod + 1) throw new BacktestInputError("Insufficient candles for EMA warm-up");
-  validateCandles(candles);
-
-  for (let i = 0; i < candles.length; i += 1) {
-    const expectedClose = nextOpenTime(candles[i].openTime, config.interval) - 1;
-    if (candles[i].closeTime !== expectedClose) throw new BacktestInputError(`Candle ${i} does not match the requested interval`);
-    if (i > 0 && candles[i].openTime !== nextOpenTime(candles[i - 1].openTime, config.interval)) {
-      throw new BacktestInputError("Historical series contains a gap; backtest requires contiguous candles");
-    }
+  const evaluationStartIndex = config.evaluationStartIndex ?? 0;
+  if (!Number.isInteger(evaluationStartIndex) || evaluationStartIndex < 0 ||
+      evaluationStartIndex >= candles.length ||
+      (evaluationStartIndex > 0 && evaluationStartIndex < config.slowEmaPeriod + 1)) {
+    throw new BacktestInputError("Evaluation boundary must follow the EMA warm-up period and precede the final candle");
   }
+  validateBacktestCandleSeries(candles, config.interval);
 
   const closes = candles.map(candle => Number(candle.close));
   if (closes.some(value => !Number.isFinite(value) || value <= 0)) {
@@ -177,7 +190,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     position = null;
   };
 
-  for (let i = config.slowEmaPeriod + 1; i < candles.length; i += 1) {
+  for (let i = Math.max(config.slowEmaPeriod + 1, evaluationStartIndex); i < candles.length; i += 1) {
     const candle = candles[i];
     const signalIndex = i - 1;
     const priorSignalIndex = i - 2;
@@ -251,7 +264,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
 
   return {
     runId, dataDigest, symbol: config.symbol, interval: config.interval, strategy: "ema_crossover",
-    candlesProcessed: candles.length, trades,
+    candlesProcessed: candles.length - evaluationStartIndex, trades,
     metrics: {
       startingCapital: config.startingCapital, finalEquity, netProfit,
       totalReturnPct: netProfit / config.startingCapital * 100,

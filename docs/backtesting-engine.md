@@ -24,4 +24,4 @@ The engine reports final equity, net profit, total return, maximum marked-to-mar
 - The protected tRPC endpoint reads from the historical candle store only.
 - Maximum 50,000 candles per run.
 - The result includes executionEligible=false. Backtesting is research output, not a signal approval, PAPER order, or LIVE execution.
-- Initial strategy is EMA crossover only. Strategy registry, walk-forward validation, parameter search, benchmarks and portfolio-level risk are future stages.
+- Initial strategy is EMA crossover only. Walk-forward validation is provided as a separate research workflow; parameter search, benchmarks and portfolio-level risk remain future stages.

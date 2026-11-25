@@ -21,8 +21,9 @@ import { historicalDataRangeSchema, historicalDataQuerySchema } from "@shared/hi
 import { BinanceSpotHistoricalProvider } from "./historical-data/providers/BinanceSpotHistoricalProvider";
 import { DrizzleHistoricalCandleStore } from "./historical-data/core/DrizzleHistoricalCandleStore";
 import { HistoricalDataIngestionService, HistoricalDataRequestError } from "./historical-data/core/HistoricalDataIngestionService";
-import { backtestRequestSchema } from "@shared/backtest";
+import { backtestRequestSchema, walkForwardRequestSchema } from "@shared/backtest";
 import { BacktestInputError, runBacktest } from "./backtesting/core/BacktestEngine";
+import { WalkForwardInputError, runWalkForwardValidation } from "./backtesting/core/WalkForwardValidationEngine";
 import { futuresIntelligenceRequestSchema } from "@shared/futuresIntelligence";
 import { BinanceUsdMFuturesProvider, FuturesProviderError } from "./futures-intelligence/providers/BinanceUsdMFuturesProvider";
 import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futures-intelligence/core/FuturesLiquidityService";
@@ -242,6 +243,31 @@ export const appRouter = router({
           }
           console.error("[Backtesting] Run failed", error instanceof Error ? error.name : "unknown");
           throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Исторические данные для тестирования временно недоступны." });
+        }
+      }),
+    walkForward: protectedProcedure
+      .input(walkForwardRequestSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        }
+        try {
+          const candles = await historicalDataService.query({
+            symbol: input.symbol, interval: input.interval,
+            startTime: input.startTime, endTime: input.endTime, limit: 50_001,
+          });
+          if (candles.length > 50_000) {
+            throw new WalkForwardInputError("Walk-forward is limited to 50,000 historical candles");
+          }
+          return runWalkForwardValidation(candles, input);
+        } catch (error) {
+          if (error instanceof WalkForwardInputError || error instanceof BacktestInputError ||
+              error instanceof HistoricalDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          }
+          console.error("[Walk-Forward] Validation failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Исторические данные для Walk-Forward проверки временно недоступны." });
         }
       }),
   }),

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MARKET_DATA_INTERVALS } from "./marketData";
 
-export const backtestRequestSchema = z.object({
+const backtestShape = {
   symbol: z.string().trim().min(2).max(20).regex(/^[A-Za-z0-9]+$/).transform(value => value.toUpperCase()),
   interval: z.enum(MARKET_DATA_INTERVALS),
   startTime: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
@@ -15,7 +15,19 @@ export const backtestRequestSchema = z.object({
   fastEmaPeriod: z.number().int().min(2).max(100).default(20),
   slowEmaPeriod: z.number().int().min(3).max(300).default(50),
   allowShort: z.boolean().default(false),
-}).strict().superRefine((value, ctx) => {
+};
+
+function validateBacktestParameters(
+  value: {
+    startTime: number;
+    endTime: number;
+    fastEmaPeriod: number;
+    slowEmaPeriod: number;
+    riskBps: number;
+    stopLossBps: number;
+  },
+  ctx: z.RefinementCtx,
+): void {
   if (value.endTime <= value.startTime) {
     ctx.addIssue({ code: "custom", message: "endTime must be greater than startTime", path: ["endTime"] });
   }
@@ -28,6 +40,39 @@ export const backtestRequestSchema = z.object({
   if (value.riskBps >= value.stopLossBps) {
     ctx.addIssue({ code: "custom", message: "risk budget must be below stop-loss distance for 1x notional cap", path: ["riskBps"] });
   }
+}
+
+export const backtestRequestSchema = z.object(backtestShape).strict()
+  .superRefine((value, ctx) => validateBacktestParameters(value, ctx));
+
+export const walkForwardRequestSchema = z.object({
+  ...backtestShape,
+  trainingCandles: z.number().int().min(3).max(30_000).default(500),
+  validationCandles: z.number().int().min(10).max(10_000).default(100),
+  stepCandles: z.number().int().min(10).max(10_000).default(100),
+  windowCount: z.number().int().min(2).max(12).default(3),
+}).strict().superRefine((value, ctx) => {
+  validateBacktestParameters(value, ctx);
+  if (value.trainingCandles < value.slowEmaPeriod + 2) {
+    ctx.addIssue({
+      code: "custom",
+      message: "trainingCandles must include the EMA warm-up plus at least two completed candles",
+      path: ["trainingCandles"],
+    });
+  }
+  if (value.stepCandles < value.validationCandles) {
+    ctx.addIssue({
+      code: "custom",
+      message: "stepCandles must be greater than or equal to validationCandles to prevent overlapping out-of-sample windows",
+      path: ["stepCandles"],
+    });
+  }
+  const requiredCandles = value.trainingCandles +
+    (value.windowCount - 1) * value.stepCandles + value.validationCandles;
+  if (requiredCandles > 50_000) {
+    ctx.addIssue({ code: "custom", message: "walk-forward request cannot exceed 50,000 candles", path: ["windowCount"] });
+  }
 });
 
 export type BacktestRequest = z.infer<typeof backtestRequestSchema>;
+export type WalkForwardRequest = z.infer<typeof walkForwardRequestSchema>;
