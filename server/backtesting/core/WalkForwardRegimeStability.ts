@@ -75,10 +75,10 @@ export function aggregateWalkForwardRegimeStability(
 ): WalkForwardRegimeStability {
   const totalFolds = folds.length;
   const buckets = REGIMES.map(regime => {
-    const observed = folds.flatMap((fold, foldIndex) => {
+    const observed = folds.flatMap(fold => {
       if (fold.status !== "ready") return [];
       const bucket = fold.buckets.find(item => item.regime === regime);
-      return bucket && bucket.observations > 0 ? [{ bucket, foldIndex }] : [];
+      return bucket && bucket.observations > 0 ? [{ bucket }] : [];
     });
     const returns = observed.map(item => item.bucket.compoundedReturnPct);
     const validReturns = finiteValues(returns);
