@@ -24,7 +24,7 @@ export default function MarketRegimePanel(){
   const [endDate,setEndDate]=useState(()=>day(0));
   const [lookback,setLookback]=useState("30");
   const auth=trpc.auth.me.useQuery(undefined,{enabled:!OFFLINE_MODE,retry:false,staleTime:30_000,refetchOnWindowFocus:false});
-  const analysis=trpc.marketRegime.analyze.useMutation();
+  const analysis=trpc.backtesting.marketRegime.useMutation();
   const startTime=Date.parse(startDate+"T00:00:00.000Z");
   const endTime=Date.parse(endDate+"T23:59:59.999Z");
   const valid= /^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) && Number.isFinite(startTime) && Number.isFinite(endTime) && endTime>startTime && endTime-startTime<=366*86_400_000 && Number.isInteger(Number(lookback)) && Number(lookback)>=10 && Number(lookback)<=200;
