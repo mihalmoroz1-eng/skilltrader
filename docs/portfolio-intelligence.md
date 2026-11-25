@@ -61,3 +61,13 @@ Every result reports executionEligible=false and exchangeOrderSent=false. No pri
 - Annualization uses the selected candle interval. Missing symbols, gaps, insufficient samples, zero-variance series, or stale/missing marks do not receive fabricated volatility or VaR values.
 - This is a historical statistical risk estimate, not a predictive guarantee, maximum-loss bound, liquidation model, expected shortfall, or trade recommendation. It assumes stable historical distribution and does not model fat tails, volatility clustering, regime shifts, market impact, funding, leverage or fees under a future shock.
 - The output is read-only. It does not modify PAPER positions, account limits, signal approval or order execution; `executionEligible=false` and `exchangeOrderSent=false` remain invariant.
+
+
+## Portfolio Drawdown Intelligence
+- The server reconstructs a historical portfolio return path from exact common candle timestamps and consecutive intervals for all currently held symbols. Missing intervals are never interpolated or stitched across gaps.
+- Historical portfolio returns use the current PAPER positions' signed net notionals divided by current gross exposure as fixed weights. This is a static-current-exposure approximation, not the account's actual historical NAV or historical position ledger.
+- Reports maximum drawdown, current drawdown, duration of the maximum-drawdown episode, current underwater duration, and whether the maximum drawdown reached a subsequent recovery to its prior peak.
+- A recovery is recorded only when cumulative wealth reaches or exceeds the previous peak. If the series ends below that peak, recovery remains false and no recovery date is invented.
+- Requires at least 30 common consecutive portfolio return observations and current marks no older than 30 seconds. No positions, stale marks, missing symbols or insufficient contiguous history produce explicit unavailable statuses.
+- LONG/SHORT direction is reflected through signed net exposure weights. This is a historical path diagnostic, not an actual account equity curve, forecast, maximum-loss bound or trade recommendation.
+- Read-only: no PAPER position, risk limit, signal approval or order is changed; `executionEligible=false` and `exchangeOrderSent=false` remain invariant.
