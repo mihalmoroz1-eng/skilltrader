@@ -94,6 +94,17 @@ describe("historical backtesting engine", () => {
     expect(result.trades[1].exitTime).toBe(candles[8].openTime);
   });
 
+  it("binds run identity to the selected strategy and its parameters", () => {
+    const candles = series([100, 90, 80, 90, 100, 110, 100, 90, 80, 70]);
+    const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, ...executionConfig } = {
+      ...config, stopLossBps: 2_000, takeProfitBps: 5_000, allowShort: true,
+    };
+    const first = runBacktestWithStrategy(candles, executionConfig, rsiMeanReversionStrategy,
+      { rsiPeriod: 2, oversoldLevel: 30, overboughtLevel: 70 });
+    const changed = runBacktestWithStrategy(candles, executionConfig, rsiMeanReversionStrategy,
+      { rsiPeriod: 3, oversoldLevel: 30, overboughtLevel: 70 });
+    expect(first.runId).not.toBe(changed.runId);
+  });
   it("keeps EMA wrapper behavior identical to the shared strategy executor", () => {
     const candles = series([10, 10, 10, 11, 13, 15, 17, 18, 17, 15, 13, 11]);
     const wrapped = runBacktest(candles, config);
