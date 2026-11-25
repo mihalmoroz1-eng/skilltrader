@@ -68,7 +68,7 @@ export type WalkForwardValidationResult = {
   dataDigest: string;
   symbol: string;
   interval: BacktestConfig["interval"];
-  strategy: "ema_crossover";
+  strategy: string;
   candlesProcessed: number;
   windows: WalkForwardWindowResult[];
   regimeStability: WalkForwardRegimeStability;
@@ -200,9 +200,9 @@ export function runWalkForwardValidation(
   config: WalkForwardValidationConfig,
 ): WalkForwardValidationResult {
   if (!Number.isInteger(config.trainingCandles) ||
-      config.trainingCandles < Math.max(config.slowEmaPeriod + 2, config.regimeLookback + 1) ||
+      config.trainingCandles < Math.max(config.strategy === "rsi_mean_reversion" ? (config.rsiPeriod ?? 14) + 3 : config.slowEmaPeriod + 2, config.regimeLookback + 1) ||
       config.trainingCandles > 30_000) {
-    throw new WalkForwardInputError("Training window must include the EMA warm-up, regime lookback and at least two completed candles");
+    throw new WalkForwardInputError("Training window must include the selected strategy warm-up, regime lookback and at least two completed candles");
   }
   if (!Number.isInteger(config.validationCandles) ||
       config.validationCandles < 10 || config.validationCandles > 10_000) {
@@ -355,7 +355,7 @@ export function runWalkForwardValidation(
     dataDigest,
     symbol: config.symbol,
     interval: config.interval,
-    strategy: "ema_crossover",
+    strategy: config.strategy ?? "ema_crossover",
     candlesProcessed: requiredCandles,
     windows,
     regimeStability,
