@@ -82,7 +82,7 @@ function calculateMaxDrawdown(values: number[]): number | null {
   }
   return maximum;
 }
-function periodResult(points: ReturnPoint[], key: "portfolio" | "benchmark", durationMs: number): PerformancePeriod {
+function periodResult(points: ReturnPoint[], durationMs: number): PerformancePeriod {
   if (points.length < MIN_OBSERVATIONS) return {
     status: "insufficient_history", observations: points.length,
     portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null,
@@ -172,9 +172,9 @@ export function calculatePortfolioPerformance(
   const sortinoRatio = downside > 0 ? mean / downside * Math.sqrt(annualizationPeriods) : null;
   const maxDrawdownPct = calculateMaxDrawdown(returns);
   const periods = {
-    oneDay: periodResult(longest, "portfolio", 86_400_000),
-    sevenDay: periodResult(longest, "portfolio", 7 * 86_400_000),
-    thirtyDay: periodResult(longest, "portfolio", 30 * 86_400_000),
+    oneDay: periodResult(longest, 86_400_000),
+    sevenDay: periodResult(longest, 7 * 86_400_000),
+    thirtyDay: periodResult(longest, 30 * 86_400_000),
   };
   if (totalReturnPct === null || buyAndHoldReturnPct === null || maxDrawdownPct === null) {
     return { ...empty("insufficient_data", annualizationPeriods), observations: longest.length };
