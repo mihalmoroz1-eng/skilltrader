@@ -237,6 +237,13 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     expect(result.drawdownIntelligence.currentDrawdownPct).toBe(0);
     expect(result.drawdownIntelligence.currentDrawdownDurationObservations).toBeNull();
     expect(result.drawdownIntelligence.observations).toBe(39);
+    expect(result.drawdownIntelligence.episodeCount).toBe(1);
+    expect(result.drawdownIntelligence.recoveredEpisodeCount).toBe(1);
+    expect(result.drawdownIntelligence.unrecoveredEpisodeCount).toBe(0);
+    expect(result.drawdownIntelligence.averageRecoveryObservations).toBeGreaterThan(0);
+    expect(result.drawdownIntelligence.curve.length).toBeGreaterThan(1);
+    expect(result.drawdownIntelligence.curve.length).toBeLessThanOrEqual(120);
+    expect(result.drawdownIntelligence.recentEpisodes[0].recoveryTime).not.toBeNull();
   });
   it("reports an ongoing drawdown without inventing a recovery", () => {
     const returns = [...Array(10).fill(0.01), ...Array(29).fill(-0.005)];
@@ -252,6 +259,10 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     expect(result.drawdownIntelligence.currentDrawdownPct).toBeGreaterThan(0);
     expect(result.drawdownIntelligence.currentDrawdownDurationObservations).toBeGreaterThan(0);
     expect(result.drawdownIntelligence.maxDrawdownRecovered).toBe(false);
+    expect(result.drawdownIntelligence.episodeCount).toBe(1);
+    expect(result.drawdownIntelligence.unrecoveredEpisodeCount).toBe(1);
+    expect(result.drawdownIntelligence.averageRecoveryObservations).toBeNull();
+    expect(result.drawdownIntelligence.recentEpisodes[0].recoveryTime).toBeNull();
   });
   it("returns zero drawdown for a monotonically rising path and respects SHORT direction", () => {
     const rising = run({
