@@ -199,7 +199,9 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     const signal = signalProvider.signalAt(i - 1);
     const crossUp = signal === "LONG";
     const crossDown = signal === "SHORT";
-    const strategyExit = signal === "EXIT";
+    const exitLong = signal === "EXIT_LONG";
+    const exitShort = signal === "EXIT_SHORT";
+    const strategyExit = position?.side === "LONG" ? exitLong : position?.side === "SHORT" ? exitShort : false;
 
     const hadPositionAtStart = position !== null;
     if (position && (strategyExit ||
@@ -212,7 +214,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       );
     }
 
-    if (!hadPositionAtStart && !position && !strategyExit && (crossUp || (config.allowShort && crossDown))) {
+    if (!hadPositionAtStart && !position && !exitLong && !exitShort && (crossUp || (config.allowShort && crossDown))) {
       const side = crossUp ? "LONG" : "SHORT";
       const entryPrice = adverseEntryPrice(Number(candle.open), side, slippageRate);
       const riskBudget = equity * riskRate;
