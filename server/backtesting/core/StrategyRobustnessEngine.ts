@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
+import { classifyMarketRegimeWindow, MarketRegimeClassificationError, type CanonicalMarketRegime } from "../../market-regime/core/MarketRegimeClassifier";
 import {
   runBacktest,
   validateBacktestCandleSeries,
@@ -10,7 +11,8 @@ import {
 export type StrategyRobustnessConfig = Omit<BacktestConfig, "evaluationStartIndex"> & {
   regimeLookback: number;
   trendThresholdBps: number;
-  volatilityThresholdBps: number;
+  rangeThresholdBps: number;
+  highVolatilityThresholdBps: number;
 };
 
 export type RobustnessCostScenario = {
@@ -37,14 +39,7 @@ export type RobustnessParameterScenario = {
   runId: string;
 };
 
-export type MarketRegimeId =
-  | "bullish_low_volatility"
-  | "bullish_high_volatility"
-  | "bearish_low_volatility"
-  | "bearish_high_volatility"
-  | "range_low_volatility"
-  | "range_high_volatility"
-  | "insufficient_history";
+export type MarketRegimeId = CanonicalMarketRegime | "insufficient_history";
 
 export type RobustnessRegimeResult = {
   id: MarketRegimeId;
@@ -56,6 +51,7 @@ export type RobustnessRegimeResult = {
   averageTradePnl: number;
   winRatePct: number;
   profitFactor: number | null;
+  sampleStatus: "insufficient_sample" | "adequate_sample";
 };
 
 export type StrategyRobustnessResult = {
@@ -101,37 +97,31 @@ export class StrategyRobustnessInputError extends Error {
 }
 
 const REGIME_DEFINITIONS: Array<{ id: MarketRegimeId; label: string }> = [
-  { id: "bullish_low_volatility", label: "Восходящий тренд · низкая волатильность" },
-  { id: "bullish_high_volatility", label: "Восходящий тренд · высокая волатильность" },
-  { id: "bearish_low_volatility", label: "Нисходящий тренд · низкая волатильность" },
-  { id: "bearish_high_volatility", label: "Нисходящий тренд · высокая волатильность" },
-  { id: "range_low_volatility", label: "Боковой рынок · низкая волатильность" },
-  { id: "range_high_volatility", label: "Боковой рынок · высокая волатильность" },
+  { id: "uptrend", label: "Восходящий тренд" },
+  { id: "downtrend", label: "Нисходящий тренд" },
+  { id: "ranging", label: "Боковой рынок" },
+  { id: "high_volatility", label: "Высокая волатильность" },
+  { id: "transition", label: "Переходный режим" },
   { id: "insufficient_history", label: "Недостаточно предшествующей истории" },
 ];
 
-function mean(values: number[]): number {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-}
-
-function standardDeviation(values: number[]): number {
-  if (values.length === 0) return 0;
-  const average = mean(values);
-  return Math.sqrt(mean(values.map(value => (value - average) ** 2)));
-}
-
 function validateRobustnessConfig(config: StrategyRobustnessConfig): void {
   if (!Number.isInteger(config.regimeLookback) ||
-      config.regimeLookback < 5 || config.regimeLookback > 200) {
-    throw new StrategyRobustnessInputError("Regime lookback must be from 5 to 200 candles");
+      config.regimeLookback < 10 || config.regimeLookback > 200) {
+    throw new StrategyRobustnessInputError("Regime lookback must be from 10 to 200 candles");
   }
   if (!Number.isInteger(config.trendThresholdBps) ||
-      config.trendThresholdBps < 10 || config.trendThresholdBps > 5_000) {
-    throw new StrategyRobustnessInputError("Trend threshold must be from 10 to 5,000 bps");
+      config.trendThresholdBps < 10 || config.trendThresholdBps > 2_000) {
+    throw new StrategyRobustnessInputError("Trend threshold must be from 10 to 2,000 bps");
   }
-  if (!Number.isInteger(config.volatilityThresholdBps) ||
-      config.volatilityThresholdBps < 1 || config.volatilityThresholdBps > 2_000) {
-    throw new StrategyRobustnessInputError("Volatility threshold must be from 1 to 2,000 bps");
+  if (!Number.isInteger(config.rangeThresholdBps) ||
+      config.rangeThresholdBps < 5 || config.rangeThresholdBps > 1_000 ||
+      config.rangeThresholdBps >= config.trendThresholdBps) {
+    throw new StrategyRobustnessInputError("Range threshold must be valid and below the trend threshold");
+  }
+  if (!Number.isInteger(config.highVolatilityThresholdBps) ||
+      config.highVolatilityThresholdBps < 10 || config.highVolatilityThresholdBps > 2_000) {
+    throw new StrategyRobustnessInputError("High-volatility threshold must be from 10 to 2,000 bps");
   }
   if (config.feeBps > 50 || config.slippageBps > 50) {
     throw new StrategyRobustnessInputError("Base fees and slippage must each be at most 50 bps for 2x stress testing");
@@ -238,30 +228,25 @@ function classifyTradeRegime(
 ): MarketRegimeId {
   const lastCompletedIndex = entryIndex - 1;
   const firstIndex = lastCompletedIndex - config.regimeLookback;
-  if (firstIndex < 0 || lastCompletedIndex >= candles.length) return "insufficient_history";
-
-  const firstClose = Number(candles[firstIndex].close);
-  const lastClose = Number(candles[lastCompletedIndex].close);
-  if (!Number.isFinite(firstClose) || firstClose <= 0 || !Number.isFinite(lastClose) || lastClose <= 0) {
-    return "insufficient_history";
+  if (firstIndex < 0 || lastCompletedIndex < 0) return "insufficient_history";
+  if (candles[lastCompletedIndex].closeTime >= candles[entryIndex].openTime) {
+    throw new StrategyRobustnessInputError("Trade regime attribution attempted to use a candle that was not closed before entry");
   }
-
-  const momentumBps = (lastClose / firstClose - 1) * 10_000;
-  const returnsBps: number[] = [];
-  for (let index = firstIndex + 1; index <= lastCompletedIndex; index += 1) {
-    const previous = Number(candles[index - 1].close);
-    const current = Number(candles[index].close);
-    if (!Number.isFinite(previous) || previous <= 0 || !Number.isFinite(current) || current <= 0) {
-      return "insufficient_history";
+  const window = candles.slice(firstIndex, lastCompletedIndex + 1);
+  try {
+    return classifyMarketRegimeWindow(window, {
+      interval: config.interval,
+      lookback: config.regimeLookback,
+      trendThresholdBps: config.trendThresholdBps,
+      rangeThresholdBps: config.rangeThresholdBps,
+      highVolatilityThresholdBps: config.highVolatilityThresholdBps,
+    }).regime;
+  } catch (error) {
+    if (error instanceof MarketRegimeClassificationError) {
+      throw new StrategyRobustnessInputError(error.message);
     }
-    returnsBps.push((current / previous - 1) * 10_000);
+    throw error;
   }
-  const volatilityBps = standardDeviation(returnsBps);
-  const trend = momentumBps >= config.trendThresholdBps
-    ? "bullish"
-    : momentumBps <= -config.trendThresholdBps ? "bearish" : "range";
-  const volatility = volatilityBps >= config.volatilityThresholdBps ? "high_volatility" : "low_volatility";
-  return `${trend}_${volatility}` as MarketRegimeId;
 }
 
 function summarizeRegimes(
@@ -298,6 +283,7 @@ function summarizeRegimes(
         ? trades.reduce((sum, trade) => sum + trade.netPnl, 0) / trades.length : 0,
       winRatePct: trades.length ? winners.length / trades.length * 100 : 0,
       profitFactor: negativePnl === 0 ? (positivePnl > 0 ? null : 0) : positivePnl / negativePnl,
+      sampleStatus: trades.length < 5 ? "insufficient_sample" : "adequate_sample",
     };
   });
 }
@@ -316,12 +302,12 @@ export function runStrategyRobustness(
   validateBacktestCandleSeries(candles, config.interval);
 
   const {
-    regimeLookback, trendThresholdBps, volatilityThresholdBps, ...backtestConfig
+    regimeLookback, trendThresholdBps, rangeThresholdBps, highVolatilityThresholdBps, ...backtestConfig
   } = config;
   const baseline = runBacktest(candles, backtestConfig);
   const cost = runCostScenarios(candles, backtestConfig);
   const parameters = runParameterScenarios(candles, backtestConfig, baseline.metrics.totalReturnPct);
-  const regimeConfig = { regimeLookback, trendThresholdBps, volatilityThresholdBps };
+  const regimeConfig = { regimeLookback, trendThresholdBps, rangeThresholdBps, highVolatilityThresholdBps };
   const regimes = summarizeRegimes(candles, baseline, config);
   const parameterReturns = parameters.map(item => item.returnPct);
   const costReturns = cost.scenarios.map(item => item.returnPct);
@@ -383,9 +369,10 @@ export function runStrategyRobustness(
       "Cost stress runs reuse the same candles and strategy while testing baseline, 1.5x and 2x fees and adverse slippage.",
       "EMA sensitivity checks only a small, fixed set of neighboring fast/slow periods; no optimization or best-parameter selection is performed.",
       "Market regimes are assigned to each baseline trade using only completed candles before its entry candle.",
-      "Trend regime uses trailing close-to-close momentum; volatility regime uses the standard deviation of trailing close-to-close returns.",
-      "Regime thresholds are user-configured basis-point values per candle and are not automatically calibrated from the full sample.",
+      "Regimes use the same canonical classifier as Market Regime Intelligence: rolling net move, path efficiency and average true range.",
+      "Each trade is assigned the regime from exactly lookback + 1 closed candles ending strictly before its entry candle; entry and future candles are excluded.",
       "Regime attribution is descriptive by trade entry regime; it is not a separate execution simulation for each regime.",
+      "Groups with fewer than five trades are marked insufficient_sample; low-count statistics are descriptive and must not be treated as reliable evidence.",
       "All scenarios use the existing backtest fill, stop-first OHLC, fee, slippage and 1x exposure rules.",
       "Results are historical research only; executionEligible=false and no PAPER or LIVE orders are created.",
     ],
