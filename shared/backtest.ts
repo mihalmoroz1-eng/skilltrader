@@ -14,6 +14,10 @@ const backtestShape = {
   slippageBps: z.number().int().min(0).max(100).default(5),
   fastEmaPeriod: z.number().int().min(2).max(100).default(20),
   slowEmaPeriod: z.number().int().min(3).max(300).default(50),
+  strategy: z.enum(["ema_crossover", "rsi_mean_reversion"]).default("ema_crossover"),
+  rsiPeriod: z.number().int().min(2).max(100).default(14),
+  rsiOversoldLevel: z.number().int().min(5).max(45).default(30),
+  rsiOverboughtLevel: z.number().int().min(55).max(95).default(70),
   allowShort: z.boolean().default(false),
 };
 
@@ -23,6 +27,9 @@ function validateBacktestParameters(
     endTime: number;
     fastEmaPeriod: number;
     slowEmaPeriod: number;
+    strategy: "ema_crossover" | "rsi_mean_reversion";
+    rsiOversoldLevel: number;
+    rsiOverboughtLevel: number;
     riskBps: number;
     stopLossBps: number;
   },
@@ -34,8 +41,11 @@ function validateBacktestParameters(
   if (value.endTime - value.startTime > 366 * 24 * 60 * 60 * 1000) {
     ctx.addIssue({ code: "custom", message: "range cannot exceed 366 days", path: ["endTime"] });
   }
-  if (value.fastEmaPeriod >= value.slowEmaPeriod) {
+  if (value.strategy === "ema_crossover" && value.fastEmaPeriod >= value.slowEmaPeriod) {
     ctx.addIssue({ code: "custom", message: "fast EMA period must be less than slow EMA period", path: ["fastEmaPeriod"] });
+  }
+  if (value.strategy === "rsi_mean_reversion" && value.rsiOverboughtLevel - value.rsiOversoldLevel < 10) {
+    ctx.addIssue({ code: "custom", message: "RSI thresholds must be separated by at least 10 points", path: ["rsiOverboughtLevel"] });
   }
   if (value.riskBps >= value.stopLossBps) {
     ctx.addIssue({ code: "custom", message: "risk budget must be below stop-loss distance for 1x notional cap", path: ["riskBps"] });
@@ -57,10 +67,11 @@ export const walkForwardRequestSchema = z.object({
   highVolatilityThresholdBps: z.number().int().min(10).max(2_000).default(200),
 }).strict().superRefine((value, ctx) => {
   validateBacktestParameters(value, ctx);
-  if (value.trainingCandles < Math.max(value.slowEmaPeriod + 2, value.regimeLookback + 1)) {
+  const strategyWarmup = value.strategy === "ema_crossover" ? value.slowEmaPeriod + 2 : value.rsiPeriod + 3;
+  if (value.trainingCandles < Math.max(strategyWarmup, value.regimeLookback + 1)) {
     ctx.addIssue({
       code: "custom",
-      message: "trainingCandles must include the EMA warm-up, regime lookback and at least two completed candles",
+      message: "trainingCandles must include the selected strategy warm-up, regime lookback and at least two completed candles",
       path: ["trainingCandles"],
     });
   }
@@ -96,6 +107,9 @@ export const robustnessRequestSchema = z.object({
   highVolatilityThresholdBps: z.number().int().min(10).max(2_000).default(200),
 }).strict().superRefine((value, ctx) => {
   validateBacktestParameters(value, ctx);
+  if (value.strategy !== "ema_crossover") {
+    ctx.addIssue({ code: "custom", message: "Strategy robustness currently supports EMA Crossover only", path: ["strategy"] });
+  }
   if (value.feeBps > 50) {
     ctx.addIssue({
       code: "custom",
@@ -121,6 +135,6 @@ export const robustnessRequestSchema = z.object({
 
 export type RobustnessRequest = z.infer<typeof robustnessRequestSchema>;
 
-/** Benchmark comparison uses the exact same input contract as the deterministic EMA backtest. */
+/** Benchmark comparison uses the same deterministic strategy execution contract. */
 export const strategyBenchmarkRequestSchema = backtestRequestSchema;
 export type StrategyBenchmarkRequest = BacktestRequest;
