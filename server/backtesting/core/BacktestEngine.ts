@@ -154,7 +154,7 @@ export function runBacktestWithStrategy<TConfig>(
   if (!Number.isInteger(evaluationStartIndex) || evaluationStartIndex < 0 ||
       evaluationStartIndex >= candles.length ||
       (evaluationStartIndex > 0 && evaluationStartIndex < minimumHistory - 1)) {
-    throw new BacktestInputError("Evaluation boundary must follow the EMA warm-up period and precede the final candle");
+    throw new BacktestInputError("Evaluation boundary must follow the strategy warm-up period and precede the final candle");
   }
   validateBacktestCandleSeries(candles, config.interval);
 
