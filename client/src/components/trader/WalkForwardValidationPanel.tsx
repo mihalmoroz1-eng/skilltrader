@@ -170,7 +170,7 @@ export default function WalkForwardValidationPanel() {
                 <details className="walk-forward-assumptions" key={window.index}>
                   <summary>Окно {window.index}: {window.validation.regimePerformance.observations} интервалов · {window.validation.regimePerformance.transitionCount} смен режима</summary>
                   <div className="walk-forward-metrics">
-                    <div><span>Текущий режим в конце окна</span><strong>{window.validation.regimePerformance.currentRegime ? REGIME_LABELS[window.validation.regimePerformance.currentRegime] : "Недостаточно истории"}</strong></div>
+                    <div><span>Режим последнего OOS интервала</span><strong>{window.validation.regimePerformance.currentRegime ? REGIME_LABELS[window.validation.regimePerformance.currentRegime] : "Недостаточно истории"}</strong></div>
                     <div><span>Частота смен режимов</span><strong>{percent(window.validation.regimePerformance.transitionRatePct)}</strong></div>
                     <div><span>Средняя доходность интервала смены</span><strong>{percent(window.validation.regimePerformance.transitionIntervalReturnPct)}</strong></div>
                   </div>
