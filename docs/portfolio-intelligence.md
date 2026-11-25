@@ -27,3 +27,11 @@ This module combines cross-asset historical return correlation with a read-only 
 
 ## Safety
 Every result reports executionEligible=false and exchangeOrderSent=false. No private exchange account endpoint or exchange order endpoint is used. The Android demo build remains offline.
+
+
+## 3D portfolio views
+- The asset/correlation map uses only ready Pearson pairs and the exact server-returned symbol exposure.
+- The capital concentration view visualizes each open position symbol's share of total gross exposure. It does not represent uninvested cash or total account allocation.
+- The largest symbol, largest weight, Herfindahl index, gross exposure and gross-limit utilization are passed through from the deterministic portfolio result without recalculation in the UI.
+- Missing or stale marks leave exposure fields unavailable; the visualization displays an empty/unavailable state rather than substituting entry prices or estimated values.
+- These views are read-only, do not generate trading signals and do not alter risk controls or PAPER positions.
