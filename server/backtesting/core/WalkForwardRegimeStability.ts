@@ -137,7 +137,8 @@ export function aggregateWalkForwardRegimeStability(
           : null;
         const evidence = observedCount < 3 ? "insufficient" as const
           : observedCount < 5 ? "limited" as const
-          : "moderate" as const;
+          : observedCount < 8 ? "moderate" as const
+          : "strong" as const;
         const score = observedCount >= 3 && positiveConsistency !== null && dispersionControl !== null
           ? (
             (totalFolds > 0 ? observedCount / totalFolds * 100 : 0) +
