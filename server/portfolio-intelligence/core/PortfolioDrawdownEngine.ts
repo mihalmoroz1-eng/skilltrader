@@ -58,17 +58,23 @@ export function calculatePortfolioDrawdown(
   const commonCandleTimes = [...closeMaps[0].closes.keys()]
     .filter(time => closeMaps.every(item => item.closes.has(time)))
     .sort((a, b) => a - b);
-  const portfolioReturns: number[] = [];
+  let portfolioReturns: number[] = [];
+  let contiguousReturns: number[] = [];
   for (let i = 1; i < commonCandleTimes.length; i += 1) {
     const previous = commonCandleTimes[i - 1], current = commonCandleTimes[i];
-    if (current !== previous + step(interval, previous)) continue;
+    if (current !== previous + step(interval, previous)) {
+      if (contiguousReturns.length > portfolioReturns.length) portfolioReturns = contiguousReturns;
+      contiguousReturns = [];
+      continue;
+    }
     const value = closeMaps.reduce((sum, item) => {
       const oldClose = item.closes.get(previous)!;
       const newClose = item.closes.get(current)!;
       return sum + item.weight * ((newClose - oldClose) / oldClose);
     }, 0);
-    if (Number.isFinite(value)) portfolioReturns.push(value);
+    if (Number.isFinite(value)) contiguousReturns.push(value);
   }
+  if (contiguousReturns.length > portfolioReturns.length) portfolioReturns = contiguousReturns;
   if (portfolioReturns.length < MIN_DRAWDOWN_OBSERVATIONS ||
       portfolioReturns.some(value => !Number.isFinite(value) || value <= -1)) {
     return empty("insufficient_data", portfolioReturns.length);
