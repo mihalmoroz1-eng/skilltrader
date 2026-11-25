@@ -29,3 +29,5 @@
 .pri-vol-row{border-color:var(--border);background:transparent}
 .pri-vol-row b{color:var(--foreground)}
 @media(max-width:620px){.pri-forecast-head{flex-direction:column}.pri-forecast-metrics{grid-template-columns:1fr 1fr}.pri-forecast-metrics>div:first-child{grid-column:1/-1}}
+
+.pri-drawdown{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
