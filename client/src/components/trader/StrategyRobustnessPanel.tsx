@@ -187,7 +187,7 @@ export default function StrategyRobustnessPanel() {
                 </div>
                 <div className="robustness-table-wrap"><table><thead><tr>
                   <th>Режим</th><th>Интервалов</th><th>Сделок на входе</th><th>Выборка</th>
-                  <th>Суммарная доходность</th><th>Годовая волатильность</th><th>Sharpe</th><th>Sortino</th>
+                  <th>Условная составная доходность</th><th>Годовая волатильность</th><th>Sharpe</th><th>Sortino</th>
                   <th>Макс. просадка эпизода</th><th>Эпизодов</th>
                 </tr></thead><tbody>
                   {robustness.data.regimePerformance.buckets.map(item => <tr key={item.regime}>
