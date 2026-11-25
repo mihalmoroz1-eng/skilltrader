@@ -18,8 +18,8 @@ const regimeLabels: Record<string, string> = {
 function utcDateInput(daysAgo = 0): string {
   return new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
 }
-function pct(value: number): string {
-  return Number.isFinite(value) ? `${value.toFixed(2)}%` : "—";
+function pct(value: number | null): string {
+  return value !== null && Number.isFinite(value) ? `${value.toFixed(2)}%` : "—";
 }
 function money(value: number): string {
   return Number.isFinite(value)
@@ -174,6 +174,42 @@ export default function StrategyRobustnessPanel() {
                 <div className="robustness-table-wrap"><table><thead><tr><th>Режим</th><th>Сделок</th><th>Выборка</th><th>Win rate</th><th>Чистый PnL</th><th>Средняя сделка</th><th>Profit Factor</th></tr></thead>
                   <tbody>{robustness.data.regimes.map(item => <tr key={item.id}><td>{regimeLabels[item.id] ?? item.label}</td><td>{item.tradeCount}</td><td>{item.sampleStatus === "adequate_sample" ? "Достаточная" : "Мало данных"}</td><td>{pct(item.winRatePct)}</td><td>{money(item.netPnl)}</td><td>{money(item.averageTradePnl)}</td><td>{item.profitFactor === null ? "∞" : item.profitFactor.toFixed(2)}</td></tr>)}</tbody>
                 </table></div>
+              </div>
+              <div className="robustness-table-section">
+                <h3>Доходность и риск внутри рыночных режимов</h3>
+                <p className="robustness-note">Доходность рассчитана по интервалам кривой капитала; режим определяется после закрытия соответствующей свечи. Это ретроспективная аналитика, не прогноз.</p>
+                <div className="robustness-metrics">
+                  <div><span>Текущий исторический режим</span><strong>{robustness.data.regimePerformance.currentRegime ? regimeLabels[robustness.data.regimePerformance.currentRegime] : "—"}</strong></div>
+                  <div><span>Классифицированных интервалов</span><strong>{robustness.data.regimePerformance.observations}</strong></div>
+                  <div><span>Смен режима</span><strong>{robustness.data.regimePerformance.transitionCount}</strong></div>
+                  <div><span>Частота смен</span><strong>{pct(robustness.data.regimePerformance.transitionRatePct)}</strong></div>
+                  <div><span>Средняя доходность интервала смены</span><strong>{pct(robustness.data.regimePerformance.transitionIntervalReturnPct)}</strong></div>
+                </div>
+                <div className="robustness-table-wrap"><table><thead><tr>
+                  <th>Режим</th><th>Интервалов</th><th>Сделок на входе</th><th>Выборка</th>
+                  <th>Суммарная доходность</th><th>Годовая волатильность</th><th>Sharpe</th><th>Sortino</th>
+                  <th>Макс. просадка эпизода</th><th>Эпизодов</th>
+                </tr></thead><tbody>
+                  {robustness.data.regimePerformance.buckets.map(item => <tr key={item.regime}>
+                    <td>{regimeLabels[item.regime]}</td><td>{item.observations}</td><td>{item.tradeCount}</td>
+                    <td>{item.sampleStatus === "adequate_sample" ? "Достаточная" : item.sampleStatus === "limited_sample" ? "Ограниченная" : "Недостаточная"}</td>
+                    <td>{pct(item.totalReturnPct)}</td><td>{pct(item.annualizedVolatilityPct)}</td>
+                    <td>{item.sharpeRatio === null ? "—" : item.sharpeRatio.toFixed(2)}</td>
+                    <td>{item.sortinoRatio === null ? "—" : item.sortinoRatio.toFixed(2)}</td>
+                    <td>{pct(item.maxEpisodeDrawdownPct)}</td><td>{item.episodeCount}</td>
+                  </tr>)}
+                </tbody></table></div>
+                <details className="robustness-assumptions"><summary>Переходы между режимами</summary>
+                  {robustness.data.regimePerformance.transitions.length ? (
+                    <div className="robustness-table-wrap"><table><thead><tr><th>Из режима</th><th>В режим</th><th>Количество</th></tr></thead>
+                      <tbody>{robustness.data.regimePerformance.transitions.map(item => <tr key={item.from + "-" + item.to}>
+                        <td>{regimeLabels[item.from]}</td><td>{regimeLabels[item.to]}</td><td>{item.count}</td>
+                      </tr>)}</tbody></table></div>
+                  ) : <p className="robustness-note">На выбранном участке смен режимов не зафиксировано.</p>}
+                </details>
+                <details className="robustness-assumptions"><summary>Методика Regime Performance</summary>
+                  <ul>{robustness.data.regimePerformance.methodology.map(item => <li key={item}>{item}</li>)}</ul>
+                </details>
               </div>
               <div className="robustness-result-foot">Run ID: {robustness.data.runId} · SHA-256: {robustness.data.dataDigest.slice(0, 16)}… · executionEligible=false</div>
               <details className="robustness-assumptions"><summary>Методика и ограничения</summary><ul>{robustness.data.assumptions.map(item => <li key={item}>{item}</li>)}</ul></details>
