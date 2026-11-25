@@ -97,7 +97,19 @@ describe("strategy robustness engine", () => {
 
   it("keeps the baseline metrics equal to the existing backtesting engine", () => {
     const candles = series(240);
-    const base = runBacktest(candles, config);
+    const base = runBacktest(candles, {
+      symbol: config.symbol,
+      interval: config.interval,
+      startingCapital: config.startingCapital,
+      riskBps: config.riskBps,
+      stopLossBps: config.stopLossBps,
+      takeProfitBps: config.takeProfitBps,
+      feeBps: config.feeBps,
+      slippageBps: config.slippageBps,
+      fastEmaPeriod: config.fastEmaPeriod,
+      slowEmaPeriod: config.slowEmaPeriod,
+      allowShort: config.allowShort,
+    });
     const result = runStrategyRobustness(candles, config);
     expect(result.baseline.runId).toBe(base.runId);
     expect(result.baseline.returnPct).toBe(base.metrics.totalReturnPct);
