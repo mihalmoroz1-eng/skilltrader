@@ -89,6 +89,7 @@ function summarizeBucket(
   const sampleStatus = count < 5 ? "insufficient_sample"
     : count < 30 ? "limited_sample" : "adequate_sample";
   const grossFactor = values.reduce((factor, value) => factor * (1 + value), 1);
+  if (!Number.isFinite(grossFactor)) throw new Error("Non-finite compounded regime return; analytics withheld");
   const totalReturn = grossFactor - 1;
   const periods = annualizationPeriods(interval);
 
@@ -101,11 +102,16 @@ function summarizeBucket(
     const volatility = Math.sqrt(variance);
     const downside = Math.sqrt(values.reduce((sum, value) => sum + Math.min(value, 0) ** 2, 0) / count);
     if (Number.isFinite(volatility)) {
-      annualizedVolatilityPct = volatility * Math.sqrt(periods) * 100;
-      if (volatility > 0) sharpeRatio = mean / volatility * Math.sqrt(periods);
+      const annualized = volatility * Math.sqrt(periods) * 100;
+      if (Number.isFinite(annualized)) annualizedVolatilityPct = annualized;
+      if (volatility > 0) {
+        const sharpe = mean / volatility * Math.sqrt(periods);
+        if (Number.isFinite(sharpe)) sharpeRatio = sharpe;
+      }
     }
     if (Number.isFinite(downside) && downside > 0) {
-      sortinoRatio = mean / downside * Math.sqrt(periods);
+      const sortino = mean / downside * Math.sqrt(periods);
+      if (Number.isFinite(sortino)) sortinoRatio = sortino;
     }
   }
 
@@ -126,6 +132,7 @@ function summarizeBucket(
       episodeCount += 1;
     }
     episodeEquity *= 1 + observation.value;
+    if (!Number.isFinite(episodeEquity)) throw new Error("Non-finite regime episode equity; analytics withheld");
     episodePeak = Math.max(episodePeak, episodeEquity);
     if (episodePeak > 0) {
       maxEpisodeDrawdownPct = Math.max(
@@ -141,7 +148,7 @@ function summarizeBucket(
     observations: count,
     tradeCount,
     sampleStatus,
-    totalReturnPct: Number.isFinite(totalReturn) ? totalReturn * 100 : null,
+    totalReturnPct: count > 0 && Number.isFinite(totalReturn * 100) ? totalReturn * 100 : null,
     annualizedVolatilityPct,
     sharpeRatio: Number.isFinite(sharpeRatio) ? sharpeRatio : null,
     sortinoRatio: Number.isFinite(sortinoRatio) ? sortinoRatio : null,
@@ -242,7 +249,8 @@ export function analyzeRegimePerformance(
     currentRegime: previousRegime,
     transitionCount,
     transitionRatePct: Number.isFinite(transitionRatePct) ? transitionRatePct : null,
-    transitionIntervalReturnPct: transitionIntervalCount > 0
+    transitionIntervalReturnPct: transitionIntervalCount > 0 &&
+      Number.isFinite(transitionIntervalReturnSum / transitionIntervalCount * 100)
       ? transitionIntervalReturnSum / transitionIntervalCount * 100 : null,
     transitionIntervalCount,
     buckets,
