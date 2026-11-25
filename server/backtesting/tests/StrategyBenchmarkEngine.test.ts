@@ -58,6 +58,23 @@ describe("strategy benchmark engine", () => {
     expect(result.benchmarks.cashControl.totalTrades).toBe(0);
   });
 
+  it("aligns Buy & Hold entry with the selected strategy warm-up for all four strategies", () => {
+    const candles = series(Array.from({ length: 80 }, (_, index) => 100 + Math.sin(index / 3) * 8 + index * 0.05));
+    const cases = [
+      { strategy: "ema_crossover" as const, expectedIndex: config.slowEmaPeriod + 1 },
+      { strategy: "rsi_mean_reversion" as const, rsiPeriod: 5, expectedIndex: 7 },
+      { strategy: "macd_momentum" as const, macdFastPeriod: 3, macdSlowPeriod: 6, macdSignalPeriod: 3, expectedIndex: 9 },
+      { strategy: "breakout" as const, breakoutLookbackPeriod: 4, breakoutBufferBps: 10, expectedIndex: 5 },
+    ];
+    for (const scenario of cases) {
+      const result = runStrategyBenchmark(candles, { ...config, ...scenario });
+      expect(result.strategy).toBe(scenario.strategy);
+      expect(result.benchmarks.buyAndHoldOneX.entryTime).toBe(candles[scenario.expectedIndex].openTime);
+      expect(result.benchmarks.buyAndHoldRiskMatched.entryTime).toBe(candles[scenario.expectedIndex].openTime);
+      expect(result.executionEligible).toBe(false);
+    }
+  });
+
   it("provides both fully invested and initial-risk-matched Buy & Hold benchmarks", () => {
     const result = runStrategyBenchmark(series([100, 101, 103, 102, 100, 98, 99, 102, 105, 108, 110, 112, 109, 106, 104, 107, 111, 114, 117, 120, 118, 115]), config);
     expect(result.benchmarks.buyAndHoldOneX.exposureFraction).toBe(1);
