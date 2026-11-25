@@ -130,6 +130,30 @@ function summarizeStrategy(result: BacktestResult, interval: MarketInterval): Be
   };
 }
 
+function strategyEvaluationStartIndex(config: StrategyBenchmarkConfig): number {
+  switch (config.strategy ?? "ema_crossover") {
+    case "rsi_mean_reversion":
+      return (config.rsiPeriod ?? 14) + 2;
+    case "macd_momentum":
+      return (config.macdSlowPeriod ?? 26) + (config.macdSignalPeriod ?? 9);
+    case "breakout":
+      return (config.breakoutLookbackPeriod ?? 20) + 1;
+    case "ema_crossover":
+    default:
+      return config.slowEmaPeriod + 1;
+  }
+}
+
+function strategyLabel(strategy: StrategyBenchmarkConfig["strategy"]): string {
+  switch (strategy ?? "ema_crossover") {
+    case "rsi_mean_reversion": return "RSI Mean Reversion";
+    case "macd_momentum": return "MACD Momentum";
+    case "breakout": return "Breakout";
+    case "ema_crossover":
+    default: return "EMA Crossover";
+  }
+}
+
 function simulateBuyAndHold(
   candles: MarketCandle[],
   config: StrategyBenchmarkConfig,
@@ -137,7 +161,7 @@ function simulateBuyAndHold(
   id: "buy_and_hold_1x" | "buy_and_hold_risk_matched",
   dataDigest: string,
 ): BenchmarkTrackMetrics & { runId: string } {
-  const evaluationStartIndex = config.slowEmaPeriod + 1;
+  const evaluationStartIndex = strategyEvaluationStartIndex(config);
   const entryCandle = candles[evaluationStartIndex];
   const finalCandle = candles[candles.length - 1];
   if (!entryCandle || !finalCandle) {
@@ -289,9 +313,9 @@ export function runStrategyBenchmark(
       outperformedCash: strategyMetrics.totalReturnPct > cash.totalReturnPct,
     },
     assumptions: [
-      "EMA Crossover and all benchmarks use the same validated contiguous closed-candle series and the same active evaluation period, beginning at the first candle where the EMA engine may evaluate a completed-candle signal.",
+      "${strategyLabel(config.strategy)} and all benchmarks use the same validated contiguous closed-candle series and the same active evaluation period, beginning at the first candle where the selected strategy may evaluate a completed-candle signal.",
       "Buy & Hold 1x invests the full starting notional at the first evaluation candle open and closes at the final candle close.",
-      "Risk-matched Buy & Hold uses a fixed initial exposure fraction equal to min(1, riskBps / stopLossBps); this matches the EMA engine's initial target notional ratio, not its dynamic position-by-position exposure.",
+      "Risk-matched Buy & Hold uses a fixed initial exposure fraction equal to min(1, riskBps / stopLossBps); this is a static comparison assumption, not dynamic replication of the selected strategy's position sizing.",
       "Both Buy & Hold tracks apply adverse entry and exit slippage and charge fees on entry and exit. They do not use EMA stops, targets or reversal signals.",
       "Cash control holds the full starting capital without trades, fees or market exposure.",
       "Maximum drawdown is calculated from marked-to-market equity across candle closes and includes entry costs and final exit costs.",
