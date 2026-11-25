@@ -69,6 +69,17 @@ describe("walk-forward validation engine", () => {
     expect(result.windows.every(window => window.validation.runId.length > 0)).toBe(true);
     expect(result.executionEligible).toBe(false);
   });
+  it("runs MACD through independent walk-forward folds with MACD warm-up", () => {
+    const result = runWalkForwardValidation(series(closes), {
+      ...config, strategy: "macd_momentum", macdFastPeriod: 3,
+      macdSlowPeriod: 6, macdSignalPeriod: 3,
+    });
+    expect(result.strategy).toBe("macd_momentum");
+    expect(result.windows).toHaveLength(2);
+    expect(result.windows.every(window => window.validation.runId.length > 0)).toBe(true);
+    expect(result.executionEligible).toBe(false);
+  });
+
   it("scores only the out-of-sample bars while using prior training bars as warm-up", () => {
     const candles = series(closes);
     const result = runWalkForwardValidation(candles, config);
