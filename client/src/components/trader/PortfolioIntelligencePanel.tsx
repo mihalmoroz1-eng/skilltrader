@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, Play, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { MARKET_DATA_INTERVALS } from "@shared/marketData";
+import PortfolioCorrelationMatrix from "./PortfolioCorrelationMatrix";
 import Portfolio3DMap from "./Portfolio3DMap";
 import Portfolio3DConcentration from "./Portfolio3DConcentration";
 import Portfolio3DStress from "./Portfolio3DStress";
@@ -103,6 +104,7 @@ export default function PortfolioIntelligencePanel() {
                 <div><span>Крупнейшая доля</span><strong>{pct(result.portfolio.concentration.largestWeightPct)}</strong></div>
               </div>
               <div className="portfolio-subtitle"><BarChart3 size={14} /> Корреляция доходностей по совпадающим свечам</div>
+              <PortfolioCorrelationMatrix correlations={result.correlations} />
               <Portfolio3DMap correlations={result.correlations} exposure={result.portfolio.symbolExposure} />
               <Portfolio3DConcentration exposure={result.portfolio.symbolExposure} largestSymbol={result.portfolio.concentration.largestSymbol} largestWeightPct={result.portfolio.concentration.largestWeightPct} herfindahlIndex={result.portfolio.concentration.herfindahlIndex} grossExposure={result.portfolio.grossExposure} grossExposureUtilizationBps={result.portfolio.grossExposureUtilizationBps} grossExposureLimitBps={result.portfolio.grossExposureLimitBps} withinConfiguredGrossExposure={result.portfolio.withinConfiguredGrossExposure} />
               <Portfolio3DStress scenarios={result.portfolio.stressScenarios} equity={result.portfolio.equity} markToMarketAvailable={result.portfolio.markToMarketAvailable} accountAvailable={result.portfolio.accountAvailable} />
