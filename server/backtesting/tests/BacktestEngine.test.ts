@@ -94,6 +94,17 @@ describe("historical backtesting engine", () => {
     expect(result.trades[1].exitTime).toBe(candles[8].openTime);
   });
 
+  it("selects RSI from the public backtest configuration", () => {
+    const candles = series([100, 90, 80, 90, 100, 110, 100, 90, 80, 70]);
+    const result = runBacktest(candles, {
+      ...config, strategy: "rsi_mean_reversion", rsiPeriod: 2,
+      rsiOversoldLevel: 30, rsiOverboughtLevel: 70, allowShort: true,
+      stopLossBps: 2_000, takeProfitBps: 5_000,
+    });
+    expect(result.strategy).toBe("rsi_mean_reversion");
+    expect(result.trades.map(trade => trade.side)).toEqual(["LONG", "SHORT"]);
+    expect(result.executionEligible).toBe(false);
+  });
   it("binds run identity to the selected strategy and its parameters", () => {
     const candles = series([100, 90, 80, 90, 100, 110, 100, 90, 80, 70]);
     const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, ...executionConfig } = {
