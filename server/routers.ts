@@ -365,8 +365,7 @@ export const appRouter = router({
           if (candles.length > 50_000) {
             throw new StrategyPortfolioInputError("Strategy portfolio intelligence is limited to 50,000 historical candles");
           }
-          const { strategy: _selectedStrategy, ...portfolioConfig } = input;
-          return runStrategyPortfolioIntelligence(candles, portfolioConfig);
+          return runStrategyPortfolioIntelligence(candles, input);
         } catch (error) {
           if (error instanceof StrategyPortfolioInputError || error instanceof WalkForwardInputError ||
               error instanceof BacktestInputError || error instanceof HistoricalDataRequestError) {
