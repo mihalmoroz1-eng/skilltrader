@@ -39,13 +39,15 @@ export default function HistoricalBacktestPanel() {
   const [stopLossBps, setStopLossBps] = useState("200");
   const [takeProfitBps, setTakeProfitBps] = useState("400");
   const [allowShort, setAllowShort] = useState(false);
-  const [strategy, setStrategy] = useState<"ema_crossover" | "rsi_mean_reversion" | "macd_momentum">("ema_crossover");
+  const [strategy, setStrategy] = useState<"ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout">("ema_crossover");
   const [rsiPeriod, setRsiPeriod] = useState("14");
   const [rsiOversoldLevel, setRsiOversoldLevel] = useState("30");
   const [rsiOverboughtLevel, setRsiOverboughtLevel] = useState("70");
   const [macdFastPeriod, setMacdFastPeriod] = useState("12");
   const [macdSlowPeriod, setMacdSlowPeriod] = useState("26");
   const [macdSignalPeriod, setMacdSignalPeriod] = useState("9");
+  const [breakoutLookbackPeriod, setBreakoutLookbackPeriod] = useState("20");
+  const [breakoutBufferBps, setBreakoutBufferBps] = useState("10");
 
   const startTime = Date.parse(`${startDate}T00:00:00.000Z`);
   const endTime = Date.parse(`${endDate}T23:59:59.999Z`);
@@ -73,7 +75,7 @@ export default function HistoricalBacktestPanel() {
     setQueryEnabled(false);
     ingest.reset();
     backtest.reset();
-  }, [symbol, interval, startDate, endDate, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod]);
+  }, [symbol, interval, startDate, endDate, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, breakoutLookbackPeriod, breakoutBufferBps]);
 
   const loadedCandles = candles.data ?? [];
   const canBacktest = rangeValid && loadedCandles.length > 0 && loadedCandles.length <= 50_000 &&
@@ -86,7 +88,9 @@ export default function HistoricalBacktestPanel() {
     (strategy !== "rsi_mean_reversion" || (Number.isInteger(Number(rsiPeriod)) && Number(rsiPeriod) >= 2 && Number(rsiPeriod) <= 100 &&
       Number.isInteger(Number(rsiOversoldLevel)) && Number(rsiOversoldLevel) >= 5 && Number(rsiOversoldLevel) <= 45 &&
       Number.isInteger(Number(rsiOverboughtLevel)) && Number(rsiOverboughtLevel) >= 55 && Number(rsiOverboughtLevel) <= 95 &&
-      Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10));
+      Number(rsiOverboughtLevel) - Number(rsiOversoldLevel) >= 10)) &&
+    (strategy !== "breakout" || (Number.isInteger(Number(breakoutLookbackPeriod)) && Number(breakoutLookbackPeriod) >= 2 && Number(breakoutLookbackPeriod) <= 500 &&
+      Number.isInteger(Number(breakoutBufferBps)) && Number(breakoutBufferBps) >= 0 && Number(breakoutBufferBps) <= 500));
 
   const startIngestion = () => {
     setQueryEnabled(false);
@@ -106,6 +110,7 @@ export default function HistoricalBacktestPanel() {
       feeBps: 5, slippageBps: 5, fastEmaPeriod: 20, slowEmaPeriod: 50, allowShort,
       strategy, rsiPeriod: Number(rsiPeriod), rsiOversoldLevel: Number(rsiOversoldLevel), rsiOverboughtLevel: Number(rsiOverboughtLevel),
       macdFastPeriod: Number(macdFastPeriod), macdSlowPeriod: Number(macdSlowPeriod), macdSignalPeriod: Number(macdSignalPeriod),
+      breakoutLookbackPeriod: Number(breakoutLookbackPeriod), breakoutBufferBps: Number(breakoutBufferBps),
     });
   };
 
@@ -175,10 +180,11 @@ export default function HistoricalBacktestPanel() {
           <div className="history-backtest-divider" />
           <div className="history-backtest-subheading"><div><div className="eyebrow">STRATEGY ENGINE</div><h3>Параметры backtest</h3></div><span>1x exposure cap</span></div>
           <div className="history-backtest-settings">
-            <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion" | "macd_momentum")}>
+            <label>Стратегия<select value={strategy} onChange={event => setStrategy(event.target.value as "ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout")}>
               <option value="ema_crossover">EMA Crossover</option>
               <option value="rsi_mean_reversion">RSI Mean Reversion</option>
               <option value="macd_momentum">MACD Momentum</option>
+              <option value="breakout">Breakout</option>
             </select></label>
             {strategy === "rsi_mean_reversion" && <>
               <label>RSI Period<input type="number" min="2" max="100" value={rsiPeriod} onChange={event => setRsiPeriod(event.target.value)} /></label>
@@ -189,6 +195,10 @@ export default function HistoricalBacktestPanel() {
               <label>MACD Fast<input type="number" min="2" max="100" value={macdFastPeriod} onChange={event => setMacdFastPeriod(event.target.value)} /></label>
               <label>MACD Slow<input type="number" min="3" max="300" value={macdSlowPeriod} onChange={event => setMacdSlowPeriod(event.target.value)} /></label>
               <label>MACD Signal<input type="number" min="2" max="100" value={macdSignalPeriod} onChange={event => setMacdSignalPeriod(event.target.value)} /></label>
+            </>}
+            {strategy === "breakout" && <>
+              <label>Breakout Lookback<input type="number" min="2" max="500" value={breakoutLookbackPeriod} onChange={event => setBreakoutLookbackPeriod(event.target.value)} /></label>
+              <label>Breakout Buffer, bps<input type="number" min="0" max="500" value={breakoutBufferBps} onChange={event => setBreakoutBufferBps(event.target.value)} /></label>
             </>}
             <label>Стартовый капитал, USDT<input type="number" min="1" max="1000000000" step="0.01" value={startingCapital} onChange={event => setStartingCapital(event.target.value)} /></label>
             <label>Риск, bps<input type="number" min="1" max="1000" value={riskBps} onChange={event => setRiskBps(event.target.value)} /></label>
@@ -204,7 +214,7 @@ export default function HistoricalBacktestPanel() {
           {backtest.error && <p className="history-error">{safeError(backtest.error)}</p>}
           {backtest.data && (
             <div className="history-backtest-result">
-              <div className="history-result-heading"><strong>Результат · {backtest.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : backtest.data.strategy === "macd_momentum" ? "MACD Momentum" : "EMA Crossover"}</strong><span>{backtest.data.candlesProcessed.toLocaleString("ru-RU")} свечей · {backtest.data.trades.length} сделок</span></div>
+              <div className="history-result-heading"><strong>Результат · {backtest.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : backtest.data.strategy === "macd_momentum" ? "MACD Momentum" : backtest.data.strategy === "breakout" ? "Breakout" : "EMA Crossover"}</strong><span>{backtest.data.candlesProcessed.toLocaleString("ru-RU")} свечей · {backtest.data.trades.length} сделок</span></div>
               <div className="history-metrics">
                 <div><span>Итоговый капитал</span><strong>{money(backtest.data.metrics.finalEquity)} USDT</strong></div>
                 <div><span>Чистая прибыль</span><strong className={backtest.data.metrics.netProfit >= 0 ? "is-positive" : "is-negative"}>{money(backtest.data.metrics.netProfit)} USDT</strong></div>
