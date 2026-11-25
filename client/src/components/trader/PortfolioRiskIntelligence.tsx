@@ -40,7 +40,7 @@ function percent(value: number | null) { return value == null || !Number.isFinit
 
 export default function PortfolioRiskIntelligence({ correlations, exposure }: Props) {
   const risk = useMemo(() => calculatePortfolioRisk(correlations, exposure), [correlations, exposure]);
-  const labels: Record<"insufficient_data" | "low" | "moderate" | "high", string> = { insufficient_data: "Недостаточно данных", low: "Низкая взаимосвязанность", moderate: "Умеренная взаимосвязанность", high: "Высокая взаимосвязанность" };
+  const labels: Record<string, string> = { insufficient_data: "Недостаточно данных", low: "Низкая взаимосвязанность", moderate: "Умеренная взаимосвязанность", high: "Высокая взаимосвязанность" };
   return (
     <section className="portfolio-risk-intelligence" aria-labelledby="portfolio-risk-title">
       <header><div><span className="portfolio-3d-eyebrow">PORTFOLIO RISK INTELLIGENCE</span><h3 id="portfolio-risk-title">Взаимосвязанность открытых позиций</h3>
