@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { MarketCandle, MarketInterval } from "../../market-data/core/MarketDataTypes";
 import { validateCandles } from "../../market-data/core/MarketDataValidator";
 import { emaCrossoverStrategy, type EmaCrossoverConfig } from "../strategies/EmaCrossoverStrategy";
+import { rsiMeanReversionStrategy, type RsiMeanReversionConfig } from "../strategies/RsiMeanReversionStrategy";
 import type { BacktestStrategy, StrategySignalProvider } from "../strategies/Strategy";
 
 export type BacktestConfig = {
@@ -15,6 +16,10 @@ export type BacktestConfig = {
   slippageBps: number;
   fastEmaPeriod: number;
   slowEmaPeriod: number;
+  strategy?: "ema_crossover" | "rsi_mean_reversion";
+  rsiPeriod?: number;
+  rsiOversoldLevel?: number;
+  rsiOverboughtLevel?: number;
   allowShort: boolean;
   /** Internal evaluation boundary; preceding candles are indicator warm-up only. */
   evaluationStartIndex?: number;
@@ -34,7 +39,7 @@ export type BacktestTrade = {
   exitReason: "stop_loss" | "take_profit" | "opposite_signal" | "strategy_exit" | "end_of_data";
 };
 
-export type BacktestExecutionConfig = Omit<BacktestConfig, "fastEmaPeriod" | "slowEmaPeriod">;
+export type BacktestExecutionConfig = Omit<BacktestConfig, "fastEmaPeriod" | "slowEmaPeriod" | "strategy" | "rsiPeriod" | "rsiOversoldLevel" | "rsiOverboughtLevel">;
 
 export type BacktestResult = {
   runId: string;
@@ -125,8 +130,17 @@ function adverseExitPrice(price: number, side: "LONG" | "SHORT", slippageRate: n
 }
 
 export function runBacktest(candles: MarketCandle[], config: BacktestConfig): BacktestResult {
+  const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, strategy: _strategy, rsiPeriod: _rsiPeriod,
+    rsiOversoldLevel: _oversold, rsiOverboughtLevel: _overbought, ...executionConfig } = config;
+  if ((config.strategy ?? "ema_crossover") === "rsi_mean_reversion") {
+    const strategyConfig: RsiMeanReversionConfig = {
+      rsiPeriod: config.rsiPeriod ?? 14,
+      oversoldLevel: config.rsiOversoldLevel ?? 30,
+      overboughtLevel: config.rsiOverboughtLevel ?? 70,
+    };
+    return runBacktestWithStrategy(candles, executionConfig, rsiMeanReversionStrategy, strategyConfig);
+  }
   const strategyConfig: EmaCrossoverConfig = { fastEmaPeriod: config.fastEmaPeriod, slowEmaPeriod: config.slowEmaPeriod };
-  const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, ...executionConfig } = config;
   return runBacktestWithStrategy(candles, executionConfig, emaCrossoverStrategy, strategyConfig);
 }
 
