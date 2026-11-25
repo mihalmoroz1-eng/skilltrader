@@ -15,6 +15,10 @@ export const emaCrossoverStrategy: BacktestStrategy<EmaCrossoverConfig> = {
   id: "ema_crossover",
 
   minimumHistory(config): number {
+    if (!Number.isInteger(config.fastEmaPeriod) || !Number.isInteger(config.slowEmaPeriod) ||
+        config.fastEmaPeriod < 2 || config.slowEmaPeriod <= config.fastEmaPeriod || config.slowEmaPeriod > 300) {
+      throw new RangeError("EMA periods are invalid");
+    }
     return config.slowEmaPeriod + 2;
   },
 
