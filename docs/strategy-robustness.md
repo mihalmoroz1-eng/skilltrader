@@ -40,7 +40,7 @@ The robustness response also includes a separate, read-only analysis of marked-t
 - Per regime it reports interval count, baseline trades attributed at entry, grouped compounded interval return, annualized volatility, Sharpe, Sortino, maximum drawdown within any uninterrupted episode, and episode count.
 - Grouped compounded return combines only the observed intervals assigned to that regime. Because these intervals may be non-contiguous, it is a conditional descriptive statistic, not a continuous standalone equity curve or a realizable standalone strategy return.
 - Maximum drawdown is computed independently inside each uninterrupted episode of a regime. Episodes are never concatenated to create a synthetic drawdown path.
-- Volatility, Sharpe and Sortino require at least 30 interval observations. Sample labels are insufficient below five, limited from five through 29, and adequate at 30 or more; these are display thresholds, not statistical significance tests.
+- Volatility, Sharpe and Sortino require at least 30 interval observations. Annualization adjusts the selected candle frequency by the observed share of intervals assigned to each regime; this is a descriptive frequency approximation. Sample labels are insufficient below five, limited from five through 29, and adequate at 30 or more; these are display thresholds, not statistical significance tests.
 - Empty regime buckets return unavailable values, not zero-performance claims.
 - Transition diagnostics report observed regime-to-regime changes, transition frequency and the average marked-equity return of intervals where the regime label changed.
 - Trade counts remain entry-regime attribution and are not interchangeable with candle-interval observation counts.
