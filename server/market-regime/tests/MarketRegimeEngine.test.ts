@@ -18,6 +18,14 @@ describe("Market Regime Engine",()=>{
     expect(result.executionEligible).toBe(false);
     expect(result.exchangeOrderSent).toBe(false);
   });
+  it("classifies a persistent decline as a downtrend",()=>{
+    const result=runMarketRegimeAnalysis(candles(Array.from({length:31},(_,i)=>100-i*0.5)),config);
+    expect(result.current?.regime).toBe("downtrend");
+  });
+  it("classifies a weak but directional move as transition",()=>{
+    const result=runMarketRegimeAnalysis(candles(Array.from({length:31},(_,i)=>100+i*0.005)),config);
+    expect(result.current?.regime).toBe("transition");
+  });
   it("classifies low movement as ranging",()=>{
     const values=Array.from({length:31},(_,i)=>100+(i%2?0.02:-0.02));
     expect(runMarketRegimeAnalysis(candles(values),config).current?.regime).toBe("ranging");
@@ -32,6 +40,19 @@ describe("Market Regime Engine",()=>{
     gap[15]={...gap[15],openTime:gap[15].openTime+60_000};
     expect(()=>runMarketRegimeAnalysis(gap,config)).toThrow(MarketRegimeInputError);
     expect(()=>runMarketRegimeAnalysis(candles([100,101]),config)).toThrow(/Insufficient history/);
+  });
+  it("rejects invalid thresholds and interval candle boundaries",()=>{
+    expect(()=>runMarketRegimeAnalysis(candles(Array.from({length:31},(_,i)=>100+i*0.1)),{...config,rangeThresholdBps:100})).toThrow(/thresholds/);
+    const badCloseTime=candles(Array.from({length:31},(_,i)=>100+i*0.1));
+    badCloseTime[10]={...badCloseTime[10],closeTime:badCloseTime[10].closeTime-1};
+    expect(()=>runMarketRegimeAnalysis(badCloseTime,config)).toThrow(/close time/);
+  });
+  it("fails closed on non-finite intermediate arithmetic",()=>{
+    const extreme=Array.from({length:11},(_,i)=>{
+      const previous=i===0?1e-300:1e300, close=i===0?1e-300:1e300;
+      return {openTime:i*60_000,closeTime:(i+1)*60_000-1,open:String(previous),high:String(Math.max(previous,close)*1.001),low:String(Math.min(previous,close)*0.999),close:String(close),volume:"1",quoteVolume:"1",tradeCount:1};
+    });
+    expect(()=>runMarketRegimeAnalysis(extreme,config)).toThrow(/Non-finite/);
   });
   it("rejects malformed OHLC and returns deterministic output",()=>{
     const input=candles(Array.from({length:31},(_,i)=>100+i*0.1));
