@@ -30,7 +30,7 @@ export type BacktestTrade = {
   fees: number;
   netPnl: number;
   netReturnPct: number;
-  exitReason: "stop_loss" | "take_profit" | "opposite_signal" | "end_of_data";
+  exitReason: "stop_loss" | "take_profit" | "opposite_signal" | "strategy_exit" | "end_of_data";
 };
 
 export type BacktestResult = {
@@ -199,13 +199,20 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
     const signal = signalProvider.signalAt(i - 1);
     const crossUp = signal === "LONG";
     const crossDown = signal === "SHORT";
+    const strategyExit = signal === "EXIT";
 
     const hadPositionAtStart = position !== null;
-    if (position && ((position.side === "LONG" && crossDown) || (position.side === "SHORT" && crossUp))) {
-      closePosition(candle, Number(candle.open), candle.openTime, "opposite_signal");
+    if (position && (strategyExit ||
+        (position.side === "LONG" && crossDown) || (position.side === "SHORT" && crossUp))) {
+      closePosition(
+        candle,
+        Number(candle.open),
+        candle.openTime,
+        strategyExit ? "strategy_exit" : "opposite_signal",
+      );
     }
 
-    if (!hadPositionAtStart && !position && (crossUp || (config.allowShort && crossDown))) {
+    if (!hadPositionAtStart && !position && !strategyExit && (crossUp || (config.allowShort && crossDown))) {
       const side = crossUp ? "LONG" : "SHORT";
       const entryPrice = adverseEntryPrice(Number(candle.open), side, slippageRate);
       const riskBudget = equity * riskRate;
