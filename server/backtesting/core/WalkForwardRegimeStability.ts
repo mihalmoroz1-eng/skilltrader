@@ -22,6 +22,20 @@ export type RegimeStabilityBucket = {
   medianSharpeRatio: number | null;
   worstSortinoRatio: number | null;
   medianSortinoRatio: number | null;
+  stabilityScore: {
+    score: number | null;
+    rating: "high" | "moderate" | "low" | "insufficient_evidence";
+    evidence: "insufficient" | "limited" | "moderate" | "strong";
+    components: {
+      foldCoverage: number;
+      sampleAdequacy: number;
+      positiveReturnConsistency: number | null;
+      dispersionControl: number | null;
+    };
+    weightsPct: { foldCoverage: 25; sampleAdequacy: 25; positiveReturnConsistency: 25; dispersionControl: 25 };
+    dispersionScalePct: 5;
+    scoringVersion: "1.0";
+  };
 };
 
 export type WalkForwardRegimeStability = {
@@ -109,6 +123,51 @@ export function aggregateWalkForwardRegimeStability(
       medianSharpeRatio: aggregate(sharpes, "median"),
       worstSortinoRatio: aggregate(sortinos, "worst"),
       medianSortinoRatio: aggregate(sortinos, "median"),
+      stabilityScore: (() => {
+        const sampleAdequacy = observedCount > 0
+          ? observed.filter(item => item.bucket.sampleStatus === "adequate_sample").length / observedCount * 100
+          : 0;
+        const positiveConsistency = validReturns.length >= 2
+          ? positiveReturnFolds / validReturns.length * 100
+          : null;
+        const dispersion = aggregate(returns, "stddev");
+        const medianReturn = aggregate(returns, "median");
+        const dispersionControl = dispersion !== null && medianReturn !== null
+          ? 100 / (1 + dispersion / (Math.abs(medianReturn) + 5))
+          : null;
+        const evidence = observedCount < 3 ? "insufficient" as const
+          : observedCount < 5 ? "limited" as const
+          : "moderate" as const;
+        const score = observedCount >= 3 && positiveConsistency !== null && dispersionControl !== null
+          ? (
+            (totalFolds > 0 ? observedCount / totalFolds * 100 : 0) +
+            sampleAdequacy + positiveConsistency + dispersionControl
+          ) / 4
+          : null;
+        const rating = score === null ? "insufficient_evidence" as const
+          : score >= 80 ? "high" as const
+          : score >= 60 ? "moderate" as const
+          : "low" as const;
+        return {
+          score: score !== null && Number.isFinite(score) ? Math.round(score * 10) / 10 : null,
+          rating,
+          evidence,
+          components: {
+            foldCoverage: totalFolds > 0 ? observedCount / totalFolds * 100 : 0,
+            sampleAdequacy,
+            positiveReturnConsistency: positiveConsistency,
+            dispersionControl,
+          },
+          weightsPct: {
+            foldCoverage: 25 as const,
+            sampleAdequacy: 25 as const,
+            positiveReturnConsistency: 25 as const,
+            dispersionControl: 25 as const,
+          },
+          dispersionScalePct: 5 as const,
+          scoringVersion: "1.0" as const,
+        };
+      })(),
     };
     for (const [key, value] of Object.entries(result)) {
       if (typeof value === "number" && !Number.isFinite(value)) {
