@@ -83,7 +83,7 @@ function calculateMaxDrawdown(values: number[]): number | null {
   return maximum;
 }
 function periodResult(points: ReturnPoint[], durationMs: number): PerformancePeriod {
-  if (points.length < MIN_OBSERVATIONS) return {
+  if (points.length === 0) return {
     status: "insufficient_history", observations: points.length,
     portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null,
   };
