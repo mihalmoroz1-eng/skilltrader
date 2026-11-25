@@ -42,6 +42,10 @@ const config = {
   validationCandles: 10,
   stepCandles: 10,
   windowCount: 2,
+  regimeLookback: 10,
+  trendThresholdBps: 100,
+  rangeThresholdBps: 50,
+  highVolatilityThresholdBps: 200,
 };
 
 describe("walk-forward validation engine", () => {
@@ -163,6 +167,39 @@ describe("walk-forward validation engine", () => {
       expect(result.metrics.validationSharpeStdDev).not.toBeNull();
     }
     expect(result.executionEligible).toBe(false);
+  });
+
+  it("reports causal per-regime OOS analytics independently for every fold", () => {
+    const longCloses = Array.from({ length: 180 }, (_, index) =>
+      100 + index * 0.12 + Math.sin(index / 3) * 2,
+    );
+    const result = runWalkForwardValidation(series(longCloses), {
+      ...config, trainingCandles: 40, validationCandles: 50, stepCandles: 50, windowCount: 2,
+      regimeLookback: 30,
+    });
+    expect(result.windows).toHaveLength(2);
+    for (const window of result.windows) {
+      const regimes = window.validation.regimePerformance;
+      expect(regimes.status).toBe("ready");
+      expect(regimes.observations).toBe(50);
+      expect(regimes.buckets).toHaveLength(5);
+      expect(regimes.buckets.reduce((sum, item) => sum + item.observations, 0)).toBe(50);
+      expect(regimes.transitions.reduce((sum, item) => sum + item.count, 0)).toBe(regimes.transitionCount);
+      expect(regimes.buckets.every(item =>
+        item.sampleStatus === (item.observations < 5 ? "insufficient_sample"
+          : item.observations < 30 ? "limited_sample" : "adequate_sample"),
+      )).toBe(true);
+      expect(regimes.buckets.filter(item => item.observations < 30)
+        .every(item => item.annualizedVolatilityPct === null &&
+          item.sharpeRatio === null && item.sortinoRatio === null)).toBe(true);
+    }
+    expect(result.executionEligible).toBe(false);
+  });
+
+  it("rejects a training window shorter than the regime lookback requirement", () => {
+    expect(() => runWalkForwardValidation(series(closes), {
+      ...config, trainingCandles: 8, regimeLookback: 30,
+    })).toThrow(/regime lookback/);
   });
 
   it("does not invent Sharpe or Sortino for a zero-variance fold", () => {
