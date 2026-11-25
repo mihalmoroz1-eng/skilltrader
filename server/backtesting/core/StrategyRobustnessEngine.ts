@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
+import { analyzeRegimePerformance, type RegimePerformanceAnalytics } from "./RegimePerformanceAnalytics";
 import { classifyMarketRegimeWindow, MarketRegimeClassificationError, type CanonicalMarketRegime } from "../../market-regime/core/MarketRegimeClassifier";
 import {
   runBacktest,
@@ -74,6 +75,7 @@ export type StrategyRobustnessResult = {
   costScenarios: RobustnessCostScenario[];
   parameterScenarios: RobustnessParameterScenario[];
   regimes: RobustnessRegimeResult[];
+  regimePerformance: RegimePerformanceAnalytics;
   metrics: {
     worstCostStressReturnPct: number;
     costStressReturnChangePct: number;
@@ -309,6 +311,18 @@ export function runStrategyRobustness(
   const parameters = runParameterScenarios(candles, backtestConfig, baseline.metrics.totalReturnPct);
   const regimeConfig = { regimeLookback, trendThresholdBps, rangeThresholdBps, highVolatilityThresholdBps };
   const regimes = summarizeRegimes(candles, baseline, config);
+  const regimePerformance = analyzeRegimePerformance(
+    candles,
+    baseline.equityCurve,
+    regimes.map(item => ({ id: item.id, tradeCount: item.tradeCount })),
+    {
+      interval: config.interval,
+      lookback: regimeLookback,
+      trendThresholdBps,
+      rangeThresholdBps,
+      highVolatilityThresholdBps,
+    },
+  );
   const parameterReturns = parameters.map(item => item.returnPct);
   const costReturns = cost.scenarios.map(item => item.returnPct);
   const worstCostStressReturnPct = Math.min(...costReturns);
@@ -352,6 +366,7 @@ export function runStrategyRobustness(
     costScenarios: cost.scenarios,
     parameterScenarios: parameters,
     regimes,
+    regimePerformance,
     metrics: {
       worstCostStressReturnPct,
       costStressReturnChangePct: worstCostStressReturnPct - baseline.metrics.totalReturnPct,
@@ -372,6 +387,10 @@ export function runStrategyRobustness(
       "Regimes use the same canonical classifier as Market Regime Intelligence: rolling net move, path efficiency and average true range.",
       "Each trade is assigned the regime from exactly lookback + 1 closed candles ending strictly before its entry candle; entry and future candles are excluded.",
       "Regime attribution is descriptive by trade entry regime; it is not a separate execution simulation for each regime.",
+      "Regime performance uses close-to-close marked-equity returns classified at the current candle close; this is retrospective attribution, not a predictive signal.",
+      "Regime drawdown is measured within uninterrupted episodes only; separate episodes are never concatenated.",
+      "Regime volatility, Sharpe and Sortino require at least 30 interval observations; small samples remain explicitly limited or insufficient.",
+      "Transition interval returns are reported separately when the canonical regime label changes.",
       "Groups with fewer than five trades are marked insufficient_sample; low-count statistics are descriptive and must not be treated as reliable evidence.",
       "All scenarios use the existing backtest fill, stop-first OHLC, fee, slippage and 1x exposure rules.",
       "Results are historical research only; executionEligible=false and no PAPER or LIVE orders are created.",
