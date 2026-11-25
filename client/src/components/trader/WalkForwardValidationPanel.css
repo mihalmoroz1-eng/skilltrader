@@ -7,8 +7,8 @@
 .walk-forward-safety svg{flex:none;color:#818cf8;margin-top:1px}
 .walk-forward-controls,.walk-forward-window-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .walk-forward-controls label,.walk-forward-window-controls label{display:grid;gap:6px;color:var(--muted-foreground);font-size:11px;font-weight:600}
-.walk-forward-controls input,.walk-forward-controls select,.walk-forward-window-controls input{width:100%;min-width:0;border:1px solid var(--border);border-radius:7px;padding:9px 10px;background:var(--background);color:var(--foreground);font-size:12px;outline:none}
-.walk-forward-controls input:focus,.walk-forward-controls select:focus,.walk-forward-window-controls input:focus{border-color:#818cf8}
+.walk-forward-controls input,.walk-forward-controls select,.walk-forward-window-controls input,.walk-forward-window-controls select{width:100%;min-width:0;border:1px solid var(--border);border-radius:7px;padding:9px 10px;background:var(--background);color:var(--foreground);font-size:12px;outline:none}
+.walk-forward-controls input:focus,.walk-forward-controls select:focus,.walk-forward-window-controls input:focus,.walk-forward-window-controls select:focus{border-color:#818cf8}
 .walk-forward-extra{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:4px 0 14px;color:var(--muted-foreground);font-size:11px}
 .walk-forward-extra label{display:flex;align-items:center;gap:7px}
 .walk-forward-extra input{accent-color:#818cf8}
