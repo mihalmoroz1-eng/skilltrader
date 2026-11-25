@@ -78,7 +78,7 @@ describe("walk-forward validation engine", () => {
     const candles = series(closes);
     const result = runWalkForwardValidation(candles, config);
     expect(result.windows[0].validationEndTime).toBeLessThan(result.windows[1].validationStartTime);
-    const selected = candles.slice(candles.length - 28);
+    const selected = candles.slice(candles.length - 31);
     expect(result.windows[1].validationStartTime).toBe(selected[21].openTime);
   });
 
