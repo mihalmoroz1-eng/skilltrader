@@ -4,9 +4,11 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  Box,
   Bell,
   Check,
   ClipboardList,
+  Database,
   ChevronDown,
   CircleHelp,
   Clock3,
@@ -26,6 +28,17 @@ import {
   X,
 } from "lucide-react";
 import PriceChart from "@/components/trader/PriceChart";
+import Market3DScene from "@/components/trader/Market3DScene";
+import LiveMarketDataPanel from "@/components/trader/LiveMarketDataPanel";
+import MarketIntelligencePanel from "@/components/trader/MarketIntelligencePanel";
+import PaperExecutionPanel from "@/components/trader/PaperExecutionPanel";
+import PortfolioIntelligencePanel from "@/components/trader/PortfolioIntelligencePanel";
+import HistoricalBacktestPanel from "@/components/trader/HistoricalBacktestPanel";
+import WalkForwardValidationPanel from "@/components/trader/WalkForwardValidationPanel";
+import StrategyRobustnessPanel from "@/components/trader/StrategyRobustnessPanel";
+import StrategyBenchmarkPanel from "@/components/trader/StrategyBenchmarkPanel";
+import MarketRegimePanel from "@/components/trader/MarketRegimePanel";
+import FuturesResearchPanel from "@/components/trader/FuturesResearchPanel";
 import ScenarioChart from "@/components/trader/ScenarioChart";
 import OutcomeDistribution from "@/components/trader/OutcomeDistribution";
 import DemoJournal from "@/components/trader/DemoJournal";
@@ -52,10 +65,19 @@ const MARKETS: Market[] = [
 const NAV_ITEMS = [
   { label: "Рабочий стол", icon: LayoutDashboard, anchor: "top" },
   { label: "График цены", icon: BarChart3, anchor: "price-chart" },
+  { label: "3D обзор рынка", icon: Box, anchor: "market-3d-scene" },
   { label: "Машина времени", icon: Sparkles, anchor: "time-machine" },
   { label: "Риск и бюджет", icon: ShieldCheck, anchor: "risk-manager" },
   { label: "Журнал", icon: ClipboardList, anchor: "demo-journal" },
   { label: "Skill Trader AI", icon: Sparkles, anchor: "skill-trader-ai" },
+  { label: "PAPER Execution", icon: ShieldCheck, anchor: "paper-execution" },
+  { label: "Портфель и корреляции", icon: Activity, anchor: "portfolio-intelligence" },
+  { label: "История и Backtest", icon: Database, anchor: "historical-backtesting" },
+  { label: "Walk-Forward", icon: Target, anchor: "walk-forward-validation" },
+  { label: "Устойчивость стратегии", icon: ShieldCheck, anchor: "strategy-robustness" },
+  { label: "Сравнение стратегий", icon: BarChart3, anchor: "strategy-benchmark" },
+  { label: "Режим рынка", icon: Activity, anchor: "market-regime" },
+  { label: "Futures и Research", icon: Activity, anchor: "futures-research" },
 ];
 
 const FUTURE_MODULES = [
@@ -200,7 +222,7 @@ export default function Home() {
   const formatDirection = side === "long" ? "Покупка" : "Продажа";
 
   return (
-    <div className="app-shell" id="top">
+    <div className="app-shell st-3d-dashboard" id="top">
       <aside className={`sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark"><span>S</span><i /></div>
@@ -278,6 +300,8 @@ export default function Home() {
             </div>
           </section>
 
+          <Market3DScene candles={candles} symbol={market.symbol} timeframe={timeframe} formatPrice={priceFormatter} />
+
           <div className="market-and-form">
             <section className="panel quote-panel">
               <div className="quote-top"><div className="eyebrow">ДЕМО-КОТИРОВКА</div><span className="quote-refresh"><span className="live-pulse" />локально</span></div>
@@ -313,6 +337,16 @@ export default function Home() {
 
           <div className="main-grid">
             <div className="chart-column">
+              <LiveMarketDataPanel />
+              <MarketIntelligencePanel />
+              <PaperExecutionPanel />
+              <PortfolioIntelligencePanel />
+              <HistoricalBacktestPanel />
+              <WalkForwardValidationPanel />
+              <StrategyRobustnessPanel />
+              <StrategyBenchmarkPanel />
+              <MarketRegimePanel />
+              <FuturesResearchPanel />
               <PriceChart candles={candles} symbol={market.symbol} entry={entry} stop={stop} target={target} side={side} timeframe={timeframe} onTimeframeChange={setTimeframe} formatPrice={priceFormatter} />
               <ScenarioChart result={simulation} entry={entry} stop={stop} target={target} side={side} formatPrice={priceFormatter} isStale={!simulationIsReady} levelsValid={validLevels} />
             </div>

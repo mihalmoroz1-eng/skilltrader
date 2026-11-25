@@ -1,0 +1,38 @@
+.strategy-robustness-panel{padding:24px;margin-bottom:22px;min-width:0}
+.robustness-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px}
+.robustness-heading h2{margin:5px 0 4px;font-size:19px;font-weight:700;color:var(--foreground)}
+.robustness-heading p,.robustness-note{margin:0;color:var(--muted-foreground);font-size:12px;line-height:1.55}
+.robustness-tag{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid rgba(99,102,241,.25);border-radius:999px;padding:6px 10px;color:#818cf8;font-size:10px;font-weight:700;letter-spacing:.06em}
+.robustness-safety{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1px solid rgba(99,102,241,.2);border-radius:9px;background:rgba(99,102,241,.055);color:var(--muted-foreground);font-size:12px;line-height:1.5;margin-bottom:16px}
+.robustness-safety svg{flex:none;color:#818cf8;margin-top:1px}
+.robustness-controls,.robustness-settings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.robustness-controls label,.robustness-settings label{display:grid;gap:6px;color:var(--muted-foreground);font-size:11px;font-weight:600}
+.robustness-controls input,.robustness-controls select,.robustness-settings input{width:100%;min-width:0;border:1px solid var(--border);border-radius:7px;padding:9px 10px;background:var(--background);color:var(--foreground);font-size:12px;outline:none}
+.robustness-controls input:focus,.robustness-controls select:focus,.robustness-settings input:focus{border-color:#818cf8}
+.robustness-extra{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:4px 0 14px;color:var(--muted-foreground);font-size:11px}
+.robustness-extra label{display:flex;align-items:center;gap:7px}
+.robustness-extra input{accent-color:#818cf8}
+.robustness-extra strong{color:var(--foreground)}
+.robustness-run{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:8px;padding:10px 15px;background:#5b5bd6;color:white;font-size:12px;font-weight:700;cursor:pointer}
+.robustness-run:disabled{opacity:.5;cursor:not-allowed}
+.robustness-error{display:flex;align-items:flex-start;gap:6px;margin:8px 0;color:#e58b75;font-size:11px;line-height:1.5}
+.robustness-results{margin-top:18px;border-top:1px solid var(--border);padding-top:16px}
+.robustness-result-heading{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;color:var(--foreground);font-size:13px}
+.robustness-result-heading span{color:var(--muted-foreground);font-size:10px}
+.robustness-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.robustness-metrics>div{min-width:0;padding:10px;border:1px solid var(--border);border-radius:8px;display:grid;gap:6px}
+.robustness-metrics span{color:var(--muted-foreground);font-size:10px}
+.robustness-metrics strong{color:var(--foreground);font-size:15px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.robustness-table-section{margin-top:14px}
+.robustness-table-section h3{margin:0 0 8px;color:var(--foreground);font-size:12px;font-weight:700}
+.robustness-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px}
+.robustness-table-wrap table{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
+.robustness-table-wrap th,.robustness-table-wrap td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}
+.robustness-table-wrap th{color:var(--muted-foreground);font-weight:600;background:rgba(127,127,127,.05)}
+.robustness-table-wrap td{color:var(--foreground);font-variant-numeric:tabular-nums}
+.robustness-table-wrap tbody tr:last-child td{border-bottom:0}
+.robustness-result-foot{margin-top:12px;color:var(--muted-foreground);font-size:10px;overflow-wrap:anywhere}
+.robustness-assumptions{margin-top:10px;color:var(--muted-foreground);font-size:11px}
+.robustness-assumptions summary{cursor:pointer;color:var(--foreground);font-weight:600}
+.robustness-assumptions ul{margin:8px 0 0;padding-left:18px;line-height:1.6}
+@media(max-width:760px){.strategy-robustness-panel{padding:16px}.robustness-controls,.robustness-settings{grid-template-columns:repeat(2,minmax(0,1fr))}.robustness-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.robustness-heading{flex-direction:column}.robustness-extra,.robustness-result-heading{align-items:flex-start;flex-direction:column}}

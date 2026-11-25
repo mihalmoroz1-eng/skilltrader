@@ -1,0 +1,221 @@
+import React from "react";
+import "./PortfolioRiskIntelligence.css";
+
+type RiskIntelligence = {
+  assessment: "insufficient_data" | "low" | "moderate" | "high";
+  eligiblePairs: number;
+  totalHeldPairs: number;
+  coveragePct: number | null;
+  weightedAbsoluteCorrelationPct: number | null;
+  correlatedPairs: Array<{
+    symbolA: string;
+    symbolB: string;
+    correlation: number;
+    observations: number;
+    exposurePairWeightPct: number;
+    level: "high" | "very_high";
+  }>;
+};
+type RiskForecast = {
+  status: "ready" | "insufficient_data" | "no_exposure" | "stale_marks";
+  method: "historical_covariance_normal_approximation";
+  annualizedPortfolioVolatilityPct: number | null;
+  oneDay95VaR: string | null;
+  oneDay95VaRPctOfEquity: number | null;
+  fiveDay95VaR: string | null;
+  fiveDay95VaRPctOfEquity: number | null;
+  observations: number;
+  annualizationPeriods: number;
+  symbols: Array<{ symbol: string; annualizedVolatilityPct: number | null; observations: number }>;
+};
+type DrawdownIntelligence = {
+  status: "ready" | "insufficient_data" | "no_exposure" | "stale_marks";
+  method: "historical_static_current_exposure";
+  observations: number;
+  maxDrawdownPct: number | null;
+  currentDrawdownPct: number | null;
+  maxDrawdownDurationObservations: number | null;
+  currentDrawdownDurationObservations: number | null;
+  maxDrawdownRecovered: boolean | null;
+  episodeCount: number;
+  recoveredEpisodeCount: number;
+  unrecoveredEpisodeCount: number;
+  averageRecoveryObservations: number | null;
+  longestEpisodeObservations: number | null;
+  curve: Array<{ time: number; drawdownPct: number }>;
+  recentEpisodes: Array<{
+    peakTime: number; troughTime: number; recoveryTime: number | null;
+    depthPct: number; durationObservations: number; recovered: boolean;
+  }>;
+};
+type PerformancePeriod = {
+  status: "ready" | "insufficient_history";
+  observations: number;
+  portfolioReturnPct: number | null;
+  benchmarkReturnPct: number | null;
+  excessReturnPct: number | null;
+};
+type PerformanceIntelligence = {
+  status: "ready" | "insufficient_data" | "no_exposure" | "stale_marks";
+  method: "historical_static_current_exposure";
+  observations: number;
+  sampleStartTime: number | null;
+  sampleEndTime: number | null;
+  totalReturnPct: number | null;
+  buyAndHoldReturnPct: number | null;
+  excessReturnPct: number | null;
+  sharpeRatio: number | null;
+  sortinoRatio: number | null;
+  riskFreeRatePct: 0;
+  annualizationPeriods: number;
+  maxDrawdownPct: number | null;
+  returnToMaxDrawdown: number | null;
+  periods: { oneDay: PerformancePeriod; sevenDay: PerformancePeriod; thirtyDay: PerformancePeriod };
+  benchmarkMethod: "static_long_gross_exposure_weights";
+};
+type Props = { risk: RiskIntelligence; forecast: RiskForecast; drawdown: DrawdownIntelligence; performance?: PerformanceIntelligence };
+const EMPTY_PERFORMANCE: PerformanceIntelligence = {
+  status: "insufficient_data", method: "historical_static_current_exposure",
+  observations: 0, sampleStartTime: null, sampleEndTime: null,
+  totalReturnPct: null, buyAndHoldReturnPct: null, excessReturnPct: null,
+  sharpeRatio: null, sortinoRatio: null, riskFreeRatePct: 0, annualizationPeriods: 0,
+  maxDrawdownPct: null, returnToMaxDrawdown: null,
+  periods: {
+    oneDay: { status: "insufficient_history", observations: 0, portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null },
+    sevenDay: { status: "insufficient_history", observations: 0, portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null },
+    thirtyDay: { status: "insufficient_history", observations: 0, portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null },
+  },
+  benchmarkMethod: "static_long_gross_exposure_weights",
+};
+
+function dateLabel(value: number) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+function percent(value: number | null) {
+  return value == null || !Number.isFinite(value) ? "—" : value.toFixed(1) + "%";
+}
+
+export default function PortfolioRiskIntelligence({ risk, forecast, drawdown, performance = EMPTY_PERFORMANCE }: Props) {
+  const curveMax = Math.max(1, ...drawdown.curve.map(point => point.drawdownPct));
+  const curvePoints = drawdown.curve.map((point, index) => {
+    const x = drawdown.curve.length <= 1 ? 0 : index / (drawdown.curve.length - 1) * 600;
+    const y = 110 - point.drawdownPct / curveMax * 100;
+    return x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
+  const labels: Record<RiskIntelligence["assessment"], string> = {
+    insufficient_data: "Недостаточно данных", low: "Низкая взаимосвязанность",
+    moderate: "Умеренная взаимосвязанность", high: "Высокая взаимосвязанность",
+  };
+  return (
+    <section className="portfolio-risk-intelligence" aria-labelledby="portfolio-risk-title">
+      <header><div><span className="portfolio-3d-eyebrow">PORTFOLIO RISK INTELLIGENCE</span><h3 id="portfolio-risk-title">Взаимосвязанность открытых позиций</h3>
+        <p>Серверный расчёт только по парам активов с открытой PAPER-экспозицией и актуальными mark-price.</p></div>
+        <span className={"pri-assessment " + risk.assessment}>{labels[risk.assessment]}</span></header>
+      <div className="pri-metrics">
+        <div><span>Средняя |корреляция| с весами</span><strong>{percent(risk.weightedAbsoluteCorrelationPct)}</strong></div>
+        <div><span>Покрытие пар</span><strong>{risk.eligiblePairs}/{risk.totalHeldPairs}</strong></div>
+        <div><span>Данные по парам</span><strong>{percent(risk.coveragePct)}</strong></div>
+      </div>
+      {risk.correlatedPairs.length ? <div className="pri-pairs">
+        <strong>Пары с корреляцией от 0.80 по модулю</strong>
+        {risk.correlatedPairs.map(pair => <div className="pri-pair" key={pair.symbolA + pair.symbolB}>
+          <span>{pair.symbolA} / {pair.symbolB}</span><b>{pair.correlation > 0 ? "+" : ""}{pair.correlation.toFixed(2)}</b>
+          <small>{pair.level === "very_high" ? "Очень высокая" : "Высокая"} · {pair.observations} наблюдений · вес пары {percent(pair.exposurePairWeightPct)}</small>
+        </div>)}
+      </div> : <p className="pri-empty">{risk.totalHeldPairs === 0
+        ? "Нет двух и более позиций с доступной актуальной экспозицией для парного анализа."
+        : "Нет готовых пар с корреляцией ≥ 0.80 по модулю."}</p>}
+      <div className="pri-forecast">
+        <div className="pri-forecast-head"><div><span className="portfolio-3d-eyebrow">PORTFOLIO RISK FORECAST</span><h4>Историческая волатильность и VaR</h4></div>
+          <span className={"pri-assessment " + (forecast.status === "ready" ? "low" : "insufficient_data")}>{forecast.status === "ready" ? "Расчёт готов" : forecast.status === "stale_marks" ? "Котировки устарели" : forecast.status === "no_exposure" ? "Нет экспозиции" : "Недостаточно истории"}</span></div>
+        {forecast.status === "ready" ? <>
+          <div className="pri-metrics pri-forecast-metrics">
+            <div><span>Годовая волатильность портфеля</span><strong>{percent(forecast.annualizedPortfolioVolatilityPct)}</strong></div>
+            <div><span>95% VaR · 1 день</span><strong>{forecast.oneDay95VaR ?? "—"}</strong><small>{percent(forecast.oneDay95VaRPctOfEquity)} от equity</small></div>
+            <div><span>95% VaR · 5 дней</span><strong>{forecast.fiveDay95VaR ?? "—"}</strong><small>{percent(forecast.fiveDay95VaRPctOfEquity)} от equity</small></div>
+          </div>
+          <div className="pri-pairs"><strong>Годовая волатильность по активам</strong>
+            {forecast.symbols.map(item => <div className="pri-pair pri-vol-row" key={item.symbol}><span>{item.symbol}</span><b>{percent(item.annualizedVolatilityPct)}</b><small>{item.observations} последовательных доходностей</small></div>)}
+          </div>
+          <p className="pri-foot">Общих наблюдений: {forecast.observations}. VaR — статистическая оценка при нормальном приближении и sqrt(time), не максимальный возможный убыток и не гарантия результата.</p>
+        </> : <p className="pri-empty">{forecast.status === "stale_marks"
+          ? "Оценка скрыта: нет актуальных mark-price. Старые котировки не используются."
+          : forecast.status === "no_exposure" ? "Нет открытой PAPER-экспозиции для оценки портфельной волатильности."
+            : "Для каждого открытого актива требуется минимум 30 последовательных доходностей и общая синхронная история."}</p>}
+      </div>
+      <div className="pri-drawdown">
+        <div className="pri-forecast-head"><div><span className="portfolio-3d-eyebrow">PORTFOLIO DRAWDOWN INTELLIGENCE</span><h4>Историческая просадка</h4></div>
+          <span className={"pri-assessment " + (drawdown.status === "ready" ? "low" : "insufficient_data")}>{drawdown.status === "ready" ? "Расчёт готов" : drawdown.status === "stale_marks" ? "Котировки устарели" : drawdown.status === "no_exposure" ? "Нет экспозиции" : "Недостаточно истории"}</span></div>
+        {drawdown.status === "ready" ? <>
+          <div className="pri-metrics pri-forecast-metrics">
+            <div><span>Максимальная просадка</span><strong>{percent(drawdown.maxDrawdownPct)}</strong></div>
+            <div><span>Текущая просадка</span><strong>{percent(drawdown.currentDrawdownPct)}</strong></div>
+            <div><span>Длительность максимальной</span><strong>{drawdown.maxDrawdownDurationObservations ?? "—"} баров</strong><small>{drawdown.maxDrawdownRecovered ? "Восстановлена до прежнего пика" : "На конец истории не восстановлена"}</small></div>
+          </div>
+          <div className="pri-recovery-summary">
+            <div><span>Всего периодов ниже пика</span><strong>{drawdown.episodeCount}</strong></div>
+            <div><span>Восстановлено</span><strong>{drawdown.recoveredEpisodeCount}</strong></div>
+            <div><span>Не восстановлено</span><strong>{drawdown.unrecoveredEpisodeCount}</strong></div>
+            <div><span>Среднее восстановление</span><strong>{drawdown.averageRecoveryObservations == null ? "—" : drawdown.averageRecoveryObservations.toFixed(1) + " баров"}</strong></div>
+          </div>
+          <div className="pri-recovery-chart">
+            <div className="pri-chart-head"><strong>История просадки</strong><small>Глубина от предыдущего максимума · выборка до 120 точек</small></div>
+            {drawdown.curve.length > 1 ? <svg viewBox="0 0 600 120" role="img" aria-label="График исторической просадки портфеля">
+              <line x1="0" y1="10" x2="600" y2="10" />
+              <line x1="0" y1="110" x2="600" y2="110" />
+              <polyline points={curvePoints} />
+            </svg> : <p className="pri-empty">Недостаточно точек для графика.</p>}
+            <div className="pri-chart-scale"><span>0%</span><span>{percent(curveMax)}</span></div>
+          </div>
+          <div className="pri-recovery-episodes">
+            <strong>Сравнение периодов просадки</strong>
+            {drawdown.recentEpisodes.length ? drawdown.recentEpisodes.map((episode, index) => <div className="pri-episode" key={episode.peakTime + "-" + index}>
+              <span>{dateLabel(episode.peakTime)} → {dateLabel(episode.troughTime)}</span>
+              <b>{percent(episode.depthPct)}</b>
+              <small>{episode.durationObservations} баров · {episode.recovered && episode.recoveryTime != null
+                ? "восстановлена " + dateLabel(episode.recoveryTime) : "ещё не восстановлена"}</small>
+            </div>) : <p className="pri-empty">Исторических периодов ниже пика не обнаружено.</p>}
+          </div>
+          <p className="pri-foot">Текущая просадка длится: {drawdown.currentDrawdownDurationObservations == null ? "нет открытой просадки" : drawdown.currentDrawdownDurationObservations + " баров"}. Наблюдений: {drawdown.observations}. Восстановление засчитывается только после достижения предыдущего максимума.</p>
+        </> : <p className="pri-empty">{drawdown.status === "stale_marks"
+          ? "Просадка скрыта: нет актуальных mark-price."
+          : drawdown.status === "no_exposure" ? "Нет открытой PAPER-экспозиции."
+            : "Нужно не менее 30 общих последовательных доходностей по всем открытым активам."}</p>}
+        <p className="pri-foot">История реконструирована с постоянными текущими signed net exposure weights. Это приближение, а не фактическая историческая NAV.</p>
+      </div>
+      <div className="pri-performance">
+        <div className="pri-forecast-head"><div><span className="portfolio-3d-eyebrow">PORTFOLIO PERFORMANCE INTELLIGENCE</span><h4>Доходность и эффективность</h4></div>
+          <span className={"pri-assessment " + (performance.status === "ready" ? "low" : "insufficient_data")}>{performance.status === "ready" ? "Расчёт готов" : performance.status === "no_exposure" ? "Нет экспозиции" : performance.status === "stale_marks" ? "Котировки устарели" : "Недостаточно истории"}</span></div>
+        {performance.status === "ready" ? <>
+          <div className="pri-metrics pri-performance-metrics">
+            <div><span>Доходность реконструированного портфеля</span><strong>{percent(performance.totalReturnPct)}</strong></div>
+            <div><span>Buy & Hold · long</span><strong>{percent(performance.buyAndHoldReturnPct)}</strong></div>
+            <div><span>Избыточная доходность</span><strong>{percent(performance.excessReturnPct)}</strong></div>
+            <div><span>Sharpe</span><strong>{performance.sharpeRatio == null ? "—" : performance.sharpeRatio.toFixed(2)}</strong></div>
+            <div><span>Sortino</span><strong>{performance.sortinoRatio == null ? "—" : performance.sortinoRatio.toFixed(2)}</strong></div>
+            <div><span>Доходность / max drawdown</span><strong>{performance.returnToMaxDrawdown == null ? "—" : performance.returnToMaxDrawdown.toFixed(2)}</strong></div>
+          </div>
+          <div className="pri-pairs">
+            <strong>Доходность по календарным периодам</strong>
+            {([
+              ["1 день", performance.periods.oneDay],
+              ["7 дней", performance.periods.sevenDay],
+              ["30 дней", performance.periods.thirtyDay],
+            ] as const).map(([label, item]) => <div className="pri-pair pri-performance-row" key={label}>
+              <span>{label}</span><b>{percent(item.portfolioReturnPct)}</b>
+              <small>{item.status === "ready"
+                ? "Buy & Hold " + percent(item.benchmarkReturnPct) + " · excess " + percent(item.excessReturnPct) + " · " + item.observations + " наблюдений"
+                : "Нет полного непрерывного покрытия периода (" + item.observations + " наблюдений)"}</small>
+            </div>)}
+          </div>
+          <p className="pri-foot">Выборка: {performance.observations} последовательных интервалов. Sharpe/Sortino: безрисковая ставка 0%, годовая нормализация по выбранному интервалу. Buy & Hold использует те же активы с постоянными gross-весами и только LONG-направлением.</p>
+        </> : <p className="pri-empty">{performance.status === "stale_marks"
+          ? "Доходность скрыта: нет актуальных mark-price."
+          : performance.status === "no_exposure" ? "Нет открытой PAPER-экспозиции для реконструкции доходности."
+            : "Нужно минимум 30 общих последовательных доходностей по всем открытым активам."}</p>}
+        <p className="pri-foot">Метод — историческая реконструкция с постоянными текущими signed net exposure weights, а не фактическая NAV и не история реальных изменений позиций. Показатели не являются прогнозом или рекомендацией.</p>
+      </div>
+      <p className="pri-foot">Показатель описывает историческую совместную динамику доходностей, а не вероятность убытка. Он не учитывает волатильность, ликвидацию, плечо или изменение корреляций. Это предупреждающая аналитика, не команда на изменение позиций.</p>
+    </section>
+  );
+}
