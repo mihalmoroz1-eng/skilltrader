@@ -143,14 +143,20 @@ export function analyzeWalkForwardRegimeAdaptive(
     const excessPct = excessReturns.map(value => value * 100);
     const strategyPct = (strategyGross - 1) * 100;
     const benchmarkPct = (benchmarkGross - 1) * 100;
+    const finiteStrategyPct = Number.isFinite(strategyPct) ? strategyPct : null;
+    const finiteBenchmarkPct = Number.isFinite(benchmarkPct) ? benchmarkPct : null;
+    const excessReturnPctPoints = finiteStrategyPct !== null && finiteBenchmarkPct !== null &&
+      Number.isFinite(finiteStrategyPct - finiteBenchmarkPct)
+      ? finiteStrategyPct - finiteBenchmarkPct
+      : null;
     const foldResults: RegimeAdaptiveFold[] = observations > 0 ? [{
       index: foldIndex,
-      strategyReturnPct: Number.isFinite(strategyPct) ? strategyPct : null,
-      buyAndHoldGrossReturnPct: Number.isFinite(benchmarkPct) ? benchmarkPct : null,
-      excessReturnPctPoints: Number.isFinite(strategyPct - benchmarkPct) ? strategyPct - benchmarkPct : null,
+      strategyReturnPct: finiteStrategyPct,
+      buyAndHoldGrossReturnPct: finiteBenchmarkPct,
+      excessReturnPctPoints,
       observations,
       sampleStatus: sampleStatus(observations),
-      strategyOutperformed: Number.isFinite(strategyPct - benchmarkPct) ? strategyPct > benchmarkPct : null,
+      strategyOutperformed: excessReturnPctPoints === null ? null : excessReturnPctPoints > 0,
     }] : [];
     const excessFold = foldResults[0]?.excessReturnPctPoints;
     const finiteExcessReturns = foldResults.flatMap(item =>
@@ -193,9 +199,17 @@ export function aggregateWalkForwardRegimeAdaptive(
       fold.buckets.find(bucket => bucket.regime === regime)?.foldResults ?? [],
     );
     const observations = foldResults.reduce((sum, item) => sum + item.observations, 0);
-    const strategies = foldResults.flatMap(item => item.strategyReturnPct === null ? [] : [item.strategyReturnPct]);
-    const benchmarks = foldResults.flatMap(item => item.buyAndHoldGrossReturnPct === null ? [] : [item.buyAndHoldGrossReturnPct]);
-    const excess = foldResults.flatMap(item => item.excessReturnPctPoints === null ? [] : [item.excessReturnPctPoints]);
+    const strategies = foldResults.flatMap(item =>
+      item.strategyReturnPct !== null && Number.isFinite(item.strategyReturnPct) ? [item.strategyReturnPct] : [],
+    );
+    const benchmarks = foldResults.flatMap(item =>
+      item.buyAndHoldGrossReturnPct !== null && Number.isFinite(item.buyAndHoldGrossReturnPct)
+        ? [item.buyAndHoldGrossReturnPct] : [],
+    );
+    const excess = foldResults.flatMap(item =>
+      item.excessReturnPctPoints !== null && Number.isFinite(item.excessReturnPctPoints)
+        ? [item.excessReturnPctPoints] : [],
+    );
     const positive = excess.filter(value => value > 0).length;
     return {
       regime,
