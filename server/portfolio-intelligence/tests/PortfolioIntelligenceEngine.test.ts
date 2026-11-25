@@ -65,7 +65,7 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     expect(result.correlations[0].observations).toBe(19);
   });
   it("uses only exact common timestamps", () => {
-    const result = run({ eth: candles("ETHUSDT", Array.from({ length: 40 }, (_, i) => 200 + i * 2), Array.from({ length: 40 }, (_, i) => i % 2 === 0)) });
+    const result = run({ eth: candles("ETHUSDT", Array.from({ length: 40 }, (_, i) => 200 + i * 2), Array.from({ length: 40 }, (_, i) => i).filter(i => i % 2 === 0)) });
     expect(result.correlations[0].observations).toBe(0);
     expect(result.correlations[0].correlation).toBeNull();
   });
