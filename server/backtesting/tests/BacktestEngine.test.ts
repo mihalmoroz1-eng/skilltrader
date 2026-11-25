@@ -3,6 +3,7 @@ import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
 import { BacktestInputError, runBacktest, runBacktestWithStrategy } from "../core/BacktestEngine";
 import { rsiMeanReversionStrategy } from "../strategies/RsiMeanReversionStrategy";
 import { emaCrossoverStrategy } from "../strategies/EmaCrossoverStrategy";
+import { macdMomentumStrategy } from "../strategies/MacdMomentumStrategy";
 
 function series(closes: number[]): MarketCandle[] {
   const start = 1_700_000_000_000;
@@ -105,6 +106,24 @@ describe("historical backtesting engine", () => {
     expect(result.trades.map(trade => trade.side)).toEqual(["LONG", "SHORT"]);
     expect(result.executionEligible).toBe(false);
   });
+  it("selects MACD through the public backtest runner", () => {
+    const closes = [
+      ...Array.from({ length: 24 }, (_, index) => 120 - index * 2),
+      ...Array.from({ length: 20 }, (_, index) => 72 + index * 3),
+      ...Array.from({ length: 20 }, (_, index) => 129 - index * 3),
+    ];
+    const candles = series(closes);
+    const result = runBacktest(candles, {
+      ...config, strategy: "macd_momentum", macdFastPeriod: 3,
+      macdSlowPeriod: 6, macdSignalPeriod: 3, allowShort: true,
+      stopLossBps: 2_000, takeProfitBps: 5_000,
+    });
+    expect(result.strategy).toBe("macd_momentum");
+    expect(result.executionEligible).toBe(false);
+    expect(result.trades.length).toBeGreaterThan(0);
+    expect(result.trades.every(trade => trade.entryTime > candles[8].openTime)).toBe(true);
+  });
+
   it("binds run identity to the selected strategy and its parameters", () => {
     const candles = series([100, 90, 80, 90, 100, 110, 100, 90, 80, 70]);
     const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, ...executionConfig } = {
