@@ -32,6 +32,15 @@ describe("strategy robustness request schema", () => {
     expect(robustnessRequestSchema.safeParse({ ...base, slippageBps: 51 }).success).toBe(false);
   });
 
+  it("rejects inconsistent canonical regime thresholds", () => {
+    expect(robustnessRequestSchema.safeParse({
+      ...base, rangeThresholdBps: 100, trendThresholdBps: 100,
+    }).success).toBe(false);
+    expect(robustnessRequestSchema.safeParse({
+      ...base, highVolatilityThresholdBps: 0,
+    }).success).toBe(false);
+  });
+
   it("rejects unknown fields", () => {
     expect(robustnessRequestSchema.safeParse({ ...base, tuneForBestResult: true }).success).toBe(false);
   });
