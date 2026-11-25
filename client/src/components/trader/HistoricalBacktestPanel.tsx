@@ -204,7 +204,7 @@ export default function HistoricalBacktestPanel() {
           {backtest.error && <p className="history-error">{safeError(backtest.error)}</p>}
           {backtest.data && (
             <div className="history-backtest-result">
-              <div className="history-result-heading"><strong>Результат · {backtest.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : strategy === "macd_momentum" ? "MACD Momentum" : "EMA Crossover"}</strong><span>{backtest.data.candlesProcessed.toLocaleString("ru-RU")} свечей · {backtest.data.trades.length} сделок</span></div>
+              <div className="history-result-heading"><strong>Результат · {backtest.data.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : backtest.data.strategy === "macd_momentum" ? "MACD Momentum" : "EMA Crossover"}</strong><span>{backtest.data.candlesProcessed.toLocaleString("ru-RU")} свечей · {backtest.data.trades.length} сделок</span></div>
               <div className="history-metrics">
                 <div><span>Итоговый капитал</span><strong>{money(backtest.data.metrics.finalEquity)} USDT</strong></div>
                 <div><span>Чистая прибыль</span><strong className={backtest.data.metrics.netProfit >= 0 ? "is-positive" : "is-negative"}>{money(backtest.data.metrics.netProfit)} USDT</strong></div>
