@@ -73,7 +73,20 @@ type PerformanceIntelligence = {
   periods: { oneDay: PerformancePeriod; sevenDay: PerformancePeriod; thirtyDay: PerformancePeriod };
   benchmarkMethod: "static_long_gross_exposure_weights";
 };
-type Props = { risk: RiskIntelligence; forecast: RiskForecast; drawdown: DrawdownIntelligence; performance: PerformanceIntelligence };
+type Props = { risk: RiskIntelligence; forecast: RiskForecast; drawdown: DrawdownIntelligence; performance?: PerformanceIntelligence };
+const EMPTY_PERFORMANCE: PerformanceIntelligence = {
+  status: "insufficient_data", method: "historical_static_current_exposure",
+  observations: 0, sampleStartTime: null, sampleEndTime: null,
+  totalReturnPct: null, buyAndHoldReturnPct: null, excessReturnPct: null,
+  sharpeRatio: null, sortinoRatio: null, riskFreeRatePct: 0, annualizationPeriods: 0,
+  maxDrawdownPct: null, returnToMaxDrawdown: null,
+  periods: {
+    oneDay: { status: "insufficient_history", observations: 0, portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null },
+    sevenDay: { status: "insufficient_history", observations: 0, portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null },
+    thirtyDay: { status: "insufficient_history", observations: 0, portfolioReturnPct: null, benchmarkReturnPct: null, excessReturnPct: null },
+  },
+  benchmarkMethod: "static_long_gross_exposure_weights",
+};
 
 function dateLabel(value: number) {
   return new Date(value).toISOString().slice(0, 10);
@@ -82,7 +95,7 @@ function percent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : value.toFixed(1) + "%";
 }
 
-export default function PortfolioRiskIntelligence({ risk, forecast, drawdown, performance }: Props) {
+export default function PortfolioRiskIntelligence({ risk, forecast, drawdown, performance = EMPTY_PERFORMANCE }: Props) {
   const curveMax = Math.max(1, ...drawdown.curve.map(point => point.drawdownPct));
   const curvePoints = drawdown.curve.map((point, index) => {
     const x = drawdown.curve.length <= 1 ? 0 : index / (drawdown.curve.length - 1) * 600;
