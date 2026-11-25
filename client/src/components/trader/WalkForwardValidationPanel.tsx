@@ -60,7 +60,7 @@ export default function WalkForwardValidationPanel() {
   const rangeValid = Number.isFinite(startTime) && Number.isFinite(endTime) &&
     endTime > startTime && endTime - startTime <= 366 * 86_400_000 &&
     /^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase());
-  const minimumTraining = Math.max(strategy === "ema_crossover" ? 52 : strategy === "rsi_mean_reversion" ? Number(rsiPeriod) + 3 : Number(macdSlowPeriod) + Number(macdSignalPeriod), 31);
+  const minimumTraining = Math.max(strategy === "ema_crossover" ? 52 : strategy === "rsi_mean_reversion" ? Number(rsiPeriod) + 3 : Number(macdSlowPeriod) + Number(macdSignalPeriod) + 1, 31);
   const configValid = Number.isInteger(training) && training >= minimumTraining && training <= 30_000 &&
     Number.isInteger(validation) && validation >= 10 && validation <= 10_000 &&
     Number.isInteger(step) && step >= validation && step <= 10_000 &&
