@@ -29,10 +29,10 @@ describe("RSI mean-reversion strategy", () => {
     const provider = rsiMeanReversionStrategy.createSignalProvider(candles, config);
     expect(provider.signalAt(2)).toBeNull();
     expect(provider.signalAt(3)).toBe("LONG");
-    expect(provider.signalAt(4)).toBe("EXIT");
+    expect(provider.signalAt(4)).toBe("EXIT_LONG");
     expect(provider.signalAt(5)).toBeNull();
     expect(provider.signalAt(6)).toBe("SHORT");
-    expect(provider.signalAt(7)).toBe("EXIT");
+    expect(provider.signalAt(7)).toBe("EXIT_SHORT");
   });
 
   it("does not let future candles alter an earlier signal", () => {
