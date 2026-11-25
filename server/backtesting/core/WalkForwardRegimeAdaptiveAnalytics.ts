@@ -81,6 +81,9 @@ export function analyzeWalkForwardRegimeAdaptive(
     excess: number[];
   }>(REGIMES.map(regime => [regime, { strategy: [], benchmark: [], excess: [] }]));
 
+  if (!Number.isInteger(foldIndex) || foldIndex < 1) {
+    throw new Error("Regime adaptive fold index must be a positive integer");
+  }
   if (!Number.isInteger(validationStartIndex) || validationStartIndex < config.lookback + 1 ||
       strategyEquityCurve.length < 2) {
     return {
@@ -113,12 +116,13 @@ export function analyzeWalkForwardRegimeAdaptive(
     const regime = classifyMarketRegimeWindow(regimeWindow, config).regime;
     const strategyReturn = currentEquity / previousEquity - 1;
     const priorClose = Number(priorCandle.close);
-    const currentPrice = curveIndex === 1 ? Number(currentCandle.close) : Number(currentCandle.close);
-    const benchmarkReturn = curveIndex === 1
-      ? currentPrice / Number(currentCandle.open) - 1
-      : currentPrice / priorClose - 1;
+    const currentPrice = Number(currentCandle.close);
+    const benchmarkBase = curveIndex === 1 ? Number(currentCandle.open) : priorClose;
+    const benchmarkReturn = currentPrice / benchmarkBase - 1;
     if (!Number.isFinite(strategyReturn) || !Number.isFinite(benchmarkReturn) ||
-        !Number.isFinite(priorClose) || priorClose <= 0) {
+        !Number.isFinite(priorClose) || priorClose <= 0 ||
+        !Number.isFinite(benchmarkBase) || benchmarkBase <= 0 ||
+        !Number.isFinite(currentPrice) || currentPrice <= 0) {
       throw new Error("Non-finite regime adaptive return; analytics withheld");
     }
     const group = grouped.get(regime)!;
@@ -132,6 +136,9 @@ export function analyzeWalkForwardRegimeAdaptive(
     const observations = values.strategy.length;
     const strategyGross = values.strategy.reduce((product, value) => product * (1 + value), 1);
     const benchmarkGross = values.benchmark.reduce((product, value) => product * (1 + value), 1);
+    if (!Number.isFinite(strategyGross) || !Number.isFinite(benchmarkGross)) {
+      throw new Error("Non-finite regime adaptive compounded return; analytics withheld");
+    }
     const excessReturns = values.excess;
     const excessPct = excessReturns.map(value => value * 100);
     const strategyPct = (strategyGross - 1) * 100;
