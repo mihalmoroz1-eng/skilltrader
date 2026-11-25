@@ -20,3 +20,12 @@
 .pri-empty{padding:10px;border:1px dashed var(--border);border-radius:7px}
 .pri-foot{margin-top:10px}
 @media(max-width:620px){.portfolio-risk-intelligence header{flex-direction:column}.pri-metrics{grid-template-columns:1fr 1fr}.pri-metrics>div:first-child{grid-column:1/-1}}
+
+.pri-forecast{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.pri-forecast-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.pri-forecast-head h4{margin:4px 0;color:var(--foreground);font-size:12px}
+.pri-forecast-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pri-forecast-metrics small{font-size:9px;color:var(--muted-foreground)}
+.pri-vol-row{border-color:var(--border);background:transparent}
+.pri-vol-row b{color:var(--foreground)}
+@media(max-width:620px){.pri-forecast-head{flex-direction:column}.pri-forecast-metrics{grid-template-columns:1fr 1fr}.pri-forecast-metrics>div:first-child{grid-column:1/-1}}
