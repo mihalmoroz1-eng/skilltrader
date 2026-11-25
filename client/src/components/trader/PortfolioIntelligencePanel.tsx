@@ -3,6 +3,7 @@ import { Activity, AlertTriangle, BarChart3, Play, ShieldCheck } from "lucide-re
 import { trpc } from "@/lib/trpc";
 import { MARKET_DATA_INTERVALS } from "@shared/marketData";
 import Portfolio3DMap from "./Portfolio3DMap";
+import Portfolio3DConcentration from "./Portfolio3DConcentration";
 import "./PortfolioIntelligencePanel.css";
 
 const OFFLINE_MODE = import.meta.env.VITE_APP_MODE === "android-demo";
@@ -102,6 +103,7 @@ export default function PortfolioIntelligencePanel() {
               </div>
               <div className="portfolio-subtitle"><BarChart3 size={14} /> Корреляция доходностей по совпадающим свечам</div>
               <Portfolio3DMap correlations={result.correlations} exposure={result.portfolio.symbolExposure} />
+              <Portfolio3DConcentration exposure={result.portfolio.symbolExposure} largestSymbol={result.portfolio.concentration.largestSymbol} largestWeightPct={result.portfolio.concentration.largestWeightPct} herfindahlIndex={result.portfolio.concentration.herfindahlIndex} grossExposure={result.portfolio.grossExposure} grossExposureUtilizationBps={result.portfolio.grossExposureUtilizationBps} grossExposureLimitBps={result.portfolio.grossExposureLimitBps} withinConfiguredGrossExposure={result.portfolio.withinConfiguredGrossExposure} />
               <div className="portfolio-table-wrap"><table>
                 <thead><tr><th>Пара</th><th>Pearson</th><th>Наблюдений</th><th>Статус</th></tr></thead>
                 <tbody>{result.correlations.map(pair => (
