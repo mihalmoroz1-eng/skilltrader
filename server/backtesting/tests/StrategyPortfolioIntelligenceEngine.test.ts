@@ -72,7 +72,7 @@ describe("strategy portfolio intelligence", () => {
 
   it("requires training history for the largest strategy warm-up", () => {
     expect(() => runStrategyPortfolioIntelligence(series(100), {
-      ...config, trainingCandles: 51,
+      ...config, trainingCandles: 22,
     })).toThrow(StrategyPortfolioInputError);
   });
 
