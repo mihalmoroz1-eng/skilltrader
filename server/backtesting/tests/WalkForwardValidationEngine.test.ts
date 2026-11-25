@@ -121,4 +121,61 @@ describe("walk-forward validation engine", () => {
     );
     expect(result.metrics.validationMinusTrainingReturnPct).toEqual(expect.any(Number));
   });
+
+  it("withholds fold Sharpe and Sortino below 30 interval returns", () => {
+    const result = runWalkForwardValidation(series(closes), config);
+    for (const window of result.windows) {
+      expect(window.validation.riskMetricObservations).toBe(10);
+      expect(window.validation.annualizedVolatilityPct).toBeNull();
+      expect(window.validation.sharpeRatio).toBeNull();
+      expect(window.validation.sortinoRatio).toBeNull();
+    }
+    expect(result.metrics.riskAdjustedFoldCount).toBe(0);
+    expect(result.metrics.averageValidationSharpe).toBeNull();
+    expect(result.metrics.averageValidationSortino).toBeNull();
+  });
+
+  it("calculates fold risk metrics from each independent OOS equity curve", () => {
+    const longCloses = Array.from({ length: 100 }, (_, index) =>
+      100 + index * 0.08 + Math.sin(index / 2.7) * 3,
+    );
+    const result = runWalkForwardValidation(series(longCloses), {
+      ...config, trainingCandles: 8, validationCandles: 40, stepCandles: 40, windowCount: 2,
+    });
+    expect(result.windows).toHaveLength(2);
+    for (const window of result.windows) {
+      expect(window.validation.riskMetricObservations).toBe(40);
+      expect(window.validation.annualizedVolatilityPct).not.toBeNull();
+      expect(window.validation.annualizedVolatilityPct!).toBeGreaterThanOrEqual(0);
+      expect(window.validation.sharpeRatio === null || Number.isFinite(window.validation.sharpeRatio)).toBe(true);
+      expect(window.validation.sortinoRatio === null || Number.isFinite(window.validation.sortinoRatio)).toBe(true);
+      expect(window.validation.returnToMaxDrawdown).toBe(
+        window.validation.maxDrawdownPct > 0
+          ? window.validation.returnPct / window.validation.maxDrawdownPct
+          : null,
+      );
+    }
+    expect(result.metrics.riskAdjustedFoldCount).toBeGreaterThanOrEqual(1);
+    if (result.metrics.riskAdjustedFoldCount >= 2) {
+      expect(result.metrics.averageValidationSharpe).not.toBeNull();
+      expect(result.metrics.medianValidationSharpe).not.toBeNull();
+      expect(result.metrics.worstValidationSharpe).not.toBeNull();
+      expect(result.metrics.validationSharpeStdDev).not.toBeNull();
+    }
+    expect(result.executionEligible).toBe(false);
+  });
+
+  it("does not invent Sharpe or Sortino for a zero-variance fold", () => {
+    const flat = Array.from({ length: 100 }, () => 100);
+    const result = runWalkForwardValidation(series(flat), {
+      ...config, trainingCandles: 8, validationCandles: 40, stepCandles: 40, windowCount: 2,
+    });
+    for (const window of result.windows) {
+      expect(window.validation.annualizedVolatilityPct).toBe(0);
+      expect(window.validation.sharpeRatio).toBeNull();
+      expect(window.validation.sortinoRatio).toBeNull();
+    }
+    expect(result.metrics.riskAdjustedFoldCount).toBe(0);
+    expect(result.metrics.worstValidationSharpe).toBeNull();
+  });
 });
