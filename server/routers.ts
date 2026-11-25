@@ -285,7 +285,8 @@ export const appRouter = router({
           if (candles.length > 50_000) {
             throw new BacktestInputError("Backtest is limited to 50,000 historical candles");
           }
-          return runBacktest(candles, input);
+          const { equityCurve: _internalEquityCurve, ...result } = runBacktest(candles, input);
+          return result;
         } catch (error) {
           if (error instanceof BacktestInputError || error instanceof HistoricalDataRequestError) {
             throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
