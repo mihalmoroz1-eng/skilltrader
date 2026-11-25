@@ -105,6 +105,68 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     expect(result.portfolio.markToMarketAvailable).toBe(false);
     expect(result.portfolio.stressScenarios).toBeNull();
   });
+  it("calculates server-side risk intelligence only for held symbols and weights pairs by exposure", () => {
+    const result = run({
+      positions: [
+        position({ id: 1, symbol: "BTCUSDT", quantity: "1" }),
+        position({ id: 2, symbol: "ETHUSDT", quantity: "0.5" }),
+      ],
+      markPrices: {
+        BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+        ETHUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+      },
+    });
+    expect(result.riskIntelligence.assessment).toBe("high");
+    expect(result.riskIntelligence.eligiblePairs).toBe(1);
+    expect(result.riskIntelligence.totalHeldPairs).toBe(1);
+    expect(result.riskIntelligence.coveragePct).toBe(100);
+    expect(result.riskIntelligence.weightedAbsoluteCorrelationPct).toBe(100);
+    expect(result.riskIntelligence.correlatedPairs[0]).toMatchObject({
+      symbolA: "BTCUSDT", symbolB: "ETHUSDT", correlation: 1, level: "very_high", observations: 39,
+    });
+  });
+  it("uses absolute correlation for risk weighting while preserving a negative coefficient", () => {
+    const btc = Array.from({ length: 40 }, (_, i) => 100 * Math.pow(1.01, i));
+    const eth = Array.from({ length: 40 }, (_, i) => 200 * Math.pow(0.99, i));
+    const result = run({
+      btc: candles("BTCUSDT", btc), eth: candles("ETHUSDT", eth),
+      positions: [position({ id: 1, symbol: "BTCUSDT" }), position({ id: 2, symbol: "ETHUSDT" })],
+      markPrices: {
+        BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+        ETHUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+      },
+    });
+    expect(result.riskIntelligence.weightedAbsoluteCorrelationPct).toBe(100);
+    expect(result.riskIntelligence.correlatedPairs[0].correlation).toBe(-1);
+  });
+  it("withholds the overall risk assessment when held-pair correlation data is unavailable", () => {
+    const result = run({
+      btc: candles("BTCUSDT", Array.from({ length: 20 }, (_, i) => 100 + i)),
+      eth: candles("ETHUSDT", Array.from({ length: 20 }, (_, i) => 200 + i * 2)),
+      positions: [position({ id: 1, symbol: "BTCUSDT" }), position({ id: 2, symbol: "ETHUSDT" })],
+      markPrices: {
+        BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+        ETHUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" },
+      },
+    });
+    expect(result.riskIntelligence.assessment).toBe("insufficient_data");
+    expect(result.riskIntelligence.eligiblePairs).toBe(0);
+    expect(result.riskIntelligence.totalHeldPairs).toBe(1);
+    expect(result.riskIntelligence.weightedAbsoluteCorrelationPct).toBeNull();
+  });
+  it("does not calculate held-pair metrics for a single position or stale marks", () => {
+    const single = run({ positions: [position()] });
+    expect(single.riskIntelligence.assessment).toBe("insufficient_data");
+    expect(single.riskIntelligence.totalHeldPairs).toBe(0);
+    expect(single.riskIntelligence.coveragePct).toBeNull();
+    const stale = run({
+      positions: [position({ id: 1, symbol: "BTCUSDT" }), position({ id: 2, symbol: "ETHUSDT" })],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 31_000, source: "binance" } },
+    });
+    expect(stale.riskIntelligence.assessment).toBe("insufficient_data");
+    expect(stale.riskIntelligence.totalHeldPairs).toBe(0);
+    expect(stale.riskIntelligence.correlatedPairs).toEqual([]);
+  });
   it("is deterministic and rejects a range above the candle cap", () => {
     expect(run()).toEqual(run());
     expect(() => runPortfolioIntelligence({
