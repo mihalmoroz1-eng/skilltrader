@@ -71,3 +71,12 @@ Every result reports executionEligible=false and exchangeOrderSent=false. No pri
 - Requires at least 30 common consecutive portfolio return observations and current marks no older than 30 seconds. No positions, stale marks, missing symbols or insufficient contiguous history produce explicit unavailable statuses.
 - LONG/SHORT direction is reflected through signed net exposure weights. This is a historical path diagnostic, not an actual account equity curve, forecast, maximum-loss bound or trade recommendation.
 - Read-only: no PAPER position, risk limit, signal approval or order is changed; `executionEligible=false` and `exchangeOrderSent=false` remain invariant.
+
+
+## Portfolio Recovery Analytics
+- Extends the historical drawdown diagnostic with a sampled underwater curve (maximum 120 points), period counts, recovered/unrecovered counts, average recovery duration in candle observations, and the longest observed underwater episode.
+- A drawdown episode begins when the reconstructed wealth index falls below its prior peak and ends only when it reaches or exceeds that peak. A period still below its peak at the end of the sample is marked unrecovered; no recovery date is fabricated.
+- The server retains up to the eight most recent episodes with peak date, trough date, depth, duration and recovery state. The UI displays the sampled drawdown curve and a chronological comparison of those episodes.
+- Average recovery duration includes only completed/recovered episodes; if none have recovered, the value is unavailable rather than zero.
+- The curve is sampled for display only; aggregate metrics and episode states are calculated from the full longest uninterrupted return path. The 30-observation minimum, exact common timestamps, consecutive intervals, fresh mark requirement and static-current-exposure approximation remain unchanged.
+- This remains a historical reconstruction using current signed net exposure weights, not actual historical account NAV or a forecast. It does not change positions, limits, signal approvals or orders.
