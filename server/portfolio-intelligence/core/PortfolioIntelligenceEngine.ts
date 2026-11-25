@@ -347,7 +347,7 @@ function calculateRiskForecast(
       returns.set(current, value); samples.push(value);
     }
     const volatility = sampleVolatility(samples);
-    return { symbol: holding.symbol, netWeight: Number(holding.netNotional) / Number(gross), returns, volatility, observations: samples.length };
+    return { symbol: holding.symbol, netWeight: Number(parseSignedFixed(holding.netNotional, "net exposure") * 1_000_000_000_000n / gross) / 1_000_000_000_000, returns, volatility, observations: samples.length };
   });
   const symbols = perSymbol.map(item => ({
     symbol: item.symbol,
