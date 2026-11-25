@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
 import {
   runWalkForwardValidation,
+  WalkForwardInputError,
   type WalkForwardValidationConfig,
   type WalkForwardValidationResult,
 } from "./WalkForwardValidationEngine";
-import { WalkForwardInputError } from "./WalkForwardValidationEngine";
 
 export type StrategyPortfolioConfig = Omit<WalkForwardValidationConfig, "strategy">;
 
@@ -36,7 +36,6 @@ export type StrategyPortfolioEntry = {
     averageValidationSortino: number | null;
     riskAdjustedFoldCount: number;
   };
-  validation: WalkForwardValidationResult;
 };
 
 export type StrategyPortfolioIntelligenceResult = {
@@ -147,7 +146,7 @@ export function runStrategyPortfolioIntelligence(
     dataDigest,
     symbol: config.symbol,
     interval: config.interval,
-    candlesProcessed: strategies[0].validation.candlesProcessed,
+    candlesProcessed: config.trainingCandles + (config.windowCount - 1) * config.stepCandles + config.validationCandles,
     strategies,
     methodology: [
       "All four fixed strategies use the exact same validated contiguous closed-candle series, training lengths, validation boundaries, starting capital, risk limits, fees and adverse slippage.",
