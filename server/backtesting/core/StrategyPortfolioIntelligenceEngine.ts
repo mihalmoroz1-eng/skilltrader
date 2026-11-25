@@ -13,6 +13,17 @@ export type StrategyPortfolioEntry = {
   strategy: "ema_crossover" | "rsi_mean_reversion" | "macd_momentum" | "breakout";
   runId: string;
   dataDigest: string;
+  folds: Array<{
+    index: number;
+    validationStartTime: number;
+    validationEndTime: number;
+    trainingReturnPct: number;
+    validationReturnPct: number;
+    maxDrawdownPct: number;
+    sharpeRatio: number | null;
+    sortinoRatio: number | null;
+    totalTrades: number;
+  }>;
   metrics: {
     averageValidationReturnPct: number;
     medianValidationReturnPct: number;
@@ -104,8 +115,18 @@ export function runStrategyPortfolioIntelligence(
       strategy,
       runId: validation.runId,
       dataDigest: validation.dataDigest,
+      folds: validation.windows.map(window => ({
+        index: window.index,
+        validationStartTime: window.validationStartTime,
+        validationEndTime: window.validationEndTime,
+        trainingReturnPct: window.training.returnPct,
+        validationReturnPct: window.validation.returnPct,
+        maxDrawdownPct: window.validation.maxDrawdownPct,
+        sharpeRatio: window.validation.sharpeRatio,
+        sortinoRatio: window.validation.sortinoRatio,
+        totalTrades: window.validation.totalTrades,
+      })),
       metrics: summarize(validation),
-      validation,
     };
   });
 
