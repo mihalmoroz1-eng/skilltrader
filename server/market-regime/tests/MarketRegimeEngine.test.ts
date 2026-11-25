@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runMarketRegimeAnalysis, MarketRegimeInputError } from "../core/MarketRegimeEngine";
+import { classifyMarketRegimeWindow } from "../core/MarketRegimeClassifier";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
 
 function candles(closes:number[], intervalStep=60_000):MarketCandle[] {
@@ -12,6 +13,33 @@ function candles(closes:number[], intervalStep=60_000):MarketCandle[] {
 const config={symbol:"BTCUSDT",interval:"1m" as const,lookback:10,trendThresholdBps:100,rangeThresholdBps:50,highVolatilityThresholdBps:200};
 
 describe("Market Regime Engine",()=>{
+  it("uses the same canonical classifier for a standalone window and rolling history", () => {
+    const input = candles(Array.from({ length: 31 }, (_, i) => 100 + i * 0.5));
+    const analysis = runMarketRegimeAnalysis(input, config);
+    const direct = classifyMarketRegimeWindow(input.slice(-11), {
+      interval: config.interval,
+      lookback: config.lookback,
+      trendThresholdBps: config.trendThresholdBps,
+      rangeThresholdBps: config.rangeThresholdBps,
+      highVolatilityThresholdBps: config.highVolatilityThresholdBps,
+    });
+    expect(analysis.current?.regime).toBe(direct.regime);
+    expect(analysis.current?.confidence).toBe(direct.confidence);
+    expect(analysis.current?.netChangeBps).toBe(direct.netChangeBps);
+  });
+
+  it("rejects windows with a candle that does not close on the interval boundary", () => {
+    const input = candles(Array.from({ length: 11 }, (_, i) => 100 + i * 0.2));
+    input[5] = { ...input[5], closeTime: input[5].closeTime - 1 };
+    expect(() => classifyMarketRegimeWindow(input, {
+      interval: config.interval,
+      lookback: config.lookback,
+      trendThresholdBps: config.trendThresholdBps,
+      rangeThresholdBps: config.rangeThresholdBps,
+      highVolatilityThresholdBps: config.highVolatilityThresholdBps,
+    })).toThrow(/close time/);
+  });
+
   it("classifies a persistent rise as an uptrend",()=>{
     const result=runMarketRegimeAnalysis(candles(Array.from({length:31},(_,i)=>100+i*0.5)),config);
     expect(result.current?.regime).toBe("uptrend");
