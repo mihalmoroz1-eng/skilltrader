@@ -41,6 +41,7 @@ export type BacktestResult = {
   strategy: "ema_crossover";
   candlesProcessed: number;
   trades: BacktestTrade[];
+  equityCurve: Array<{ time: number; equity: number }>;
   metrics: {
     startingCapital: number;
     finalEquity: number;
@@ -161,7 +162,10 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   let feesPaid = 0;
   let position: Position | null = null;
   const trades: BacktestTrade[] = [];
-  const equityCurve: number[] = [];
+  const evaluationIndex = Math.max(config.slowEmaPeriod + 1, evaluationStartIndex);
+  const equityCurve: Array<{ time: number; equity: number }> = [
+    { time: candles[evaluationIndex].openTime, equity },
+  ];
 
   const closePosition = (
     candle: MarketCandle,
@@ -243,7 +247,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       : equity;
     peakEquity = Math.max(peakEquity, markToMarket);
     if (peakEquity > 0) maxDrawdownPct = Math.max(maxDrawdownPct, (peakEquity - markToMarket) / peakEquity * 100);
-    equityCurve.push(markToMarket);
+    equityCurve.push({ time: candle.closeTime, equity: markToMarket });
   }
 
   if (position) closePosition(candles[candles.length - 1], Number(candles[candles.length - 1].close), candles[candles.length - 1].closeTime, "end_of_data");
@@ -251,6 +255,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   if (peakEquity > 0) maxDrawdownPct = Math.max(maxDrawdownPct, (peakEquity - equity) / peakEquity * 100);
 
   const finalEquity = equity;
+  if (equityCurve.length) equityCurve[equityCurve.length - 1] = { time: candles[candles.length - 1].closeTime, equity: finalEquity };
   const netProfit = finalEquity - config.startingCapital;
   const wins = trades.filter(trade => trade.netPnl > 0);
   const losses = trades.filter(trade => trade.netPnl < 0);
@@ -264,7 +269,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
 
   return {
     runId, dataDigest, symbol: config.symbol, interval: config.interval, strategy: "ema_crossover",
-    candlesProcessed: candles.length - evaluationStartIndex, trades,
+    candlesProcessed: candles.length - evaluationStartIndex, trades, equityCurve,
     metrics: {
       startingCapital: config.startingCapital, finalEquity, netProfit,
       totalReturnPct: netProfit / config.startingCapital * 100,
