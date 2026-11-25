@@ -29,7 +29,7 @@ Make historical strategy evaluation use the same deterministic market-regime voc
 ## Proposed architecture
 
 ### 1. Canonical classifier
-Extract the rolling classification calculation into a reusable, server-side pure module under `server/market-regime/core`.
+Implemented as `server/market-regime/core/MarketRegimeClassifier.ts`, a reusable server-side pure module.
 
 Inputs:
 - A contiguous sequence of closed `MarketCandle` records.
@@ -48,10 +48,10 @@ Rules:
 - Never interpolate, synthesize, or silently skip missing candles.
 
 ### 2. Reuse in Market Regime Intelligence
-The existing rolling history engine calls the canonical classifier for every eligible window. Its API output remains compatible unless a separately reviewed schema change is required.
+Implemented: `MarketRegimeEngine` calls the canonical classifier for every eligible rolling window. Existing response shape and five regime labels are retained.
 
 ### 3. Reuse in Strategy Robustness
-Replace the independent six-bucket classifier with the canonical five regimes plus `insufficient_history`.
+Implemented: Strategy Robustness now uses the canonical five regimes plus `insufficient_history`; its former six trend/volatility combinations were removed.
 
 For each baseline trade:
 - Find its entry candle by exact `entryTime`.
@@ -59,12 +59,12 @@ For each baseline trade:
 - Classify that trailing window.
 - Attribute the completed trade result to the regime at entry, and label this explicitly as entry-regime attribution.
 
-Add configuration parity so both endpoints use the same lookback and thresholds. Avoid separate defaults that produce contradictory labels.
+Implemented: both endpoints use lookback 30, trend threshold 100 bps, range threshold 50 bps and high-volatility threshold 200 bps by default. The robustness request schema and UI expose the same settings and reject a range threshold greater than or equal to the trend threshold.
 
 ### 4. Regime performance diagnostics
-Report per regime:
+Implemented per regime:
 - Trade count, winners, losers, net PnL, average trade PnL, win rate and profit factor.
-- Explicit sample status: `insufficient_sample` below a conservative minimum sample count; never interpret empty groups as zero-performance evidence.
+- Sample status: `insufficient_sample` below five trades and `adequate_sample` at five or more. This is a display-quality threshold, not statistical significance; empty and low-count groups must not be interpreted as zero-performance evidence.
 - Coverage: attributed trades / all baseline trades.
 - Latest regime and recent regime transitions from the same canonical classifier, where the selected historical range supports them.
 
@@ -76,7 +76,7 @@ A separate, later phase may calculate returns during regime intervals or run iso
 ## API and UI integration
 - Keep protected authenticated endpoints and the existing per-user rate limiter.
 - Prefer extending the existing Strategy Robustness response and panel rather than adding a duplicate endpoint.
-- Display canonical regime labels, sample counts, coverage and explicit attribution caveats.
+- Implemented in `StrategyRobustnessPanel`: canonical regime labels, sample counts, sample status, and entry-regime attribution wording.
 - Mark small-sample groups unavailable, not zero.
 - Use only stored, closed historical candles; do not trigger new exchange downloads from the analysis.
 - Include data digest and deterministic run ID in the result.
@@ -89,13 +89,22 @@ A separate, later phase may calculate returns during regime intervals or run iso
 - AI agents cannot override regime classifications or execution controls.
 
 ## Acceptance criteria
-1. Both modules produce identical regime labels for the same candle window and configuration.
-2. Historical trade classification never reads the entry candle or later candles.
+1. Implemented parity test: standalone classifier and rolling Market Regime Intelligence return identical labels and metrics for the same window.
+2. Implemented trade-attribution test independently reconstructs each entry label from exactly the preceding `lookback + 1` candles and asserts the final candle closed before entry.
 3. Gaps, duplicates, malformed candles, invalid thresholds and non-finite arithmetic fail closed.
 4. All baseline trades are either assigned to one canonical regime or explicitly marked `insufficient_history`.
-5. Regime sample-size and coverage semantics are tested, including empty and low-count buckets.
+5. Tests verify all six output buckets and sample-status thresholds; coverage remains attributed trades divided by baseline trades.
 6. Existing backtest baseline metrics remain unchanged.
 7. Existing strategy robustness cost and EMA-neighbor scenarios remain unchanged.
 8. UI explains entry-regime attribution and does not present it as a separate regime-specific backtest.
 9. Node 22 and Node 24 type checks, tests and production builds pass.
 10. Changes remain on `feature/market-data-intelligence`; `main` is not merged or modified without explicit approval.
+
+
+## Implementation notes (2026-11-25)
+
+- Added the canonical classifier and reused it from both engines.
+- Replaced robustness request fields with canonical range and high-volatility thresholds; defaults now match Market Regime Intelligence.
+- Updated the Strategy Robustness UI to show five canonical market regimes and an explicit sample-status column.
+- Added parity, interval-boundary, request-validation, and pre-entry-only attribution tests.
+- The `insufficient_sample` threshold is five trades and is not a statistical confidence claim.
