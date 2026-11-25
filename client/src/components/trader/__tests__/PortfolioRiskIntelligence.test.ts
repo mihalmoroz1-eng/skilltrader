@@ -10,6 +10,12 @@ const readyForecast = {
   annualizationPeriods: 8766, symbols: [{ symbol: "BTCUSDT", annualizedVolatilityPct: 40, observations: 39 }],
 };
 
+const readyDrawdown = {
+  status: "ready" as const, method: "historical_static_current_exposure" as const, observations: 39,
+  maxDrawdownPct: 12.5, currentDrawdownPct: 2.5, maxDrawdownDurationObservations: 9,
+  currentDrawdownDurationObservations: 2, maxDrawdownRecovered: true,
+};
+
 const readyRisk = {
   assessment: "high" as const,
   eligiblePairs: 1,
@@ -24,18 +30,21 @@ const readyRisk = {
 
 describe("Portfolio Risk Intelligence presentation", () => {
   it("renders the server-provided assessment and signed pair coefficient", () => {
-    const html = renderToStaticMarkup(createElement(PortfolioRiskIntelligence, { risk: readyRisk, forecast: readyForecast }));
+    const html = renderToStaticMarkup(createElement(PortfolioRiskIntelligence, { risk: readyRisk, forecast: readyForecast, drawdown: readyDrawdown }));
     expect(html).toContain("Высокая взаимосвязанность");
     expect(html).toContain("BTCUSDT / ETHUSDT");
     expect(html).toContain("-0.95");
     expect(html).toContain("48 наблюдений");
     expect(html).toContain("95.0%");
+    expect(html).toContain("Историческая просадка");
+    expect(html).toContain("12.5%");
+    expect(html).toContain("Восстановлена до прежнего пика");
   });
   it("renders unavailable server diagnostics without inventing a zero value", () => {
     const html = renderToStaticMarkup(createElement(PortfolioRiskIntelligence, { risk: {
       assessment: "insufficient_data", eligiblePairs: 0, totalHeldPairs: 1,
       coveragePct: 0, weightedAbsoluteCorrelationPct: null, correlatedPairs: [],
-    }, forecast: { ...readyForecast, status: "insufficient_data" as const, annualizedPortfolioVolatilityPct: null, oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null, fiveDay95VaRPctOfEquity: null, observations: 0, symbols: [] } }));
+    }, drawdown: { ...readyDrawdown, status: "insufficient_data" as const, maxDrawdownPct: null, currentDrawdownPct: null, maxDrawdownDurationObservations: null, currentDrawdownDurationObservations: null, maxDrawdownRecovered: null }, forecast: { ...readyForecast, status: "insufficient_data" as const, annualizedPortfolioVolatilityPct: null, oneDay95VaR: null, oneDay95VaRPctOfEquity: null, fiveDay95VaR: null, fiveDay95VaRPctOfEquity: null, observations: 0, symbols: [] } }));
     expect(html).toContain("Недостаточно данных");
     expect(html).toContain("0/1");
     expect(html).toContain("Нет готовых пар");
