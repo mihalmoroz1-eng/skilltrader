@@ -58,6 +58,12 @@ function percent(value: number | null) {
 }
 
 export default function PortfolioRiskIntelligence({ risk, forecast, drawdown }: Props) {
+  const curveMax = Math.max(1, ...drawdown.curve.map(point => point.drawdownPct));
+  const curvePoints = drawdown.curve.map((point, index) => {
+    const x = drawdown.curve.length <= 1 ? 0 : index / (drawdown.curve.length - 1) * 600;
+    const y = 110 - point.drawdownPct / curveMax * 100;
+    return x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
   const labels: Record<RiskIntelligence["assessment"], string> = {
     insufficient_data: "Недостаточно данных", low: "Низкая взаимосвязанность",
     moderate: "Умеренная взаимосвязанность", high: "Высокая взаимосвязанность",
