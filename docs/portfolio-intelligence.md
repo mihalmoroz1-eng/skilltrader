@@ -52,3 +52,12 @@ Every result reports executionEligible=false and exchangeOrderSent=false. No pri
 - Overall assessment is withheld unless at least 80% of held-symbol pairs have valid correlation data. Descriptive bands are low (<40%), moderate (40–<70%), and high (>=70%) weighted absolute correlation.
 - If mark-to-market data is missing or stale, the existing portfolio engine suppresses symbol exposure and the risk diagnostic returns insufficient data rather than reusing stale holdings.
 - The diagnostic does not estimate future correlation, account for individual asset volatility, leverage, liquidation, margin or funding, and does not change positions, limits, approvals, signals or orders. Account Risk Engine remains the sole PAPER eligibility and sizing authority.
+
+
+## Portfolio Risk Forecast
+- The server calculates historical annualized volatility for each held symbol and a portfolio-level volatility estimate from exact common, consecutive close-to-close returns.
+- Portfolio returns use signed net exposure weights normalized by current gross exposure, so LONG and SHORT directions are reflected in the historical covariance estimate. All held symbols must have at least 30 valid returns and a sufficient common aligned sample; otherwise the portfolio forecast is withheld.
+- The 1-day and 5-day 95% VaR figures use a normal approximation (z = 1.645) and square-root-of-time scaling. VaR is scaled to current gross exposure and displayed relative to current PAPER equity.
+- Annualization uses the selected candle interval. Missing symbols, gaps, insufficient samples, zero-variance series, or stale/missing marks do not receive fabricated volatility or VaR values.
+- This is a historical statistical risk estimate, not a predictive guarantee, maximum-loss bound, liquidation model, expected shortfall, or trade recommendation. It assumes stable historical distribution and does not model fat tails, volatility clustering, regime shifts, market impact, funding, leverage or fees under a future shock.
+- The output is read-only. It does not modify PAPER positions, account limits, signal approval or order execution; `executionEligible=false` and `exchangeOrderSent=false` remain invariant.
