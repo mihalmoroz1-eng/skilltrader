@@ -27,6 +27,16 @@ export type PortfolioIntelligenceInput = {
   };
   now: number;
 };
+export type PortfolioRiskPair = {
+  symbolA: string; symbolB: string; correlation: number; observations: number;
+  exposurePairWeightPct: number; level: "high" | "very_high";
+};
+export type PortfolioRiskIntelligenceResult = {
+  assessment: "insufficient_data" | "low" | "moderate" | "high";
+  eligiblePairs: number; totalHeldPairs: number; coveragePct: number | null;
+  weightedAbsoluteCorrelationPct: number | null; correlatedPairs: PortfolioRiskPair[];
+};
+
 export type PortfolioIntelligenceResult = {
   runId: string;
   dataDigest: string;
@@ -36,6 +46,7 @@ export type PortfolioIntelligenceResult = {
   minimumCorrelationObservations: number;
   series: Array<{ symbol: string; closedCandles: number; excludedUnclosedCandles: number; gaps: number; firstOpenTime: number | null; lastOpenTime: number | null }>;
   correlations: Array<{ symbolA: string; symbolB: string; correlation: number | null; observations: number; status: "ready" | "insufficient_history" | "constant_returns" }>;
+  riskIntelligence: PortfolioRiskIntelligenceResult;
   portfolio: {
     accountAvailable: boolean; markToMarketAvailable: boolean; openPositions: number;
     equity: string | null; grossExposure: string | null; netDirectionalExposure: string | null;
@@ -226,6 +237,45 @@ function calculatePortfolio(input: PortfolioIntelligenceInput): PortfolioIntelli
   };
 }
 
+function calculateRiskIntelligence(
+  correlations: PortfolioIntelligenceResult["correlations"],
+  portfolio: PortfolioIntelligenceResult["portfolio"],
+): PortfolioRiskIntelligenceResult {
+  // Without current marks, symbolExposure is intentionally empty; do not infer holdings from stale values.
+  const weights = new Map(portfolio.markToMarketAvailable
+    ? portfolio.symbolExposure.map(item => [item.symbol, item.weightPct / 100] as const)
+    : []);
+  const symbols = [...weights.keys()].sort();
+  const totalHeldPairs = symbols.length * (symbols.length - 1) / 2;
+  const pairMap = new Map(correlations.map(pair => [[pair.symbolA, pair.symbolB].sort().join("::"), pair] as const));
+  let eligiblePairs = 0, numerator = 0, denominator = 0;
+  const correlatedPairs: PortfolioRiskPair[] = [];
+  for (let i = 0; i < symbols.length; i += 1) {
+    for (let j = i + 1; j < symbols.length; j += 1) {
+      const symbolA = symbols[i], symbolB = symbols[j];
+      const pair = pairMap.get([symbolA, symbolB].join("::"));
+      if (!pair || pair.status !== "ready" || pair.correlation === null ||
+          !Number.isFinite(pair.correlation) || pair.correlation < -1 || pair.correlation > 1) continue;
+      eligiblePairs += 1;
+      const pairWeight = weights.get(symbolA)! * weights.get(symbolB)!;
+      numerator += Math.abs(pair.correlation) * pairWeight;
+      denominator += pairWeight;
+      const absolute = Math.abs(pair.correlation);
+      if (absolute >= 0.8) correlatedPairs.push({
+        symbolA, symbolB, correlation: pair.correlation, observations: pair.observations,
+        exposurePairWeightPct: pairWeight * 100, level: absolute >= 0.9 ? "very_high" : "high",
+      });
+    }
+  }
+  const coveragePct = totalHeldPairs > 0 ? eligiblePairs / totalHeldPairs * 100 : null;
+  const weightedAbsoluteCorrelationPct = denominator > 0 ? numerator / denominator * 100 : null;
+  const assessment = coveragePct === null || coveragePct < 80 || weightedAbsoluteCorrelationPct === null
+    ? "insufficient_data" : weightedAbsoluteCorrelationPct >= 70 ? "high"
+      : weightedAbsoluteCorrelationPct >= 40 ? "moderate" : "low";
+  correlatedPairs.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
+  return { assessment, eligiblePairs, totalHeldPairs, coveragePct, weightedAbsoluteCorrelationPct, correlatedPairs };
+}
+
 export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): PortfolioIntelligenceResult {
   validateRequest(input.request, input.now);
   const symbols = [...input.request.symbols].sort();
@@ -252,6 +302,7 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
   }
   const dataDigest = createHash("sha256").update(JSON.stringify(digestPayload)).digest("hex");
   const portfolio = calculatePortfolio(input);
+  const riskIntelligence = calculateRiskIntelligence(pairs, portfolio);
   const warnings: string[] = [];
   if (diagnostics.some(item => item.gaps > 0)) warnings.push("Исторические пропуски обнаружены; свечи не синтезировались, корреляция учитывает только соседние совпадающие интервалы.");
   if (diagnostics.some(item => item.excludedUnclosedCandles > 0)) warnings.push("Незакрытые свечи исключены.");
@@ -282,7 +333,7 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
     runId, dataDigest, symbols, interval: input.request.interval,
     range: { startTime: input.request.startTime, endTime: input.request.endTime },
     minimumCorrelationObservations: MIN_OBSERVATIONS,
-    series: diagnostics, correlations: pairs, portfolio, warnings, assumptions,
+    series: diagnostics, correlations: pairs, riskIntelligence, portfolio, warnings, assumptions,
     executionEligible: false, exchangeOrderSent: false,
   };
 }
