@@ -3,7 +3,6 @@ import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
 import { BacktestInputError, runBacktest, runBacktestWithStrategy } from "../core/BacktestEngine";
 import { rsiMeanReversionStrategy } from "../strategies/RsiMeanReversionStrategy";
 import { emaCrossoverStrategy } from "../strategies/EmaCrossoverStrategy";
-import { macdMomentumStrategy } from "../strategies/MacdMomentumStrategy";
 
 function series(closes: number[]): MarketCandle[] {
   const start = 1_700_000_000_000;
