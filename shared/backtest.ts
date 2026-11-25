@@ -14,10 +14,13 @@ const backtestShape = {
   slippageBps: z.number().int().min(0).max(100).default(5),
   fastEmaPeriod: z.number().int().min(2).max(100).default(20),
   slowEmaPeriod: z.number().int().min(3).max(300).default(50),
-  strategy: z.enum(["ema_crossover", "rsi_mean_reversion"]).default("ema_crossover"),
+  strategy: z.enum(["ema_crossover", "rsi_mean_reversion", "macd_momentum"]).default("ema_crossover"),
   rsiPeriod: z.number().int().min(2).max(100).default(14),
   rsiOversoldLevel: z.number().int().min(5).max(45).default(30),
   rsiOverboughtLevel: z.number().int().min(55).max(95).default(70),
+  macdFastPeriod: z.number().int().min(2).max(100).default(12),
+  macdSlowPeriod: z.number().int().min(3).max(300).default(26),
+  macdSignalPeriod: z.number().int().min(2).max(100).default(9),
   allowShort: z.boolean().default(false),
 };
 
@@ -27,7 +30,10 @@ function validateBacktestParameters(
     endTime: number;
     fastEmaPeriod: number;
     slowEmaPeriod: number;
-    strategy: "ema_crossover" | "rsi_mean_reversion";
+    strategy: "ema_crossover" | "rsi_mean_reversion" | "macd_momentum";
+    macdFastPeriod: number;
+    macdSlowPeriod: number;
+    macdSignalPeriod: number;
     rsiOversoldLevel: number;
     rsiOverboughtLevel: number;
     riskBps: number;
@@ -43,6 +49,9 @@ function validateBacktestParameters(
   }
   if (value.strategy === "ema_crossover" && value.fastEmaPeriod >= value.slowEmaPeriod) {
     ctx.addIssue({ code: "custom", message: "fast EMA period must be less than slow EMA period", path: ["fastEmaPeriod"] });
+  }
+  if (value.strategy === "macd_momentum" && value.macdFastPeriod >= value.macdSlowPeriod) {
+    ctx.addIssue({ code: "custom", message: "MACD fast period must be less than slow period", path: ["macdFastPeriod"] });
   }
   if (value.strategy === "rsi_mean_reversion" && value.rsiOverboughtLevel - value.rsiOversoldLevel < 10) {
     ctx.addIssue({ code: "custom", message: "RSI thresholds must be separated by at least 10 points", path: ["rsiOverboughtLevel"] });
@@ -67,7 +76,8 @@ export const walkForwardRequestSchema = z.object({
   highVolatilityThresholdBps: z.number().int().min(10).max(2_000).default(200),
 }).strict().superRefine((value, ctx) => {
   validateBacktestParameters(value, ctx);
-  const strategyWarmup = value.strategy === "ema_crossover" ? value.slowEmaPeriod + 2 : value.rsiPeriod + 3;
+  const strategyWarmup = value.strategy === "ema_crossover" ? value.slowEmaPeriod + 2 :
+    value.strategy === "rsi_mean_reversion" ? value.rsiPeriod + 3 : value.macdSlowPeriod + value.macdSignalPeriod;
   if (value.trainingCandles < Math.max(strategyWarmup, value.regimeLookback + 1)) {
     ctx.addIssue({
       code: "custom",
