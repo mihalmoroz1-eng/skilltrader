@@ -5,7 +5,7 @@ import { MARKET_DATA_INTERVALS } from "@shared/marketData";
 import "./WalkForwardValidationPanel.css";
 
 const OFFLINE_MODE = import.meta.env.VITE_APP_MODE === "android-demo";
-const INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+const INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;\nconst REGIME_LABELS = { uptrend: "Восходящий тренд", downtrend: "Нисходящий тренд", ranging: "Боковое движение", high_volatility: "Высокая волатильность", transition: "Переходный режим" } as const;
 
 function utcDateInput(daysAgo = 0): string {
   return new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
@@ -164,6 +164,38 @@ export default function WalkForwardValidationPanel() {
                   ))}</tbody>
                 </table>
               </div>
+              <div className="walk-forward-result-title"><strong>Regime Walk-Forward · режимы внутри каждого OOS окна</strong><span>Классификация по предыдущей закрытой свече</span></div>
+              {walkForward.data.windows.map(window => (
+                <details className="walk-forward-assumptions" key={window.index}>
+                  <summary>Окно {window.index}: {window.validation.regimePerformance.observations} интервалов · {window.validation.regimePerformance.transitionCount} смен режима</summary>
+                  <div className="walk-forward-metrics">
+                    <div><span>Текущий режим в конце окна</span><strong>{window.validation.regimePerformance.currentRegime ? REGIME_LABELS[window.validation.regimePerformance.currentRegime] : "Недостаточно истории"}</strong></div>
+                    <div><span>Частота смен режимов</span><strong>{percent(window.validation.regimePerformance.transitionRatePct)}</strong></div>
+                    <div><span>Средняя доходность интервала смены</span><strong>{percent(window.validation.regimePerformance.transitionIntervalReturnPct)}</strong></div>
+                  </div>
+                  <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                    <thead><tr><th>Режим</th><th>Интервалов</th><th>Выборка</th><th>Условная доходность</th><th>Год. волатильность</th><th>Sharpe</th><th>Sortino</th><th>Макс. просадка эпизода</th><th>Эпизодов</th></tr></thead>
+                    <tbody>{window.validation.regimePerformance.buckets.map(item => (
+                      <tr key={item.regime}>
+                        <td>{REGIME_LABELS[item.regime]}</td><td>{item.observations}</td>
+                        <td>{item.sampleStatus === "adequate_sample" ? "Достаточная" : item.sampleStatus === "limited_sample" ? "Ограниченная" : "Недостаточная"}</td>
+                        <td>{percent(item.compoundedReturnPct)}</td><td>{percent(item.annualizedVolatilityPct)}</td>
+                        <td>{ratio(item.sharpeRatio)}</td><td>{ratio(item.sortinoRatio)}</td>
+                        <td>{percent(item.maxEpisodeDrawdownPct)}</td><td>{item.episodeCount}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table></div>
+                  <p className="walk-forward-note">Смена режима: {window.validation.regimePerformance.transitionCount}. Показатели риска требуют минимум 30 интервалов в режиме. Годовая нормализация учитывает долю режима в окне и является описательной оценкой. Просадка считается только внутри непрерывных эпизодов.</p>
+                  {window.validation.regimePerformance.transitions.length > 0 && (
+                    <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                      <thead><tr><th>Из режима</th><th>В режим</th><th>Количество</th></tr></thead>
+                      <tbody>{window.validation.regimePerformance.transitions.map(item => (
+                        <tr key={item.from + "-" + item.to}><td>{REGIME_LABELS[item.from]}</td><td>{REGIME_LABELS[item.to]}</td><td>{item.count}</td></tr>
+                      ))}</tbody>
+                    </table></div>
+                  )}
+                </details>
+              ))}
               <div className="walk-forward-result-foot">Run ID: {walkForward.data.runId} · SHA-256 data digest: {walkForward.data.dataDigest.slice(0, 16)}… · executionEligible=false</div>
               <details className="walk-forward-assumptions"><summary>Методика и ограничения</summary><ul>{walkForward.data.assumptions.map(item => <li key={item}>{item}</li>)}</ul></details>
             </div>
