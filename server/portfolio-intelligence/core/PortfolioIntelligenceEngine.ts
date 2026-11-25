@@ -246,7 +246,7 @@ function calculateRiskIntelligence(
     ? portfolio.symbolExposure.map(item => [item.symbol, item.weightPct / 100] as const)
     : []);
   const symbols = [...weights.keys()].sort();
-  const totalHeldPairs = symbols.length * (symbols.length - 1) / 2;
+  const totalHeldPairs = symbols.length >= 2 ? symbols.length * (symbols.length - 1) / 2 : 0;
   const pairMap = new Map(correlations.map(pair => [[pair.symbolA, pair.symbolB].sort().join("::"), pair] as const));
   let eligiblePairs = 0, numerator = 0, denominator = 0;
   const correlatedPairs: PortfolioRiskPair[] = [];
