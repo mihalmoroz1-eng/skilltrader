@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
+import { analyzeWalkForwardRegimes, type WalkForwardRegimePerformance } from "./WalkForwardRegimeAnalytics";
 import {
   runBacktest,
   validateBacktestCandleSeries,
@@ -11,6 +12,10 @@ export type WalkForwardValidationConfig = Omit<BacktestConfig, "evaluationStartI
   validationCandles: number;
   stepCandles: number;
   windowCount: number;
+  regimeLookback: number;
+  trendThresholdBps: number;
+  rangeThresholdBps: number;
+  highVolatilityThresholdBps: number;
 };
 
 export type WalkForwardWindowResult = {
@@ -46,6 +51,7 @@ export type WalkForwardWindowResult = {
     sharpeRatio: number | null;
     sortinoRatio: number | null;
     returnToMaxDrawdown: number | null;
+    regimePerformance: WalkForwardRegimePerformance;
   };
 };
 
@@ -184,9 +190,9 @@ export function runWalkForwardValidation(
   config: WalkForwardValidationConfig,
 ): WalkForwardValidationResult {
   if (!Number.isInteger(config.trainingCandles) ||
-      config.trainingCandles < config.slowEmaPeriod + 2 ||
+      config.trainingCandles < Math.max(config.slowEmaPeriod + 2, config.regimeLookback + 1) ||
       config.trainingCandles > 30_000) {
-    throw new WalkForwardInputError("Training window must include the EMA warm-up and at least two completed candles");
+    throw new WalkForwardInputError("Training window must include the EMA warm-up, regime lookback and at least two completed candles");
   }
   if (!Number.isInteger(config.validationCandles) ||
       config.validationCandles < 10 || config.validationCandles > 10_000) {
@@ -219,6 +225,7 @@ export function runWalkForwardValidation(
 
   const {
     trainingCandles, validationCandles, stepCandles, windowCount,
+    regimeLookback, trendThresholdBps, rangeThresholdBps, highVolatilityThresholdBps,
     ...backtestConfig
   } = config;
   const windows: WalkForwardWindowResult[] = [];
@@ -275,6 +282,18 @@ export function runWalkForwardValidation(
           config.interval,
           validationResult.metrics.totalReturnPct,
           validationResult.metrics.maxDrawdownPct,
+        ),
+        regimePerformance: analyzeWalkForwardRegimes(
+          trainingAndValidation,
+          trainingCandles,
+          validationResult.equityCurve,
+          {
+            interval: config.interval,
+            lookback: regimeLookback,
+            trendThresholdBps,
+            rangeThresholdBps,
+            highVolatilityThresholdBps,
+          },
         ),
       },
     });
@@ -348,6 +367,9 @@ export function runWalkForwardValidation(
       "Per-fold annualized volatility, Sharpe (0% risk-free rate) and Sortino (0% target) use timestamped marked-to-market validation equity returns and the same interval annualization as Strategy Benchmark; at least 30 valid interval returns are required.",
       "Undefined Sharpe/Sortino denominators and insufficient fold coverage remain unavailable; aggregate fold statistics require at least two valid folds and exclude unavailable values rather than treating them as zero.",
       "Risk-adjusted fold dispersion is descriptive only. Folds are independent virtual accounts and their equity curves are never concatenated.",
+      "Each out-of-sample interval return is assigned using the canonical regime known at the previous candle close; the first validation interval uses only completed training candles, preventing same-interval look-ahead.",
+      "Per-regime volatility, Sharpe and Sortino require at least 30 observations. Annualization adjusts by the observed regime share and is a descriptive frequency approximation.",
+      "Per-regime drawdown is measured within uninterrupted regime episodes; non-adjacent episodes are never concatenated. Regime sample labels are display thresholds, not statistical significance tests.",
       "No parameter search, strategy selection, leverage, exchange orders, PAPER orders or LIVE execution are performed.",
     ],
     executionEligible: false,
