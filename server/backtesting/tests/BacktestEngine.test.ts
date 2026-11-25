@@ -123,6 +123,18 @@ describe("historical backtesting engine", () => {
     expect(result.trades.every(trade => trade.entryTime > candles[8].openTime)).toBe(true);
   });
 
+  it("selects Breakout through the public runner and fills only at the next candle open", () => {
+    const candles = series([10, 10, 10, 10, 12, 13, 13, 13]);
+    const result = runBacktest(candles, {
+      ...config, strategy: "breakout", breakoutLookbackPeriod: 3,
+      breakoutBufferBps: 10, stopLossBps: 2_000, takeProfitBps: 5_000,
+    });
+    expect(result.strategy).toBe("breakout");
+    expect(result.executionEligible).toBe(false);
+    expect(result.trades.length).toBeGreaterThan(0);
+    expect(result.trades[0].entryTime).toBe(candles[5].openTime);
+  });
+
   it("binds run identity to the selected strategy and its parameters", () => {
     const candles = series([100, 90, 80, 90, 100, 110, 100, 90, 80, 70]);
     const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, ...executionConfig } = {
