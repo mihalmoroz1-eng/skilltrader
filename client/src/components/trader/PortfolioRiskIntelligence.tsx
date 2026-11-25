@@ -28,13 +28,23 @@ type RiskForecast = {
   annualizationPeriods: number;
   symbols: Array<{ symbol: string; annualizedVolatilityPct: number | null; observations: number }>;
 };
-type Props = { risk: RiskIntelligence; forecast: RiskForecast };
+type DrawdownIntelligence = {
+  status: "ready" | "insufficient_data" | "no_exposure" | "stale_marks";
+  method: "historical_static_current_exposure";
+  observations: number;
+  maxDrawdownPct: number | null;
+  currentDrawdownPct: number | null;
+  maxDrawdownDurationObservations: number | null;
+  currentDrawdownDurationObservations: number | null;
+  maxDrawdownRecovered: boolean | null;
+};
+type Props = { risk: RiskIntelligence; forecast: RiskForecast; drawdown: DrawdownIntelligence };
 
 function percent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : value.toFixed(1) + "%";
 }
 
-export default function PortfolioRiskIntelligence({ risk, forecast }: Props) {
+export default function PortfolioRiskIntelligence({ risk, forecast, drawdown }: Props) {
   const labels: Record<RiskIntelligence["assessment"], string> = {
     insufficient_data: "Недостаточно данных", low: "Низкая взаимосвязанность",
     moderate: "Умеренная взаимосвязанность", high: "Высокая взаимосвязанность",
@@ -75,6 +85,22 @@ export default function PortfolioRiskIntelligence({ risk, forecast }: Props) {
           ? "Оценка скрыта: нет актуальных mark-price. Старые котировки не используются."
           : forecast.status === "no_exposure" ? "Нет открытой PAPER-экспозиции для оценки портфельной волатильности."
             : "Для каждого открытого актива требуется минимум 30 последовательных доходностей и общая синхронная история."}</p>}
+      </div>
+      <div className="pri-drawdown">
+        <div className="pri-forecast-head"><div><span className="portfolio-3d-eyebrow">PORTFOLIO DRAWDOWN INTELLIGENCE</span><h4>Историческая просадка</h4></div>
+          <span className={"pri-assessment " + (drawdown.status === "ready" ? "low" : "insufficient_data")}>{drawdown.status === "ready" ? "Расчёт готов" : drawdown.status === "stale_marks" ? "Котировки устарели" : drawdown.status === "no_exposure" ? "Нет экспозиции" : "Недостаточно истории"}</span></div>
+        {drawdown.status === "ready" ? <>
+          <div className="pri-metrics pri-forecast-metrics">
+            <div><span>Максимальная просадка</span><strong>{percent(drawdown.maxDrawdownPct)}</strong></div>
+            <div><span>Текущая просадка</span><strong>{percent(drawdown.currentDrawdownPct)}</strong></div>
+            <div><span>Длительность максимальной</span><strong>{drawdown.maxDrawdownDurationObservations ?? "—"} баров</strong><small>{drawdown.maxDrawdownRecovered ? "Восстановлена до прежнего пика" : "На конец истории не восстановлена"}</small></div>
+          </div>
+          <p className="pri-foot">Текущая просадка длится: {drawdown.currentDrawdownDurationObservations == null ? "нет открытой просадки" : drawdown.currentDrawdownDurationObservations + " баров"}. Наблюдений: {drawdown.observations}. Восстановление засчитывается только после достижения предыдущего максимума.</p>
+        </> : <p className="pri-empty">{drawdown.status === "stale_marks"
+          ? "Просадка скрыта: нет актуальных mark-price."
+          : drawdown.status === "no_exposure" ? "Нет открытой PAPER-экспозиции."
+            : "Нужно не менее 30 общих последовательных доходностей по всем открытым активам."}</p>}
+        <p className="pri-foot">История реконструирована с постоянными текущими signed net exposure weights. Это приближение, а не фактическая историческая NAV.</p>
       </div>
       <p className="pri-foot">Показатель описывает историческую совместную динамику доходностей, а не вероятность убытка. Он не учитывает волатильность, ликвидацию, плечо или изменение корреляций. Это предупреждающая аналитика, не команда на изменение позиций.</p>
     </section>
