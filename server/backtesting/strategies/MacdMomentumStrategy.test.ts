@@ -26,7 +26,7 @@ const closes = [
 
 describe("MACD momentum strategy", () => {
   it("requires both MACD and signal-line warm-up plus next-open boundary", () => {
-    expect(macdMomentumStrategy.minimumHistory(config)).toBe(9);
+    expect(macdMomentumStrategy.minimumHistory(config)).toBe(10);
   });
 
   it("emits directional events only when MACD crosses its signal line", () => {
