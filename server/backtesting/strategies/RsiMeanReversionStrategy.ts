@@ -11,9 +11,9 @@ export type RsiMeanReversionConfig = {
 /**
  * RSI mean-reversion events are evaluated only after a candle closes.
  * LONG: RSI crosses up through oversold.
- * EXIT: RSI crosses up through overbought (close a LONG).
+ * EXIT_LONG: RSI crosses up through overbought (close a LONG).
  * SHORT: RSI crosses down through overbought.
- * EXIT: RSI crosses down through oversold (close a SHORT).
+ * EXIT_SHORT: RSI crosses down through oversold (close a SHORT).
  *
  * The execution layer must fill these events no earlier than the next candle open.
  */
@@ -44,9 +44,9 @@ export const rsiMeanReversionStrategy: BacktestStrategy<RsiMeanReversionConfig> 
         if (previous === null || current === null) return null;
 
         if (previous <= config.oversoldLevel && current > config.oversoldLevel) return "LONG";
-        if (previous < config.overboughtLevel && current >= config.overboughtLevel) return "EXIT";
+        if (previous < config.overboughtLevel && current >= config.overboughtLevel) return "EXIT_LONG";
         if (previous >= config.overboughtLevel && current < config.overboughtLevel) return "SHORT";
-        if (previous > config.oversoldLevel && current <= config.oversoldLevel) return "EXIT";
+        if (previous > config.oversoldLevel && current <= config.oversoldLevel) return "EXIT_SHORT";
         return null;
       },
     };
