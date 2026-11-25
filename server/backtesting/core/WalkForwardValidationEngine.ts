@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
 import { analyzeWalkForwardRegimes, type WalkForwardRegimePerformance } from "./WalkForwardRegimeAnalytics";
+import { aggregateWalkForwardRegimeStability, type WalkForwardRegimeStability } from "./WalkForwardRegimeStability";
 import {
   runBacktest,
   validateBacktestCandleSeries,
@@ -63,6 +64,7 @@ export type WalkForwardValidationResult = {
   strategy: "ema_crossover";
   candlesProcessed: number;
   windows: WalkForwardWindowResult[];
+  regimeStability: WalkForwardRegimeStability;
   metrics: {
     windowCount: number;
     averageTrainingReturnPct: number;
@@ -307,6 +309,9 @@ export function runWalkForwardValidation(
   const totalPositivePnl = windows.reduce((sum, window) => sum + window.validation.netWinningTradePnl, 0);
   const totalNegativePnl = windows.reduce((sum, window) => sum + window.validation.netLosingTradePnl, 0);
 
+  const regimeStability = aggregateWalkForwardRegimeStability(
+    windows.map(window => window.validation.regimePerformance),
+  );
   const dataDigest = createHash("sha256").update(JSON.stringify(selectedCandles)).digest("hex");
   const runId = createHash("sha256").update(JSON.stringify({
     symbol: config.symbol,
@@ -329,6 +334,7 @@ export function runWalkForwardValidation(
     strategy: "ema_crossover",
     candlesProcessed: requiredCandles,
     windows,
+    regimeStability,
     metrics: {
       windowCount,
       averageTrainingReturnPct,
@@ -370,6 +376,7 @@ export function runWalkForwardValidation(
       "Each out-of-sample interval return is assigned using the canonical regime known at the previous candle close; the first validation interval uses only completed training candles, preventing same-interval look-ahead.",
       "Per-regime volatility, Sharpe and Sortino require at least 30 observations. Annualization adjusts by the observed regime share and is a descriptive frequency approximation.",
       "Per-regime drawdown is measured within uninterrupted regime episodes; non-adjacent episodes are never concatenated. Regime sample labels are display thresholds, not statistical significance tests.",
+      "Cross-fold regime stability summarizes fold-local conditional metrics only; it never pools interval returns or concatenates equity curves. Return summaries require at least two folds with observations, while risk summaries use only folds where the risk metric is defined.",
       "No parameter search, strategy selection, leverage, exchange orders, PAPER orders or LIVE execution are performed.",
     ],
     executionEligible: false,
