@@ -24,9 +24,10 @@ export default function Portfolio3DConcentration(p: Props) {
   const bars = useMemo(() => {
     const sorted = [...p.exposure].sort((a, b) => b.weightPct - a.weightPct || a.symbol.localeCompare(b.symbol));
     const max = Math.max(1, ...sorted.map(x => x.weightPct));
+    const spacing = Math.min(104, 680 / Math.max(1, sorted.length));
     return sorted.map((item, i) => {
       const height = Math.max(3, item.weightPct / max * 112);
-      return { ...item, x: 66 + i * 104, y: 190 - height, height };
+      return { ...item, x: 36 + i * spacing, y: 190 - height, height };
     });
   }, [p.exposure]);
   const active = bars.find(x => x.symbol === selected);
