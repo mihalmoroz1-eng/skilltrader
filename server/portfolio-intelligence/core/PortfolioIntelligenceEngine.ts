@@ -3,6 +3,7 @@ import type { PortfolioIntelligenceRequest } from "@shared/portfolioIntelligence
 import type { MarketCandle, MarketInterval } from "../../market-data/core/MarketDataTypes";
 import type { HistoricalCandleRecord } from "../../historical-data/core/HistoricalDataTypes";
 import type { PaperPosition } from "../../paper-execution/core/PaperExecutionEngine";
+import { calculatePortfolioDrawdown, type PortfolioDrawdownIntelligenceResult } from "./PortfolioDrawdownEngine";
 
 const SCALE = 100_000_000n;
 const MAX_CANDLES = 5_000;
@@ -61,6 +62,7 @@ export type PortfolioIntelligenceResult = {
   correlations: Array<{ symbolA: string; symbolB: string; correlation: number | null; observations: number; status: "ready" | "insufficient_history" | "constant_returns" }>;
   riskIntelligence: PortfolioRiskIntelligenceResult;
   riskForecast: PortfolioRiskForecastResult;
+  drawdownIntelligence: PortfolioDrawdownIntelligenceResult;
   portfolio: {
     accountAvailable: boolean; markToMarketAvailable: boolean; openPositions: number;
     equity: string | null; grossExposure: string | null; netDirectionalExposure: string | null;
@@ -414,6 +416,7 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
   const portfolio = calculatePortfolio(input);
   const riskIntelligence = calculateRiskIntelligence(pairs, portfolio);
   const riskForecast = calculateRiskForecast(input.request.interval, map, portfolio);
+  const drawdownIntelligence = calculatePortfolioDrawdown(input.request.interval, map, portfolio);
   const warnings: string[] = [];
   if (diagnostics.some(item => item.gaps > 0)) warnings.push("Исторические пропуски обнаружены; свечи не синтезировались, корреляция учитывает только соседние совпадающие интервалы.");
   if (diagnostics.some(item => item.excludedUnclosedCandles > 0)) warnings.push("Незакрытые свечи исключены.");
@@ -432,6 +435,8 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
     "Не моделируются ликвидация, маржин-колл, funding, заём, плечо, рыночное воздействие, проскальзывание выхода, новые комиссии и изменение корреляций.",
     "Историческая оценка волатильности и 95% VaR использует sample covariance по точным общим последовательным доходностям, нормальное приближение и sqrt(time); это сценарная статистика, не прогноз гарантированного убытка.",
     "Для портфельной доходности используются signed net exposures, нормированные на текущую gross exposure; VaR денежно масштабируется на gross exposure и сравнивается с текущей PAPER equity.",
+    "Историческая просадка реконструируется с постоянными текущими signed net exposure weights; это приближение, не фактическая историческая NAV или история изменения состава портфеля.",
+    "Просадка считается только по общим последовательным интервалам; минимум 30 наблюдений, пропуски не заполняются, восстановление фиксируется только после возврата к предыдущему пику.",
     "Модуль только читает данные. Account Risk Engine остаётся источником допуска к PAPER и расчёта размера позиции.",
   ];
   const runId = createHash("sha256").update(JSON.stringify({
@@ -446,7 +451,7 @@ export function runPortfolioIntelligence(input: PortfolioIntelligenceInput): Por
     runId, dataDigest, symbols, interval: input.request.interval,
     range: { startTime: input.request.startTime, endTime: input.request.endTime },
     minimumCorrelationObservations: MIN_OBSERVATIONS,
-    series: diagnostics, correlations: pairs, riskIntelligence, riskForecast, portfolio, warnings, assumptions,
+    series: diagnostics, correlations: pairs, riskIntelligence, riskForecast, drawdownIntelligence, portfolio, warnings, assumptions,
     executionEligible: false, exchangeOrderSent: false,
   };
 }
