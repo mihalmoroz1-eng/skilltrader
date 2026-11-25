@@ -10,7 +10,7 @@ export function calculatePortfolioRisk(correlations: Correlation[], exposure: Ex
   const weights = new Map(exposure.map(item => [item.symbol, item.weightPct / 100]));
   const symbols = [...weights.keys()].sort();
   const totalPairs = symbols.length * (symbols.length - 1) / 2;
-  const pairMap = new Map(correlations.map(pair => [[pair.symbolA, pair.symbolB].sort().join("::"), pair]));
+  const pairMap = new Map(correlations.map(pair => [[pair.symbolA, pair.symbolB].sort().join("::"), pair] as const));
   let eligiblePairs = 0, numerator = 0, denominator = 0;
   const highPairs: RiskPair[] = [];
   for (let i = 0; i < symbols.length; i++) for (let j = i + 1; j < symbols.length; j++) {
