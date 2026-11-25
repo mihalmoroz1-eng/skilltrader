@@ -174,7 +174,7 @@ export default function WalkForwardValidationPanel() {
             <span>Нужно свечей: <strong>{Number.isFinite(barsRequired) ? barsRequired.toLocaleString("ru-RU") : "—"}</strong> / 50 000</span>
           </div>
           {!rangeValid && <p className="walk-forward-error">Укажите символ и корректный диапазон до 366 дней.</p>}
-          {!configValid && <p className="walk-forward-error"><AlertTriangle size={13} /> Проверьте размеры окон: обучение должно покрывать warm-up выбранной стратегии, проверка — от 10 свечей, шаг не меньше проверочного окна, всего от 2 до 12 окон и не более 50 000 свечей.</p>}
+          {!configValid && <p className="walk-forward-error"><AlertTriangle size={13} /> Проверьте размеры окон: обучение должно покрывать warm-up {compareAllStrategies ? "всех четырёх стратегий" : "выбранной стратегии"}, проверка — от 10 свечей, шаг не меньше проверочного окна, всего от 2 до 12 окон и не более 50 000 свечей.</p>}
           <button type="button" className="walk-forward-run" onClick={run} disabled={!rangeValid || !configValid || !auth.data || walkForward.isPending || strategyPortfolio.isPending}>
             <Play size={14} /> {walkForward.isPending || strategyPortfolio.isPending ? "Проверка выполняется…" : compareAllStrategies ? "Сравнить 4 стратегии" : "Запустить Walk-Forward"}
           </button>
