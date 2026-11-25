@@ -79,9 +79,10 @@ export type WalkForwardRequest = z.infer<typeof walkForwardRequestSchema>;
 
 export const robustnessRequestSchema = z.object({
   ...backtestShape,
-  regimeLookback: z.number().int().min(5).max(200).default(20),
-  trendThresholdBps: z.number().int().min(10).max(5_000).default(100),
-  volatilityThresholdBps: z.number().int().min(1).max(2_000).default(25),
+  regimeLookback: z.number().int().min(10).max(200).default(30),
+  trendThresholdBps: z.number().int().min(10).max(2_000).default(100),
+  rangeThresholdBps: z.number().int().min(5).max(1_000).default(50),
+  highVolatilityThresholdBps: z.number().int().min(10).max(2_000).default(200),
 }).strict().superRefine((value, ctx) => {
   validateBacktestParameters(value, ctx);
   if (value.feeBps > 50) {
@@ -96,6 +97,13 @@ export const robustnessRequestSchema = z.object({
       code: "custom",
       message: "slippageBps must be at most 50 because robustness includes a 2x cost stress case",
       path: ["slippageBps"],
+    });
+  }
+  if (value.rangeThresholdBps >= value.trendThresholdBps) {
+    ctx.addIssue({
+      code: "custom",
+      message: "rangeThresholdBps must be below trendThresholdBps",
+      path: ["rangeThresholdBps"],
     });
   }
 });
