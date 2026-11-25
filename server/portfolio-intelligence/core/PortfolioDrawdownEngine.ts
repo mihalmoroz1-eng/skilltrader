@@ -51,31 +51,23 @@ export function calculatePortfolioDrawdown(
   const holdings = portfolio.symbolExposure;
   if (!holdings.length || holdings.some(item => !series.has(item.symbol))) return empty("insufficient_data");
 
-  const returnMaps = holdings.map(holding => {
-    const candles = series.get(holding.symbol)!;
-    const closes = new Map(candles.map(candle => [candle.openTime, Number(candle.close)] as const));
-    const returns = new Map<number, number>();
-    const times = [...closes.keys()].sort((a, b) => a - b);
-    for (let i = 1; i < times.length; i += 1) {
-      const previous = times[i - 1], current = times[i];
-      if (current !== previous + step(interval, previous)) continue;
-      const oldClose = closes.get(previous)!, newClose = closes.get(current)!;
-      const value = (newClose - oldClose) / oldClose;
-      if (Number.isFinite(value)) returns.set(current, value);
-    }
-    return {
-      returns,
-      weight: Number(itemNet(holding.netNotional)) / gross,
-    };
-  });
-  const commonTimes = [...returnMaps[0].returns.keys()]
-    .filter(time => returnMaps.every(item => item.returns.has(time)))
+  const closeMaps = holdings.map(holding => ({
+    closes: new Map((series.get(holding.symbol) ?? []).map(candle => [candle.openTime, Number(candle.close)] as const)),
+    weight: itemNet(holding.netNotional) / gross,
+  }));
+  const commonCandleTimes = [...closeMaps[0].closes.keys()]
+    .filter(time => closeMaps.every(item => item.closes.has(time)))
     .sort((a, b) => a - b);
   const portfolioReturns: number[] = [];
-  for (let i = 1; i < commonTimes.length; i += 1) {
-    const previous = commonTimes[i - 1], current = commonTimes[i];
+  for (let i = 1; i < commonCandleTimes.length; i += 1) {
+    const previous = commonCandleTimes[i - 1], current = commonCandleTimes[i];
     if (current !== previous + step(interval, previous)) continue;
-    portfolioReturns.push(returnMaps.reduce((sum, item) => sum + item.weight * item.returns.get(current)!, 0));
+    const value = closeMaps.reduce((sum, item) => {
+      const oldClose = item.closes.get(previous)!;
+      const newClose = item.closes.get(current)!;
+      return sum + item.weight * ((newClose - oldClose) / oldClose);
+    }, 0);
+    if (Number.isFinite(value)) portfolioReturns.push(value);
   }
   if (portfolioReturns.length < MIN_DRAWDOWN_OBSERVATIONS ||
       portfolioReturns.some(value => !Number.isFinite(value) || value <= -1)) {
