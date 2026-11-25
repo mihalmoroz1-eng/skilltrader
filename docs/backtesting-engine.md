@@ -1,11 +1,12 @@
 # Backtesting Engine
 
 ## Scope
-The modular backtesting engine evaluates deterministic EMA Crossover and RSI Mean Reversion strategies on stored, closed Binance Spot historical candles. Both use the same deterministic execution core and are separate from synthetic Monte Carlo scenario simulation.
+The modular backtesting engine evaluates deterministic EMA Crossover, RSI Mean Reversion and MACD Momentum strategies on stored, closed Binance Spot historical candles. Both use the same deterministic execution core and are separate from synthetic Monte Carlo scenario simulation.
 
 ## Execution model
 - EMA crossover and RSI threshold-crossing events are computed from a completed candle.
 - RSI Mean Reversion enters LONG when RSI crosses upward through the oversold threshold and SHORT when it crosses downward through the overbought threshold. Direction-specific exit events close only the matching side.
+- MACD Momentum enters LONG when the MACD line crosses above its signal line and SHORT when it crosses below. MACD and signal-line warm-up must be complete before a crossing can be evaluated.
 - Entries and opposite-signal exits are filled at the following candle open, with configured adverse slippage.
 - Stop-loss and take-profit are evaluated against each candle's high/low after entry.
 - If both levels are touched within one candle, stop-loss is assumed first because OHLC data does not reveal the intrabar path.
@@ -26,4 +27,4 @@ The engine reports final equity, net profit, total return, maximum marked-to-mar
 - The protected tRPC endpoint reads from the historical candle store only.
 - Maximum 50,000 candles per run.
 - The result includes executionEligible=false. Backtesting is research output, not a signal approval, PAPER order, or LIVE execution.
-- The public backtest and Walk-Forward workflows support EMA Crossover and RSI Mean Reversion. Strategy Robustness remains explicitly EMA-only because its neighboring-parameter sensitivity analysis is EMA-specific. Strategy benchmark comparisons reuse the selected strategy against Buy & Hold 1x, risk-matched Buy & Hold and cash controls.
+- The public backtest, Strategy Benchmark and Walk-Forward workflows support EMA Crossover, RSI Mean Reversion and MACD Momentum. Strategy Robustness remains explicitly EMA-only because its neighboring-parameter sensitivity analysis is EMA-specific. Strategy benchmark comparisons reuse the selected strategy against Buy & Hold 1x, risk-matched Buy & Hold and cash controls.
