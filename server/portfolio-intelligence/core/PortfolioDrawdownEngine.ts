@@ -88,9 +88,9 @@ export function calculatePortfolioDrawdown(
     wealth *= 1 + portfolioReturns[i];
     if (!Number.isFinite(wealth) || wealth <= 0) return empty("insufficient_data", portfolioReturns.length);
     if (wealth >= peak) {
-      if (maxRecoveryIndex === null && maxDrawdown > 0 && i > maxTroughIndex) {
+      if (maxRecoveryIndex === null && maxDrawdown > 0 && i + 1 > maxTroughIndex) {
         // Recovery is recorded only after wealth reaches the prior peak.
-        if (maxPeakIndex <= maxTroughIndex) maxRecoveryIndex = i;
+        if (maxPeakIndex <= maxTroughIndex) maxRecoveryIndex = i + 1;
       }
       peak = wealth;
       peakIndex = i + 1;
