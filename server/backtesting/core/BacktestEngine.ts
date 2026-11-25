@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { MarketCandle, MarketInterval } from "../../market-data/core/MarketDataTypes";
 import { validateCandles } from "../../market-data/core/MarketDataValidator";
-import { emaCrossoverStrategy } from "../strategies/EmaCrossoverStrategy";
+import { emaCrossoverStrategy, type EmaCrossoverConfig } from "../strategies/EmaCrossoverStrategy";
+import type { BacktestStrategy } from "../strategies/Strategy";
 
 export type BacktestConfig = {
   symbol: string;
@@ -33,12 +34,14 @@ export type BacktestTrade = {
   exitReason: "stop_loss" | "take_profit" | "opposite_signal" | "strategy_exit" | "end_of_data";
 };
 
+export type BacktestExecutionConfig = Omit<BacktestConfig, "fastEmaPeriod" | "slowEmaPeriod">;
+
 export type BacktestResult = {
   runId: string;
   dataDigest: string;
   symbol: string;
   interval: MarketInterval;
-  strategy: "ema_crossover";
+  strategy: string;
   candlesProcessed: number;
   trades: BacktestTrade[];
   equityCurve: Array<{ time: number; equity: number }>;
@@ -122,11 +125,18 @@ function adverseExitPrice(price: number, side: "LONG" | "SHORT", slippageRate: n
 }
 
 export function runBacktest(candles: MarketCandle[], config: BacktestConfig): BacktestResult {
+  const strategyConfig: EmaCrossoverConfig = { fastEmaPeriod: config.fastEmaPeriod, slowEmaPeriod: config.slowEmaPeriod };
+  const { fastEmaPeriod: _fast, slowEmaPeriod: _slow, ...executionConfig } = config;
+  return runBacktestWithStrategy(candles, executionConfig, emaCrossoverStrategy, strategyConfig);
+}
+
+export function runBacktestWithStrategy<TConfig>(
+  candles: MarketCandle[],
+  config: BacktestExecutionConfig,
+  strategy: BacktestStrategy<TConfig>,
+  strategyConfig: TConfig,
+): BacktestResult {
   finitePositive(config.startingCapital, "startingCapital");
-  if (!Number.isInteger(config.fastEmaPeriod) || !Number.isInteger(config.slowEmaPeriod) ||
-      config.fastEmaPeriod < 2 || config.slowEmaPeriod <= config.fastEmaPeriod || config.slowEmaPeriod > 300) {
-    throw new BacktestInputError("EMA periods are invalid");
-  }
   if (!/^[A-Z0-9]{2,20}$/.test(config.symbol) ||
       !Number.isInteger(config.riskBps) || config.riskBps < 1 || config.riskBps > 1_000 || config.riskBps >= config.stopLossBps ||
       !Number.isInteger(config.stopLossBps) || config.stopLossBps < 10 || config.stopLossBps > 5_000 ||
@@ -135,8 +145,11 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
       !Number.isInteger(config.slippageBps) || config.slippageBps < 0 || config.slippageBps > 100) {
     throw new BacktestInputError("Risk, stop, target, fee or slippage parameters are invalid");
   }
-  const minimumHistory = emaCrossoverStrategy.minimumHistory(config);
-  if (candles.length < minimumHistory) throw new BacktestInputError("Insufficient candles for EMA warm-up");
+  let minimumHistory: number;
+  try { minimumHistory = strategy.minimumHistory(strategyConfig); }
+  catch (error) { throw new BacktestInputError(error instanceof Error ? error.message : "Strategy configuration is invalid"); }
+  if (!Number.isSafeInteger(minimumHistory) || minimumHistory < 2) throw new BacktestInputError("Strategy returned an invalid minimum history requirement");
+  if (candles.length < minimumHistory) throw new BacktestInputError("Insufficient candles for strategy warm-up");
   const evaluationStartIndex = config.evaluationStartIndex ?? 0;
   if (!Number.isInteger(evaluationStartIndex) || evaluationStartIndex < 0 ||
       evaluationStartIndex >= candles.length ||
@@ -149,7 +162,9 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   if (closes.some(value => !Number.isFinite(value) || value <= 0)) {
     throw new BacktestInputError("Candle prices cannot be represented safely");
   }
-  const signalProvider = emaCrossoverStrategy.createSignalProvider(candles, config);
+  let signalProvider;
+  try { signalProvider = strategy.createSignalProvider(candles, strategyConfig); }
+  catch (error) { throw new BacktestInputError(error instanceof Error ? error.message : "Strategy signal provider could not be created"); }
   const feeRate = config.feeBps / 10_000;
   const slippageRate = config.slippageBps / 10_000;
   const stopRate = config.stopLossBps / 10_000;
@@ -272,7 +287,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   })).digest("hex").slice(0, 24);
 
   return {
-    runId, dataDigest, symbol: config.symbol, interval: config.interval, strategy: "ema_crossover",
+    runId, dataDigest, symbol: config.symbol, interval: config.interval, strategy: strategy.id,
     candlesProcessed: candles.length - evaluationStartIndex, trades, equityCurve,
     metrics: {
       startingCapital: config.startingCapital, finalEquity, netProfit,
