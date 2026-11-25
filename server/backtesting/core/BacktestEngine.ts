@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { MarketCandle, MarketInterval } from "../../market-data/core/MarketDataTypes";
 import { validateCandles } from "../../market-data/core/MarketDataValidator";
-import { calculateEMA } from "../../market-data/core/TechnicalIndicators";
+import { emaCrossoverStrategy } from "../strategies/EmaCrossoverStrategy";
 
 export type BacktestConfig = {
   symbol: string;
@@ -148,8 +148,7 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
   if (closes.some(value => !Number.isFinite(value) || value <= 0)) {
     throw new BacktestInputError("Candle prices cannot be represented safely");
   }
-  const fast = calculateEMA(closes, config.fastEmaPeriod);
-  const slow = calculateEMA(closes, config.slowEmaPeriod);
+  const signalProvider = emaCrossoverStrategy.createSignalProvider(candles, config);
   const feeRate = config.feeBps / 10_000;
   const slippageRate = config.slippageBps / 10_000;
   const stopRate = config.stopLossBps / 10_000;
@@ -196,14 +195,9 @@ export function runBacktest(candles: MarketCandle[], config: BacktestConfig): Ba
 
   for (let i = Math.max(config.slowEmaPeriod + 1, evaluationStartIndex); i < candles.length; i += 1) {
     const candle = candles[i];
-    const signalIndex = i - 1;
-    const priorSignalIndex = i - 2;
-    const crossUp = fast[priorSignalIndex] !== null && slow[priorSignalIndex] !== null &&
-      fast[signalIndex] !== null && slow[signalIndex] !== null &&
-      fast[priorSignalIndex]! <= slow[priorSignalIndex]! && fast[signalIndex]! > slow[signalIndex]!;
-    const crossDown = fast[priorSignalIndex] !== null && slow[priorSignalIndex] !== null &&
-      fast[signalIndex] !== null && slow[signalIndex] !== null &&
-      fast[priorSignalIndex]! >= slow[priorSignalIndex]! && fast[signalIndex]! < slow[signalIndex]!;
+    const signal = signalProvider.signalAt(i - 1);
+    const crossUp = signal === "LONG";
+    const crossDown = signal === "SHORT";
 
     const hadPositionAtStart = position !== null;
     if (position && ((position.side === "LONG" && crossDown) || (position.side === "SHORT" && crossUp))) {
