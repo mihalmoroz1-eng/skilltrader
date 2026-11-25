@@ -71,7 +71,7 @@ export default function StrategyRobustnessPanel() {
     Number.isInteger(fees) && fees >= 0 && fees <= 50 &&
     Number.isInteger(slippage) && slippage >= 0 && slippage <= 50 &&
     Number.isInteger(lookback) && lookback >= 10 && lookback <= 200 &&
-    Number.isInteger(trendThreshold) && trendThreshold >= 10 && trendThreshold <= 5_000 &&
+    Number.isInteger(trendThreshold) && trendThreshold >= 10 && trendThreshold <= 2_000 &&
     Number.isInteger(rangeThreshold) && rangeThreshold >= 5 && rangeThreshold <= 1_000 &&
     rangeThreshold < trendThreshold &&
     Number.isInteger(highVolatilityThreshold) && highVolatilityThreshold >= 10 && highVolatilityThreshold <= 2_000;
@@ -131,7 +131,7 @@ export default function StrategyRobustnessPanel() {
             <label>Комиссия, bps<input type="number" min="0" max="50" value={feeBps} onChange={event => setFeeBps(event.target.value)} /></label>
             <label>Проскальзывание, bps<input type="number" min="0" max="50" value={slippageBps} onChange={event => setSlippageBps(event.target.value)} /></label>
             <label>Окно режима<input type="number" min="10" max="200" value={regimeLookback} onChange={event => setRegimeLookback(event.target.value)} /></label>
-            <label>Порог тренда, bps<input type="number" min="10" max="5000" value={trendThresholdBps} onChange={event => setTrendThresholdBps(event.target.value)} /></label>
+            <label>Порог тренда, bps<input type="number" min="10" max="2000" value={trendThresholdBps} onChange={event => setTrendThresholdBps(event.target.value)} /></label>
             <label>Порог бокового рынка, bps<input type="number" min="5" max="1000" value={rangeThresholdBps} onChange={event => setRangeThresholdBps(event.target.value)} /></label>
             <label>Порог высокой волатильности, bps<input type="number" min="10" max="2000" value={highVolatilityThresholdBps} onChange={event => setHighVolatilityThresholdBps(event.target.value)} /></label>
           </div>
