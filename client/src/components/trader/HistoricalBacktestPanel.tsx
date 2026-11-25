@@ -73,7 +73,7 @@ export default function HistoricalBacktestPanel() {
     setQueryEnabled(false);
     ingest.reset();
     backtest.reset();
-  }, [symbol, interval, startDate, endDate, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod]);
+  }, [symbol, interval, startDate, endDate, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod]);
 
   const loadedCandles = candles.data ?? [];
   const canBacktest = rangeValid && loadedCandles.length > 0 && loadedCandles.length <= 50_000 &&
