@@ -3,6 +3,7 @@ import { Activity, AlertTriangle, BarChart3, Play, ShieldCheck } from "lucide-re
 import { trpc } from "@/lib/trpc";
 import { MARKET_DATA_INTERVALS } from "@shared/marketData";
 import PortfolioCorrelationMatrix from "./PortfolioCorrelationMatrix";
+import PortfolioRiskIntelligence from "./PortfolioRiskIntelligence";
 import Portfolio3DMap from "./Portfolio3DMap";
 import Portfolio3DConcentration from "./Portfolio3DConcentration";
 import Portfolio3DStress from "./Portfolio3DStress";
@@ -104,6 +105,7 @@ export default function PortfolioIntelligencePanel() {
                 <div><span>Крупнейшая доля</span><strong>{pct(result.portfolio.concentration.largestWeightPct)}</strong></div>
               </div>
               <div className="portfolio-subtitle"><BarChart3 size={14} /> Корреляция доходностей по совпадающим свечам</div>
+              <PortfolioRiskIntelligence correlations={result.correlations} exposure={result.portfolio.symbolExposure} />
               <PortfolioCorrelationMatrix correlations={result.correlations} />
               <Portfolio3DMap correlations={result.correlations} exposure={result.portfolio.symbolExposure} />
               <Portfolio3DConcentration exposure={result.portfolio.symbolExposure} largestSymbol={result.portfolio.concentration.largestSymbol} largestWeightPct={result.portfolio.concentration.largestWeightPct} herfindahlIndex={result.portfolio.concentration.herfindahlIndex} grossExposure={result.portfolio.grossExposure} grossExposureUtilizationBps={result.portfolio.grossExposureUtilizationBps} grossExposureLimitBps={result.portfolio.grossExposureLimitBps} withinConfiguredGrossExposure={result.portfolio.withinConfiguredGrossExposure} />
