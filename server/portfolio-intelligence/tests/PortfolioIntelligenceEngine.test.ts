@@ -218,6 +218,73 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     expect(empty.riskForecast.status).toBe("no_exposure");
     expect(empty.riskForecast.fiveDay95VaR).toBeNull();
   });
+  it("calculates a recovered maximum drawdown and current recovery state", () => {
+    const returns = [
+      ...Array(10).fill(0.01), ...Array(5).fill(-0.02),
+      ...Array(5).fill(0.025), ...Array(19).fill(0.002),
+    ];
+    let price = 100;
+    const values = [price];
+    for (const value of returns) { price *= 1 + value; values.push(price); }
+    const result = run({
+      btc: candles("BTCUSDT", values),
+      positions: [position()],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(result.drawdownIntelligence.status).toBe("ready");
+    expect(result.drawdownIntelligence.maxDrawdownPct).toBeGreaterThan(5);
+    expect(result.drawdownIntelligence.maxDrawdownRecovered).toBe(true);
+    expect(result.drawdownIntelligence.currentDrawdownPct).toBe(0);
+    expect(result.drawdownIntelligence.currentDrawdownDurationObservations).toBeNull();
+    expect(result.drawdownIntelligence.observations).toBe(39);
+  });
+  it("reports an ongoing drawdown without inventing a recovery", () => {
+    const returns = [...Array(10).fill(0.01), ...Array(29).fill(-0.005)];
+    let price = 100;
+    const values = [price];
+    for (const value of returns) { price *= 1 + value; values.push(price); }
+    const result = run({
+      btc: candles("BTCUSDT", values),
+      positions: [position()],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(result.drawdownIntelligence.status).toBe("ready");
+    expect(result.drawdownIntelligence.currentDrawdownPct).toBeGreaterThan(0);
+    expect(result.drawdownIntelligence.currentDrawdownDurationObservations).toBeGreaterThan(0);
+    expect(result.drawdownIntelligence.maxDrawdownRecovered).toBe(false);
+  });
+  it("returns zero drawdown for a monotonically rising path and respects SHORT direction", () => {
+    const rising = run({
+      btc: candles("BTCUSDT", Array.from({ length: 40 }, (_, i) => 100 + i)),
+      positions: [position({ side: "SHORT" })],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(rising.drawdownIntelligence.status).toBe("ready");
+    expect(rising.drawdownIntelligence.maxDrawdownPct).toBe(0);
+    expect(rising.drawdownIntelligence.maxDrawdownRecovered).toBe(true);
+    const fallingPrices = run({
+      btc: candles("BTCUSDT", Array.from({ length: 40 }, (_, i) => 140 - i)),
+      positions: [position({ side: "SHORT" })],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(fallingPrices.drawdownIntelligence.maxDrawdownPct).toBe(0);
+  });
+  it("withholds drawdown when common consecutive history is insufficient or marks are stale", () => {
+    const gap = run({
+      btc: candles("BTCUSDT", Array.from({ length: 40 }, (_, i) => 100 + i), [10]),
+      positions: [position()],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(gap.drawdownIntelligence.status).toBe("insufficient_data");
+    const stale = run({
+      positions: [position()],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 31_000, source: "binance" } },
+    });
+    expect(stale.drawdownIntelligence.status).toBe("stale_marks");
+    expect(stale.drawdownIntelligence.maxDrawdownPct).toBeNull();
+    const empty = run();
+    expect(empty.drawdownIntelligence.status).toBe("no_exposure");
+  });
   it("is deterministic and rejects a range above the candle cap", () => {
     expect(run()).toEqual(run());
     expect(() => runPortfolioIntelligence({
