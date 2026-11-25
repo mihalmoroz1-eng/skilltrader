@@ -34,7 +34,7 @@ export type StrategyBenchmarkResult = {
   dataDigest: string;
   symbol: string;
   interval: BacktestConfig["interval"];
-  strategy: "ema_crossover";
+  strategy: string;
   candlesProcessed: number;
   strategyRunId: string;
   strategyMetrics: BenchmarkTrackMetrics;
@@ -240,7 +240,7 @@ export function runStrategyBenchmark(
     throw new StrategyBenchmarkInputError("Strategy benchmark is limited to 50,000 historical candles");
   }
 
-  // The canonical EMA engine validates strategy config, history length, closed candles and gaps.
+  // The canonical strategy engine validates strategy config, history length, closed candles and gaps.
   const strategyResult = runBacktest(candles, config);
   validateBacktestCandleSeries(candles, config.interval);
 
@@ -266,7 +266,7 @@ export function runStrategyBenchmark(
     dataDigest,
     symbol: config.symbol,
     interval: config.interval,
-    strategy: "ema_crossover",
+    strategy: config.strategy ?? "ema_crossover",
     candlesProcessed: candles.length,
     strategyRunId: strategyResult.runId,
     strategyMetrics,
