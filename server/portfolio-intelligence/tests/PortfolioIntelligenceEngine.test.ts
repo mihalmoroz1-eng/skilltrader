@@ -296,6 +296,53 @@ describe("Portfolio Intelligence & Correlation Engine", () => {
     const empty = run();
     expect(empty.drawdownIntelligence.status).toBe("no_exposure");
   });
+  it("calculates portfolio performance, Buy & Hold excess return and exact 1-day period coverage", () => {
+    const result = run({
+      btc: candles("BTCUSDT", Array.from({ length: 40 }, (_, i) => 100 + i)),
+      positions: [position({ side: "LONG" })],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(result.performanceIntelligence.status).toBe("ready");
+    expect(result.performanceIntelligence.totalReturnPct).toBeGreaterThan(0);
+    expect(result.performanceIntelligence.buyAndHoldReturnPct).toBeCloseTo(result.performanceIntelligence.totalReturnPct!, 8);
+    expect(result.performanceIntelligence.excessReturnPct).toBeCloseTo(0, 8);
+    expect(result.performanceIntelligence.sharpeRatio).toBeGreaterThan(0);
+    expect(result.performanceIntelligence.riskFreeRatePct).toBe(0);
+    expect(result.performanceIntelligence.periods.oneDay.status).toBe("ready");
+    expect(result.performanceIntelligence.periods.oneDay.observations).toBe(24);
+    expect(result.performanceIntelligence.periods.sevenDay.status).toBe("insufficient_history");
+    expect(result.performanceIntelligence.periods.thirtyDay.status).toBe("insufficient_history");
+    expect(result.performanceIntelligence.returnToMaxDrawdown).toBeNull();
+    expect(result.executionEligible).toBe(false);
+    expect(result.exchangeOrderSent).toBe(false);
+  });
+  it("applies signed SHORT exposure to portfolio returns while Buy & Hold remains long-only", () => {
+    const result = run({
+      btc: candles("BTCUSDT", Array.from({ length: 40 }, (_, i) => 140 - i)),
+      positions: [position({ side: "SHORT" })],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(result.performanceIntelligence.status).toBe("ready");
+    expect(result.performanceIntelligence.totalReturnPct).toBeGreaterThan(0);
+    expect(result.performanceIntelligence.buyAndHoldReturnPct).toBeLessThan(0);
+    expect(result.performanceIntelligence.excessReturnPct).toBeGreaterThan(0);
+  });
+  it("withholds performance metrics for stale marks, no exposure and insufficient history", () => {
+    const stale = run({
+      positions: [position()],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 31_000, source: "binance" } },
+    });
+    expect(stale.performanceIntelligence.status).toBe("stale_marks");
+    expect(stale.performanceIntelligence.totalReturnPct).toBeNull();
+    expect(run().performanceIntelligence.status).toBe("no_exposure");
+    const shortHistory = run({
+      btc: candles("BTCUSDT", Array.from({ length: 20 }, (_, i) => 100 + i)),
+      positions: [position()],
+      markPrices: { BTCUSDT: { markPrice: "100", fetchedAt: now - 500, source: "binance" } },
+    });
+    expect(shortHistory.performanceIntelligence.status).toBe("insufficient_data");
+    expect(shortHistory.performanceIntelligence.sharpeRatio).toBeNull();
+  });
   it("is deterministic and rejects a range above the candle cap", () => {
     expect(run()).toEqual(run());
     expect(() => runPortfolioIntelligence({
