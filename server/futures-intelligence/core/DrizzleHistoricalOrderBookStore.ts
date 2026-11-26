@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { futuresOrderBookSnapshots } from "../../../drizzle/schema";
 import { getDb } from "../../db";
 import type { HistoricalOrderBookSnapshotRecord, HistoricalOrderBookStore } from "./HistoricalOrderBookTypes";
