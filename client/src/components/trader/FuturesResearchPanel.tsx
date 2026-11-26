@@ -107,9 +107,9 @@ export default function FuturesResearchPanel() {
         await captureOrderBook.mutateAsync({
           symbol: symbol.trim().toUpperCase(), depthLimit: 100,
         });
-        if (cancelled) return;
         completed += 1;
         setCollectionCount(completed);
+        if (cancelled) return;
         if (completed >= 60) {
           setCollectionActive(false);
           setCollectionMessage("Достигнут предел сессии: 60 снимков. Для продолжения запустите новую сессию.");
@@ -203,7 +203,7 @@ export default function FuturesResearchPanel() {
             <button type="button" onClick={() => {
               if (collectionActive) {
                 setCollectionActive(false);
-                setCollectionMessage("Сбор остановлен пользователем.");
+                setCollectionMessage("Сбор остановлен пользователем; уже отправленный запрос ещё может завершиться.");
               } else {
                 setCollectionCount(0);
                 setCollectionMessage(null);
