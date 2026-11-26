@@ -77,6 +77,29 @@ describe("strategy portfolio intelligence", () => {
       summary.totalFolds === 2 && summary.foldsObserved <= 2 &&
       (summary.foldsObserved < 2 ? summary.positiveReturnSharePct === null : true),
     ))).toBe(true);
+    expect(result.costScenarios.map(item => item.id)).toEqual(["cost_1_5x", "cost_2x"]);
+    expect(result.costScenarios.map(item => item.multiplier)).toEqual([1.5, 2]);
+    expect(result.costScenarios.map(item => [item.feeBps, item.slippageBps])).toEqual([[8, 8], [10, 10]]);
+    for (const scenario of result.costScenarios) {
+      expect(scenario.strategies.map(item => item.strategy)).toEqual([
+        "ema_crossover", "rsi_mean_reversion", "macd_momentum", "breakout",
+      ]);
+      expect(new Set(scenario.strategies.map(item => item.runId)).size).toBe(4);
+      for (const stressed of scenario.strategies) {
+        const baseline = result.strategies.find(item => item.strategy === stressed.strategy)!;
+        expect(stressed.folds.map(fold => [
+          fold.index, fold.validationStartTime, fold.validationEndTime,
+        ])).toEqual(baseline.folds.map(fold => [
+          fold.index, fold.validationStartTime, fold.validationEndTime,
+        ]));
+        expect(stressed.folds.every(fold => {
+          const baseFold = baseline.folds.find(item => item.index === fold.index)!;
+          return fold.returnDeltaFromBaselinePct === fold.validationReturnPct - baseFold.validationReturnPct &&
+            fold.drawdownDeltaFromBaselinePct === fold.maxDrawdownPct - baseFold.maxDrawdownPct &&
+            fold.tradeCountDeltaFromBaseline === fold.totalTrades - baseFold.totalTrades;
+        })).toBe(true);
+      }
+    }
     expect(result.executionEligible).toBe(false);
     expect(result.exchangeOrderSent).toBe(false);
   });
@@ -85,6 +108,13 @@ describe("strategy portfolio intelligence", () => {
     expect(() => runStrategyPortfolioIntelligence(series(100), {
       ...config, trainingCandles: 22,
     })).toThrow(StrategyPortfolioInputError);
+  });
+
+  it("rejects base costs above the supported 2x stress limit", () => {
+    expect(() => runStrategyPortfolioIntelligence(series(115), { ...config, feeBps: 51 }))
+      .toThrow(StrategyPortfolioInputError);
+    expect(() => runStrategyPortfolioIntelligence(series(115), { ...config, slippageBps: 51 }))
+      .toThrow(StrategyPortfolioInputError);
   });
 
   it("is deterministic and never combines strategy returns into a synthetic portfolio", () => {
