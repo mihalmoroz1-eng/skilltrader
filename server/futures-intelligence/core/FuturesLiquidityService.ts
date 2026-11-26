@@ -55,7 +55,10 @@ function depthNotional(levels: FuturesOrderBookLevel[], mid: number, bandBps: nu
 }
 
 export class FuturesLiquidityService {
-  constructor(private readonly provider: FuturesMarketProvider) {
+  constructor(
+    private readonly provider: FuturesMarketProvider,
+    private readonly now: () => number = Date.now,
+  ) {
     if (!provider?.id?.trim()) throw new Error("Futures provider id is required");
   }
 
@@ -86,7 +89,7 @@ export class FuturesLiquidityService {
     const snapshot = await this.provider.fetchSnapshot(symbol, depthLimit);
     const market = this.analyzeSnapshot(snapshot, depthLimit);
     if (snapshot.symbol !== symbol) throw new FuturesLiquidityValidationError("Snapshot symbol does not match request");
-    const snapshotAgeMs = Date.now() - snapshot.fetchedAt;
+    const snapshotAgeMs = this.now() - snapshot.fetchedAt;
     if (!Number.isFinite(snapshotAgeMs) || snapshotAgeMs < -5_000 || snapshotAgeMs > maxSnapshotAgeMs) {
       throw new FuturesLiquidityValidationError("Order-book snapshot is stale or has an invalid timestamp");
     }
