@@ -15,3 +15,32 @@ export const futuresExecutionSimulationRequestSchema = z.object({
 }).strict();
 
 export type FuturesExecutionSimulationRequest = z.infer<typeof futuresExecutionSimulationRequestSchema>;
+
+
+const historicalOrderBookSymbol = z.string().trim().min(2).max(20)
+  .regex(/^[A-Za-z0-9]+$/).transform(value => value.toUpperCase());
+
+export const historicalOrderBookCaptureRequestSchema = z.object({
+  symbol: historicalOrderBookSymbol,
+  depthLimit: z.number().int().min(5).max(1000).default(100),
+}).strict();
+
+export const historicalOrderBookHistoryRequestSchema = z.object({
+  symbol: historicalOrderBookSymbol,
+  startTime: z.number().int().nonnegative().safe(),
+  endTime: z.number().int().positive().safe(),
+  limit: z.number().int().min(1).max(5000).default(500),
+}).strict().refine(value => value.endTime > value.startTime &&
+  value.endTime - value.startTime <= 366 * 24 * 60 * 60 * 1000, {
+  message: "Historical order-book range must be positive and no longer than 366 days",
+});
+
+export const historicalOrderBookMatchRequestSchema = z.object({
+  symbol: historicalOrderBookSymbol,
+  decisionTime: z.number().int().nonnegative().safe(),
+  maxAgeMs: z.number().int().min(1).max(300_000).default(30_000),
+}).strict();
+
+export type HistoricalOrderBookCaptureRequest = z.infer<typeof historicalOrderBookCaptureRequestSchema>;
+export type HistoricalOrderBookHistoryRequest = z.infer<typeof historicalOrderBookHistoryRequestSchema>;
+export type HistoricalOrderBookMatchRequest = z.infer<typeof historicalOrderBookMatchRequestSchema>;
