@@ -22,7 +22,7 @@ import { BinanceSpotHistoricalProvider } from "./historical-data/providers/Binan
 import { DrizzleHistoricalCandleStore } from "./historical-data/core/DrizzleHistoricalCandleStore";
 import { HistoricalDataIngestionService, HistoricalDataRequestError } from "./historical-data/core/HistoricalDataIngestionService";
 import { backtestRequestSchema, walkForwardRequestSchema, robustnessRequestSchema, strategyBenchmarkRequestSchema, strategyPortfolioRequestSchema } from "@shared/backtest";
-import { BacktestInputError, runBacktest } from "./backtesting/core/BacktestEngine";
+import { BacktestInputError, runBacktest, validateBacktestCandleSeries } from "./backtesting/core/BacktestEngine";
 import { WalkForwardInputError, runWalkForwardValidation } from "./backtesting/core/WalkForwardValidationEngine";
 import { StrategyRobustnessInputError, runStrategyRobustness } from "./backtesting/core/StrategyRobustnessEngine";
 import { StrategyBenchmarkInputError, runStrategyBenchmark } from "./backtesting/core/StrategyBenchmarkEngine";
@@ -30,7 +30,7 @@ import { StrategyPortfolioInputError, runStrategyPortfolioIntelligence } from ".
 import {
   futuresExecutionSimulationRequestSchema, futuresIntelligenceRequestSchema,
   historicalOrderBookCaptureRequestSchema, historicalOrderBookHistoryRequestSchema,
-  historicalOrderBookMatchRequestSchema,
+  historicalOrderBookMatchRequestSchema, historicalLiquidityCoverageRequestSchema,
 } from "@shared/futuresIntelligence";
 import { BinanceUsdMFuturesProvider, FuturesProviderError } from "./futures-intelligence/providers/BinanceUsdMFuturesProvider";
 import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futures-intelligence/core/FuturesLiquidityService";
@@ -359,6 +359,28 @@ export const appRouter = router({
   }),
 
   backtesting: router({
+    liquidityCoverage: protectedProcedure
+      .input(historicalLiquidityCoverageRequestSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        try {
+          const candles = await historicalDataService.query({
+            symbol: input.symbol, interval: input.interval,
+            startTime: input.startTime, endTime: input.endTime, limit: 50_001,
+          });
+          if (candles.length > 50_000) throw new BacktestInputError("Liquidity coverage is limited to 50,000 historical candles");
+          validateBacktestCandleSeries(candles, input.interval);
+          return await historicalOrderBookService.coverage(input.symbol, candles, input.maxAgeMs);
+        } catch (error) {
+          if (error instanceof HistoricalOrderBookError || error instanceof BacktestInputError ||
+              error instanceof HistoricalDataRequestError) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          }
+          console.error("[Historical Liquidity Coverage] Analysis failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Исторические данные или архив стакана временно недоступны." });
+        }
+      }),
     run: protectedProcedure
       .input(backtestRequestSchema)
       .mutation(async ({ ctx, input }) => {
