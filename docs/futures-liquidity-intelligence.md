@@ -34,3 +34,19 @@ The estimate does not model latency, queue priority, hidden liquidity, cancellat
 
 ## Safety
 Public endpoints only. No API keys, private account routes, trade signals, order placement or execution. All results have executionEligible=false.
+
+
+## Historical order-book archive
+
+The authenticated `futuresIntelligence.captureHistoricalOrderBook` mutation manually captures and persists one validated public USD-M Futures depth snapshot. There is no background collector or implied continuous coverage; each observation is stored only after a user-triggered capture.
+
+The `futures_order_book_snapshots` table stores symbol, provider, conservative local observation time, provider receipt time, Binance depth update ID, best quotes, bounded visible bid/ask levels as decimal-preserving JSON, level counts and a SHA-256 content digest. A unique key prevents duplicate observations for the same symbol, observation timestamp and update ID. The database index supports symbol/time-range retrieval.
+
+The observation timestamp is assigned after the provider response has completed and validated. It is intentionally conservative: a snapshot can only be matched to a strategy decision when `observedAt <= decisionTime`. The service never selects a future observation. A caller may additionally require a maximum age; stale and missing matches are explicit statuses. Stored levels are revalidated and the digest is recomputed on read; corrupt records fail closed.
+
+Protected endpoints:
+- `captureHistoricalOrderBook`: fetch, validate and store one snapshot.
+- `historicalOrderBook`: read a bounded time range (maximum 366 days and 5,000 rows).
+- `matchHistoricalOrderBook`: return the latest snapshot at or before a supplied decision timestamp, with age and match status.
+
+This archive is not yet automatically populated, and current REST snapshots are not historical backfill. The Backtesting Engine does not yet apply archived depth to historical fills. Historical liquidity-aware backtests should remain unavailable until sufficient time-aligned observations exist and coverage, staleness and gap requirements are explicitly validated. No missing snapshots are interpolated or replaced with current liquidity.
