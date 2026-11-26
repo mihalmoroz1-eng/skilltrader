@@ -187,7 +187,7 @@ export class HistoricalOrderBookService {
         firstTime < 0 || lastTime < firstTime) {
       throw new HistoricalOrderBookError("Invalid candle timestamps for liquidity coverage");
     }
-    const rows = await this.store.list(symbol, firstTime, lastTime, 5_001);
+    const rows = await this.store.list(symbol, Math.max(0, firstTime - maxAgeMs), lastTime, 5_001);
     if (rows.length > 5_000) {
       throw new HistoricalOrderBookError("Coverage range contains more than 5,000 archived snapshots; narrow the requested range");
     }
