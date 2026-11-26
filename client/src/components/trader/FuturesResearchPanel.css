@@ -12,6 +12,8 @@
 .futures-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; border: 1px solid transparent; border-radius: 8px; padding: 8px 13px; background: #267d68; color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .futures-actions button.futures-research-button { background: #2d668f; }
 .futures-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.futures-collection-control { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; color: var(--muted-foreground, #aab4c0); font-size: 11px; }
+.futures-collection-control select { min-height: 36px; border: 1px solid var(--border, #303744); border-radius: 8px; background: var(--background, #111722); color: var(--foreground, #edf1f5); padding: 6px 9px; font: inherit; }
 .futures-note { margin: 0; color: var(--muted-foreground, #98a3b1); font-size: 12px; }
 .futures-error { margin: 0; color: #e39a83; font-size: 12px; line-height: 1.5; }
 .futures-context, .research-result { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border, #303744); border-radius: 10px; padding: 13px; }
