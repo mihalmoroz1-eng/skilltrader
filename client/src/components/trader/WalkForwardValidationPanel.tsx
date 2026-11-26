@@ -92,9 +92,17 @@ export default function WalkForwardValidationPanel() {
 
   const walkForward = trpc.backtesting.walkForward.useMutation();
   const strategyPortfolio = trpc.backtesting.strategyPortfolio.useMutation();
-  useEffect(() => { walkForward.reset(); strategyPortfolio.reset(); }, [
+  const liquidityCoverage = trpc.backtesting.liquidityCoverage.useMutation();
+  useEffect(() => { walkForward.reset(); strategyPortfolio.reset(); liquidityCoverage.reset(); }, [
     symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, compareAllStrategies, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, breakoutLookbackPeriod, breakoutBufferBps,
   ]);
+
+  const checkLiquidityCoverage = () => {
+    if (!rangeValid || !auth.data) return;
+    liquidityCoverage.mutate({
+      symbol: symbol.trim().toUpperCase(), interval, startTime, endTime, maxAgeMs: 30_000,
+    });
+  };
 
   const run = () => {
     if (!rangeValid || !configValid || !auth.data) return;
@@ -178,6 +186,26 @@ export default function WalkForwardValidationPanel() {
           <button type="button" className="walk-forward-run" onClick={run} disabled={!rangeValid || !configValid || !auth.data || walkForward.isPending || strategyPortfolio.isPending}>
             <Play size={14} /> {walkForward.isPending || strategyPortfolio.isPending ? "Проверка выполняется…" : compareAllStrategies ? "Сравнить 4 стратегии" : "Запустить Walk-Forward"}
           </button>
+          <button type="button" className="walk-forward-run" onClick={checkLiquidityCoverage}
+            disabled={!rangeValid || !auth.data || liquidityCoverage.isPending}>
+            <Play size={14} /> {liquidityCoverage.isPending ? "Проверка архива…" : "Проверить покрытие архива стакана"}
+          </button>
+          {liquidityCoverage.error && <p className="walk-forward-error">{safeError(liquidityCoverage.error)}</p>}
+          {liquidityCoverage.data && (
+            <div className="walk-forward-results">
+              <div className="walk-forward-result-title"><strong>Historical Order Book Coverage</strong><span>{liquidityCoverage.data.status === "ready" ? "Полное покрытие" : liquidityCoverage.data.status === "partial" ? "Частичное покрытие" : "Нет пригодных снимков"}</span></div>
+              <div className="walk-forward-metrics">
+                <div><span>Покрытие решений</span><strong>{percent(liquidityCoverage.data.coveragePct)}</strong></div>
+                <div><span>Совпавшие снимки</span><strong>{liquidityCoverage.data.matchedCount} / {liquidityCoverage.data.decisionCount}</strong></div>
+                <div><span>Устаревшие</span><strong>{liquidityCoverage.data.staleCount}</strong></div>
+                <div><span>Отсутствуют</span><strong>{liquidityCoverage.data.missingCount}</strong></div>
+                <div><span>Снимков в архиве</span><strong>{liquidityCoverage.data.snapshotCount}</strong></div>
+                <div><span>Средний возраст</span><strong>{liquidityCoverage.data.averageMatchedAgeMs === null ? "—" : Math.round(liquidityCoverage.data.averageMatchedAgeMs).toLocaleString("ru-RU") + " мс"}</strong></div>
+              </div>
+              <p className="walk-forward-note">Сопоставление выполняется на времени открытия следующей свечи и использует только снимки с observedAt ≤ времени решения; допустимый возраст — 30 секунд. Это диагностика архива, а не подтверждение исполнения. Данные стакана пока не подключены к расчёту PnL.</p>
+              <div className="walk-forward-result-foot">lookAheadPrevented=true · executionEligible=false · exchangeOrderSent=false</div>
+            </div>
+          )}
           <p className="walk-forward-note">Перед запуском загрузите выбранный период на панели «История и Backtest». Здесь выполняется чтение сохранённых данных без повторной загрузки с биржи.</p>
           {walkForward.error && <p className="walk-forward-error">{safeError(walkForward.error)}</p>}
           {strategyPortfolio.error && <p className="walk-forward-error">{safeError(strategyPortfolio.error)}</p>}
