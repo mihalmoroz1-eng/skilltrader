@@ -126,3 +126,25 @@ export const paperEvents = mysqlTable("paper_events", {
 }, table => ({
   userTimeIndex: index("paper_events_user_time_idx").on(table.userOpenId, table.occurredAt),
 }));
+
+
+/** Immutable public Futures order-book observations; observedAt is the conservative local receipt time. */
+export const futuresOrderBookSnapshots = mysqlTable("futures_order_book_snapshots", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  symbol: varchar("symbol", { length: 20 }).notNull(),
+  source: varchar("source", { length: 40 }).notNull(),
+  observedAt: bigint("observedAt", { mode: "number" }).notNull(),
+  fetchedAt: bigint("fetchedAt", { mode: "number" }).notNull(),
+  lastUpdateId: bigint("lastUpdateId", { mode: "number", unsigned: true }).notNull(),
+  bestBid: varchar("bestBid", { length: 80 }).notNull(),
+  bestAsk: varchar("bestAsk", { length: 80 }).notNull(),
+  bidsJson: text("bidsJson").notNull(),
+  asksJson: text("asksJson").notNull(),
+  bidLevels: int("bidLevels", { unsigned: true }).notNull(),
+  askLevels: int("askLevels", { unsigned: true }).notNull(),
+  contentDigest: varchar("contentDigest", { length: 64 }).notNull(),
+}, table => ({
+  observationUnique: uniqueIndex("futures_order_book_symbol_observed_update_unique")
+    .on(table.symbol, table.observedAt, table.lastUpdateId),
+  timeIndex: index("futures_order_book_symbol_observed_idx").on(table.symbol, table.observedAt),
+}));
