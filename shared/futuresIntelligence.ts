@@ -41,6 +41,19 @@ export const historicalOrderBookMatchRequestSchema = z.object({
   maxAgeMs: z.number().int().min(1).max(300_000).default(30_000),
 }).strict();
 
+export const historicalLiquidityCoverageRequestSchema = z.object({
+  symbol: historicalOrderBookSymbol,
+  interval: z.enum(["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"]),
+  startTime: z.number().int().nonnegative().safe(),
+  endTime: z.number().int().positive().safe(),
+  maxAgeMs: z.number().int().min(1).max(300_000).default(30_000),
+}).strict().refine(value => value.endTime > value.startTime &&
+  value.endTime - value.startTime <= 366 * 24 * 60 * 60 * 1000, {
+  message: "Historical liquidity coverage range must be positive and no longer than 366 days",
+});
+
 export type HistoricalOrderBookCaptureRequest = z.infer<typeof historicalOrderBookCaptureRequestSchema>;
 export type HistoricalOrderBookHistoryRequest = z.infer<typeof historicalOrderBookHistoryRequestSchema>;
 export type HistoricalOrderBookMatchRequest = z.infer<typeof historicalOrderBookMatchRequestSchema>;
+
+export type HistoricalLiquidityCoverageRequest = z.infer<typeof historicalLiquidityCoverageRequestSchema>;
