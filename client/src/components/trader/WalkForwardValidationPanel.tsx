@@ -203,6 +203,43 @@ export default function WalkForwardValidationPanel() {
                   ))}</tbody>
                 </table>
               </div>
+              <div className="walk-forward-result-title"><strong>Чувствительность к торговым издержкам</strong><span>Относительно базовых затрат</span></div>
+              {strategyPortfolio.data.costScenarios.map(scenario => (
+                <details className="walk-forward-assumptions" key={scenario.id}>
+                  <summary>{scenario.multiplier.toFixed(1)}× · комиссия {scenario.feeBps} bps · проскальзывание {scenario.slippageBps} bps</summary>
+                  <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                    <thead><tr><th>Стратегия</th><th>Средняя OOS</th><th>Изменение OOS</th><th>Худшая просадка</th><th>Сделок</th><th>Изменение сделок</th></tr></thead>
+                    <tbody>{scenario.strategies.map(item => (
+                      <tr key={item.strategy}>
+                        <td>{item.strategy === "ema_crossover" ? "EMA Crossover" : item.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : item.strategy === "macd_momentum" ? "MACD Momentum" : "Breakout"}</td>
+                        <td>{percent(item.metrics.averageValidationReturnPct)}</td>
+                        <td>{percent(item.metrics.averageReturnDeltaFromBaselinePct)}</td>
+                        <td>{percent(item.metrics.worstValidationDrawdownPct)}</td>
+                        <td>{item.metrics.totalValidationTrades}</td>
+                        <td>{item.folds.reduce((sum, fold) => sum + fold.tradeCountDeltaFromBaseline, 0)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table></div>
+                  {scenario.strategies.map(item => (
+                    <details className="walk-forward-assumptions" key={item.strategy}>
+                      <summary>{item.strategy} · fold cost delta</summary>
+                      <div className="walk-forward-fold-table-wrap"><table className="walk-forward-fold-table">
+                        <thead><tr><th>Fold</th><th>OOS при стрессе</th><th>Δ доходности</th><th>Просадка</th><th>Δ просадки</th><th>Δ сделок</th></tr></thead>
+                        <tbody>{item.folds.map(fold => (
+                          <tr key={fold.index}>
+                            <td>{fold.index}</td>
+                            <td>{percent(fold.validationReturnPct)}</td>
+                            <td>{percent(fold.returnDeltaFromBaselinePct)}</td>
+                            <td>{percent(fold.maxDrawdownPct)}</td>
+                            <td>{percent(fold.drawdownDeltaFromBaselinePct)}</td>
+                            <td>{fold.tradeCountDeltaFromBaseline}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table></div>
+                    </details>
+                  ))}
+                </details>
+              ))}
               {strategyPortfolio.data.strategies.map(item => (
                 <details className="walk-forward-assumptions" key={item.strategy}>
                   <summary>{item.strategy === "ema_crossover" ? "EMA Crossover" : item.strategy === "rsi_mean_reversion" ? "RSI Mean Reversion" : item.strategy === "macd_momentum" ? "MACD Momentum" : "Breakout"} · fold breakdown</summary>
