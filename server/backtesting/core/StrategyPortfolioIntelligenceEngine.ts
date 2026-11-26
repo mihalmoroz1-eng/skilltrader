@@ -55,6 +55,34 @@ export type StrategyPortfolioEntry = {
   };
 };
 
+export type StrategyPortfolioCostScenario = {
+  id: "cost_1_5x" | "cost_2x";
+  multiplier: 1.5 | 2;
+  feeBps: number;
+  slippageBps: number;
+  strategies: Array<{
+    strategy: StrategyPortfolioEntry["strategy"];
+    runId: string;
+    folds: Array<{
+      index: number;
+      validationStartTime: number;
+      validationEndTime: number;
+      validationReturnPct: number;
+      returnDeltaFromBaselinePct: number | null;
+      maxDrawdownPct: number;
+      drawdownDeltaFromBaselinePct: number | null;
+      totalTrades: number;
+      tradeCountDeltaFromBaseline: number;
+    }>;
+    metrics: {
+      averageValidationReturnPct: number;
+      averageReturnDeltaFromBaselinePct: number | null;
+      worstValidationDrawdownPct: number;
+      totalValidationTrades: number;
+    };
+  }>;
+};
+
 export type StrategyPortfolioIntelligenceResult = {
   runId: string;
   dataDigest: string;
@@ -62,6 +90,7 @@ export type StrategyPortfolioIntelligenceResult = {
   interval: WalkForwardValidationConfig["interval"];
   candlesProcessed: number;
   strategies: StrategyPortfolioEntry[];
+  costScenarios: StrategyPortfolioCostScenario[];
   methodology: string[];
   executionEligible: false;
   exchangeOrderSent: false;
@@ -130,6 +159,18 @@ function summarizeRegimes(
   });
 }
 
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  const result = values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (!Number.isFinite(result)) throw new StrategyPortfolioInputError("Non-finite strategy portfolio aggregate");
+  return result;
+}
+
+function finiteDelta(value: number, baseline: number): number | null {
+  const delta = value - baseline;
+  return Number.isFinite(delta) ? delta : null;
+}
+
 function strategyWarmup(config: StrategyPortfolioConfig, strategy: typeof STRATEGIES[number]): number {
   switch (strategy) {
     case "ema_crossover": return config.slowEmaPeriod + 2;
@@ -166,21 +207,26 @@ export function runStrategyPortfolioIntelligence(
   if (!Number.isInteger(config.trainingCandles) || config.trainingCandles < Math.max(maximumWarmup, config.regimeLookback + 1)) {
     throw new StrategyPortfolioInputError("Training window must cover the warm-up requirements of all four strategies and the regime lookback");
   }
+  if (!Number.isInteger(config.feeBps) || config.feeBps < 0 || config.feeBps > 50 ||
+      !Number.isInteger(config.slippageBps) || config.slippageBps < 0 || config.slippageBps > 50) {
+    throw new StrategyPortfolioInputError("Base fees and slippage must each be at most 50 bps for 2x cost stress testing");
+  }
 
-  const strategies: StrategyPortfolioEntry[] = STRATEGIES.map(strategy => {
-    const strategyConfig: WalkForwardValidationConfig = {
-      ...config,
-      strategy,
-    };
-    let validation: WalkForwardValidationResult;
-    try {
-      validation = runWalkForwardValidation(candles, strategyConfig);
-    } catch (error) {
-      if (error instanceof WalkForwardInputError) {
-        throw new StrategyPortfolioInputError(error.message);
+  const runAllStrategies = (scenarioConfig: StrategyPortfolioConfig): WalkForwardValidationResult[] =>
+    STRATEGIES.map(strategy => {
+      try {
+        return runWalkForwardValidation(candles, { ...scenarioConfig, strategy });
+      } catch (error) {
+        if (error instanceof WalkForwardInputError) {
+          throw new StrategyPortfolioInputError(error.message);
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
+
+  const baselineResults = runAllStrategies(config);
+  const strategies: StrategyPortfolioEntry[] = STRATEGIES.map((strategy, index) => {
+    const validation = baselineResults[index];
     return {
       strategy,
       runId: validation.runId,
@@ -206,12 +252,80 @@ export function runStrategyPortfolioIntelligence(
   if (strategies.some(item => item.dataDigest !== dataDigest)) {
     throw new StrategyPortfolioInputError("Strategy runs did not use identical historical data");
   }
+  const baselineBoundaries = strategies[0].folds.map(fold =>
+    [fold.index, fold.validationStartTime, fold.validationEndTime].join(":"),
+  );
+  if (strategies.some(item => item.folds.map(fold =>
+    [fold.index, fold.validationStartTime, fold.validationEndTime].join(":"),
+  ).join("|") !== baselineBoundaries.join("|"))) {
+    throw new StrategyPortfolioInputError("Baseline strategies did not use identical OOS boundaries");
+  }
+
+  const costScenarios: StrategyPortfolioCostScenario[] = [
+    { id: "cost_1_5x", multiplier: 1.5 },
+    { id: "cost_2x", multiplier: 2 },
+  ].map(({ id, multiplier }) => {
+    const scenarioConfig: StrategyPortfolioConfig = {
+      ...config,
+      feeBps: Math.ceil(config.feeBps * multiplier),
+      slippageBps: Math.ceil(config.slippageBps * multiplier),
+    };
+    const stressResults = runAllStrategies(scenarioConfig);
+    const stressedStrategies = stressResults.map((validation, index) => {
+      const baseline = strategies[index];
+      const folds = validation.windows.map(window => {
+        const baselineFold = baseline.folds.find(fold => fold.index === window.index);
+        if (!baselineFold || baselineFold.validationStartTime !== window.validationStartTime ||
+            baselineFold.validationEndTime !== window.validationEndTime) {
+          throw new StrategyPortfolioInputError("Cost stress runs did not preserve baseline OOS boundaries");
+        }
+        return {
+          index: window.index,
+          validationStartTime: window.validationStartTime,
+          validationEndTime: window.validationEndTime,
+          validationReturnPct: window.validation.returnPct,
+          returnDeltaFromBaselinePct: finiteDelta(window.validation.returnPct, baselineFold.validationReturnPct),
+          maxDrawdownPct: window.validation.maxDrawdownPct,
+          drawdownDeltaFromBaselinePct: finiteDelta(window.validation.maxDrawdownPct, baselineFold.maxDrawdownPct),
+          totalTrades: window.validation.totalTrades,
+          tradeCountDeltaFromBaseline: window.validation.totalTrades - baselineFold.totalTrades,
+        };
+      });
+      const returnDeltas = finiteValues(folds.map(fold => fold.returnDeltaFromBaselinePct));
+      return {
+        strategy: baseline.strategy,
+        runId: validation.runId,
+        folds,
+        metrics: {
+          averageValidationReturnPct: validation.metrics.averageValidationReturnPct,
+          averageReturnDeltaFromBaselinePct: returnDeltas.length >= 2 ? average(returnDeltas) : null,
+          worstValidationDrawdownPct: validation.metrics.worstValidationDrawdownPct,
+          totalValidationTrades: validation.metrics.totalValidationTrades,
+        },
+      };
+    });
+    if (stressResults.some(item => item.dataDigest !== dataDigest)) {
+      throw new StrategyPortfolioInputError("Cost stress runs did not use identical historical data");
+    }
+    if (new Set(stressResults.map(item => item.runId)).size !== STRATEGIES.length) {
+      throw new StrategyPortfolioInputError("Cost stress strategy run identities are not unique");
+    }
+    return {
+      id,
+      multiplier,
+      feeBps: scenarioConfig.feeBps,
+      slippageBps: scenarioConfig.slippageBps,
+      strategies: stressedStrategies,
+    };
+  });
+
   const runId = createHash("sha256").update(JSON.stringify({
     symbol: config.symbol,
     interval: config.interval,
     config,
     dataDigest,
     strategyRunIds: strategies.map(item => item.runId),
+    costStressRunIds: costScenarios.flatMap(scenario => scenario.strategies.map(item => item.runId)),
   })).digest("hex").slice(0, 24);
 
   return {
@@ -221,8 +335,12 @@ export function runStrategyPortfolioIntelligence(
     interval: config.interval,
     candlesProcessed: config.trainingCandles + (config.windowCount - 1) * config.stepCandles + config.validationCandles,
     strategies,
+    costScenarios,
     methodology: [
-      "All four fixed strategies use the exact same validated contiguous closed-candle series, training lengths, validation boundaries, starting capital, risk limits, fees and adverse slippage.",
+      "All four fixed strategies use the exact same validated contiguous closed-candle series, training lengths, validation boundaries, starting capital and risk limits in each cost scenario.",
+      "Baseline costs use the configured fee and slippage. Additional independent Walk-Forward runs apply 1.5x and 2x costs to both entry and exit; fractional basis-point values are rounded upward to the next integer.",
+      "Cost stress reruns the complete training and OOS process with the same strategy parameters and identical fold boundaries. It does not optimize or modify strategy parameters.",
+      "Each stress scenario starts independent virtual capital for every strategy and fold. Return deltas compare each stressed fold with that same strategy's baseline fold; they are not compounded across folds.",
       "The common training window must cover the largest warm-up requirement across EMA, RSI, MACD and Breakout, plus the regime classifier lookback.",
       "Every strategy is evaluated independently in each out-of-sample fold with fresh virtual capital; no positions or PnL carry between folds or strategies.",
       "Cross-strategy results are side-by-side diagnostics. Returns are not added, compounded together or represented as a combined portfolio equity curve.",
