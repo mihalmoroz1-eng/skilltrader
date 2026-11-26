@@ -27,9 +27,15 @@ import { WalkForwardInputError, runWalkForwardValidation } from "./backtesting/c
 import { StrategyRobustnessInputError, runStrategyRobustness } from "./backtesting/core/StrategyRobustnessEngine";
 import { StrategyBenchmarkInputError, runStrategyBenchmark } from "./backtesting/core/StrategyBenchmarkEngine";
 import { StrategyPortfolioInputError, runStrategyPortfolioIntelligence } from "./backtesting/core/StrategyPortfolioIntelligenceEngine";
-import { futuresExecutionSimulationRequestSchema, futuresIntelligenceRequestSchema } from "@shared/futuresIntelligence";
+import {
+  futuresExecutionSimulationRequestSchema, futuresIntelligenceRequestSchema,
+  historicalOrderBookCaptureRequestSchema, historicalOrderBookHistoryRequestSchema,
+  historicalOrderBookMatchRequestSchema,
+} from "@shared/futuresIntelligence";
 import { BinanceUsdMFuturesProvider, FuturesProviderError } from "./futures-intelligence/providers/BinanceUsdMFuturesProvider";
 import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futures-intelligence/core/FuturesLiquidityService";
+import { HistoricalOrderBookService, HistoricalOrderBookError } from "./futures-intelligence/core/HistoricalOrderBookService";
+import { DrizzleHistoricalOrderBookStore } from "./futures-intelligence/core/DrizzleHistoricalOrderBookStore";
 import { researchAgentRequestSchema } from "@shared/researchAgent";
 import { ResearchAgent, ResearchAgentCallError, ResearchAgentOutputError, ResearchAgentTrustGateError } from "./research-agent/core/ResearchAgent";
 import { paperAccountInitializeSchema, paperSignalActionSchema, paperOpenPositionSchema, paperClosePositionSchema } from "@shared/paperExecution";
@@ -48,7 +54,11 @@ const historicalDataService = new HistoricalDataIngestionService(
   new BinanceSpotHistoricalProvider(), new DrizzleHistoricalCandleStore(),
 );
 const marketIntelligenceOrchestrator = new MarketIntelligenceOrchestrator();
-const futuresLiquidityService = new FuturesLiquidityService(new BinanceUsdMFuturesProvider());
+const futuresProvider = new BinanceUsdMFuturesProvider();
+const futuresLiquidityService = new FuturesLiquidityService(futuresProvider);
+const historicalOrderBookService = new HistoricalOrderBookService(
+  futuresProvider, futuresLiquidityService, new DrizzleHistoricalOrderBookStore(),
+);
 const researchAgent = new ResearchAgent();
 const paperExecutionService = new PaperExecutionService(
   new DrizzlePaperExecutionStore(),
@@ -268,6 +278,54 @@ export const appRouter = router({
           }
           console.error("[Futures Intelligence] Analysis failed", error instanceof Error ? error.name : "unknown");
           throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Анализ ликвидности временно недоступен." });
+        }
+      }),
+    captureHistoricalOrderBook: protectedProcedure
+      .input(historicalOrderBookCaptureRequestSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        try {
+          return await historicalOrderBookService.capture(input.symbol, input.depthLimit);
+        } catch (error) {
+          if (error instanceof HistoricalOrderBookError || error instanceof FuturesLiquidityValidationError) {
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Снимок стакана не прошёл проверку и не сохранён." });
+          }
+          if (error instanceof FuturesProviderError) {
+            if (error.kind === "rate-limit") throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Binance Futures ограничила частоту запросов." });
+            if (error.kind === "timeout" || error.kind === "network" || (error.status !== undefined && error.status >= 500)) {
+              throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Публичный источник Futures временно недоступен." });
+            }
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Источник Futures вернул неподходящий снимок." });
+          }
+          console.error("[Historical Order Book] Capture failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Историческое хранилище стакана временно недоступно." });
+        }
+      }),
+    historicalOrderBook: protectedProcedure
+      .input(historicalOrderBookHistoryRequestSchema)
+      .query(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        try {
+          return await historicalOrderBookService.history(input.symbol, input.startTime, input.endTime, input.limit);
+        } catch (error) {
+          if (error instanceof HistoricalOrderBookError) throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          console.error("[Historical Order Book] History query failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Историческое хранилище стакана временно недоступно." });
+        }
+      }),
+    matchHistoricalOrderBook: protectedProcedure
+      .input(historicalOrderBookMatchRequestSchema)
+      .query(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        try {
+          return await historicalOrderBookService.matchAtOrBefore(input.symbol, input.decisionTime, input.maxAgeMs);
+        } catch (error) {
+          if (error instanceof HistoricalOrderBookError) throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+          console.error("[Historical Order Book] Causal match failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Исторический снимок стакана не прошёл проверку." });
         }
       }),
     simulateExecution: protectedProcedure
