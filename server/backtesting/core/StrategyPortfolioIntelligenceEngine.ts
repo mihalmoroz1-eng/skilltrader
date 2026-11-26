@@ -261,10 +261,10 @@ export function runStrategyPortfolioIntelligence(
     throw new StrategyPortfolioInputError("Baseline strategies did not use identical OOS boundaries");
   }
 
-  const costScenarios: StrategyPortfolioCostScenario[] = [
+  const costScenarios: StrategyPortfolioCostScenario[] = ([
     { id: "cost_1_5x", multiplier: 1.5 },
     { id: "cost_2x", multiplier: 2 },
-  ].map(({ id, multiplier }) => {
+  ] as const).map(({ id, multiplier }) => {
     const scenarioConfig: StrategyPortfolioConfig = {
       ...config,
       feeBps: Math.ceil(config.feeBps * multiplier),
