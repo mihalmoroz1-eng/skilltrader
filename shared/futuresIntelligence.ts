@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MARKET_DATA_INTERVALS } from "./marketData";
 
 export const futuresIntelligenceRequestSchema = z.object({
   symbol: z.string().trim().min(2).max(20).regex(/^[A-Za-z0-9]+$/).transform(value => value.toUpperCase()),
@@ -43,7 +44,7 @@ export const historicalOrderBookMatchRequestSchema = z.object({
 
 export const historicalLiquidityCoverageRequestSchema = z.object({
   symbol: historicalOrderBookSymbol,
-  interval: z.enum(["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"]),
+  interval: z.enum(MARKET_DATA_INTERVALS),
   startTime: z.number().int().nonnegative().safe(),
   endTime: z.number().int().positive().safe(),
   maxAgeMs: z.number().int().min(1).max(300_000).default(30_000),
