@@ -73,12 +73,23 @@ export default function FuturesResearchPanel() {
   const [interval, setInterval] = useState<MarketInterval>("15m");
   const [futuresEnabled, setFuturesEnabled] = useState(false);
   const [requestedNotionalUsd, setRequestedNotionalUsd] = useState("1000");
+  const [historyRange, setHistoryRange] = useState<{ startTime: number; endTime: number } | null>(null);
   const futures = trpc.futuresIntelligence.analyze.useQuery(
     { symbol: symbol.trim().toUpperCase(), depthLimit: 100 },
     { enabled: !OFFLINE_MODE && !!auth.data && futuresEnabled, retry: false, refetchOnWindowFocus: false, staleTime: 0 },
   );
   const research = trpc.researchAgent.analyze.useMutation();
   const executionSimulation = trpc.futuresIntelligence.simulateExecution.useMutation();
+  const captureOrderBook = trpc.futuresIntelligence.captureHistoricalOrderBook.useMutation();
+  const historicalOrderBook = trpc.futuresIntelligence.historicalOrderBook.useQuery({
+    symbol: symbol.trim().toUpperCase(),
+    startTime: historyRange?.startTime ?? 0,
+    endTime: historyRange?.endTime ?? 1,
+    limit: 200,
+  }, {
+    enabled: !OFFLINE_MODE && !!auth.data && !!historyRange && /^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()),
+    retry: false, refetchOnWindowFocus: false,
+  });
 
   if (OFFLINE_MODE) {
     return (
@@ -108,7 +119,7 @@ export default function FuturesResearchPanel() {
       {auth.data && (
         <>
           <div className="futures-controls">
-            <label>Символ<input value={symbol} onChange={event => { setSymbol(event.target.value.toUpperCase()); executionSimulation.reset(); }} maxLength={20} /></label>
+            <label>Символ<input value={symbol} onChange={event => { setSymbol(event.target.value.toUpperCase()); executionSimulation.reset(); captureOrderBook.reset(); setHistoryRange(null); }} maxLength={20} /></label>
             <label>Размер заявки, USDT<input inputMode="decimal" value={requestedNotionalUsd} onChange={event => { setRequestedNotionalUsd(event.target.value); executionSimulation.reset(); }} maxLength={12} /></label>
             <label>Spot интервал
               <select value={interval} onChange={event => setInterval(event.target.value as MarketInterval)}>
@@ -128,9 +139,38 @@ export default function FuturesResearchPanel() {
             }); }} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || !Number.isFinite(Number(requestedNotionalUsd)) || Number(requestedNotionalUsd) < 1 || Number(requestedNotionalUsd) > 10_000_000 || executionSimulation.isPending}>
               <Activity size={14} /> {executionSimulation.isPending ? "Расчёт…" : "Симулировать по стакану"}
             </button>
+            <button type="button" onClick={() => { captureOrderBook.reset(); captureOrderBook.mutate({ symbol: symbol.trim().toUpperCase(), depthLimit: 100 }); }} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || captureOrderBook.isPending}>
+              <ShieldCheck size={14} /> {captureOrderBook.isPending ? "Сохранение…" : "Сохранить снимок в архив"}
+            </button>
+            <button type="button" onClick={() => setHistoryRange({ startTime: Date.now() - 24 * 60 * 60 * 1000, endTime: Date.now() })} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || historicalOrderBook.isFetching}>
+              <RefreshCw size={14} /> {historicalOrderBook.isFetching ? "Загрузка архива…" : "Архив за 24 часа"}
+            </button>
           </div>
           {futures.error && <p className="futures-error">{safeError(futures.error)}</p>}
           {executionSimulation.error && <p className="futures-error">{safeError(executionSimulation.error)}</p>}
+          {captureOrderBook.error && <p className="futures-error">{safeError(captureOrderBook.error)}</p>}
+          {historicalOrderBook.error && <p className="futures-error">{safeError(historicalOrderBook.error)}</p>}
+          {captureOrderBook.data && captureOrderBook.data.symbol === symbol.trim().toUpperCase() && (
+            <div className="futures-result-foot">Снимок записан в архив: {time(captureOrderBook.data.observedAt)} · BID {captureOrderBook.data.bidLevels} уровней · ASK {captureOrderBook.data.askLevels} уровней · digest {captureOrderBook.data.contentDigest.slice(0, 16)}… · executionEligible=false</div>
+          )}
+          {historicalOrderBook.data && historicalOrderBook.data.symbol === symbol.trim().toUpperCase() && (
+            <div className="futures-context">
+              <div className="futures-context-heading"><strong>Исторический архив стакана · {historicalOrderBook.data.returned} снимков</strong><span>За последние 24 часа · {historicalOrderBook.data.truncated ? "показаны первые 200" : "полная выборка"}</span></div>
+              {historicalOrderBook.data.snapshots.length === 0 ? <p className="futures-note">Снимков нет. Архив пополняется только после ручного сохранения.</p> : (
+                <div className="futures-metrics">
+                  {historicalOrderBook.data.snapshots.slice(-12).reverse().map(item => (
+                    <div key={item.contentDigest}>
+                      <span>{time(item.observedAt)} · update {item.lastUpdateId}</span>
+                      <strong>{item.bestBid} / {item.bestAsk}</strong>
+                      <span>BID {item.bidLevels} уровней · ASK {item.askLevels} уровней</span>
+                      <span>Digest {item.contentDigest.slice(0, 16)}…</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="futures-note">Сбор ручной, не фоновый. Временная метка — консервативное время получения снимка сервером.</p>
+            </div>
+          )}
           {futuresData && (
             <div className="futures-context">
               <div className="futures-context-heading"><strong>{futuresData.symbol} · Binance USD-M Futures</strong><span>Получено: {time(futuresData.fetchedAt)}</span></div>
