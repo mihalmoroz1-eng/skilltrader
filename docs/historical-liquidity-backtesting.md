@@ -2,7 +2,7 @@
 
 ## Current implementation boundary
 
-The historical order-book archive is manually populated through explicit snapshot capture. It is not a continuous collector, and no snapshot is backfilled from a current REST response. The archive must be queried and its coverage measured before it can be used to assess historical fills.
+The historical order-book archive is populated through explicit user-triggered capture. The Futures Research panel supports a bounded foreground session (15/30/60-second cadence, up to 60 snapshots) while the page remains open and visible. It is not a background collector, and no snapshot is backfilled from a current REST response. The archive must be queried and its coverage measured before it can be used to assess historical fills.
 
 This stage introduces two deterministic, read-only primitives:
 
