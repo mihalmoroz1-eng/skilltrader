@@ -189,7 +189,7 @@ export default function FuturesResearchPanel() {
             }); }} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || !Number.isFinite(Number(requestedNotionalUsd)) || Number(requestedNotionalUsd) < 1 || Number(requestedNotionalUsd) > 10_000_000 || executionSimulation.isPending}>
               <Activity size={14} /> {executionSimulation.isPending ? "Расчёт…" : "Симулировать по стакану"}
             </button>
-            <button type="button" onClick={() => { captureOrderBook.reset(); captureOrderBook.mutate({ symbol: symbol.trim().toUpperCase(), depthLimit: 100 }); }} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || captureOrderBook.isPending}>
+            <button type="button" onClick={() => { captureOrderBook.reset(); captureOrderBook.mutate({ symbol: symbol.trim().toUpperCase(), depthLimit: 100 }); }} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || captureOrderBook.isPending || collectionActive}>
               <ShieldCheck size={14} /> {captureOrderBook.isPending ? "Сохранение…" : "Сохранить снимок в архив"}
             </button>
             <label className="futures-collection-control">Интервал сбора
@@ -245,7 +245,7 @@ export default function FuturesResearchPanel() {
                   ))}
                 </div>
               )}
-              <p className="futures-note">Сбор ручной, не фоновый. Временная метка — консервативное время получения снимка сервером.</p>
+              <p className="futures-note">Снимки собираются только по запросу пользователя в активной вкладке. Временная метка — консервативное время получения снимка сервером.</p>
             </div>
           )}
           {futuresData && (
