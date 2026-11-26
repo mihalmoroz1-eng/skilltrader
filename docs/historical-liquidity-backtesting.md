@@ -11,6 +11,10 @@ This stage introduces two deterministic, read-only primitives:
 
 A requested fill is returned only when the full requested quantity is available within the archived visible levels. Stale snapshots and insufficient visible depth return unavailable prices; partial quantities are not silently treated as full fills.
 
+## Access and diagnostics
+
+The authenticated `backtesting.liquidityCoverage` endpoint reads saved closed candles and archived order-book snapshots only; it does not call Binance or collect new data. The Walk-Forward panel exposes a manual coverage check for the selected symbol, interval and date range. It reports matched, stale and missing decision timestamps, coverage percentage, snapshot count and matched-snapshot age. Ranges with more than 5,000 archived snapshots must be narrowed rather than silently truncated.
+
 ## Timing and limitations
 
 Strategy signals are known only after the preceding candle closes. The existing backtest executor enters at the next candle open, so coverage is evaluated at that next candle's `openTime`. This is a causal reference-time convention, not proof that an archived snapshot was continuously valid at the exact exchange matching instant.
