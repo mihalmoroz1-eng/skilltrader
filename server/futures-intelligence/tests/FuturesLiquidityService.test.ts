@@ -12,9 +12,9 @@ const snapshot: FuturesRawSnapshot = {
   markPrice: "100.05", indexPrice: "100.00", fundingRate: "0.0001",
   nextFundingTime: 1_700_028_800_000, openInterest: "12000.5",
 };
-function service(raw = snapshot) {
+function service(raw = snapshot, now = raw.fetchedAt) {
   const provider: FuturesMarketProvider = { id: "binance-usdm-futures", fetchSnapshot: vi.fn(async () => raw) };
-  return new FuturesLiquidityService(provider);
+  return new FuturesLiquidityService(provider, () => now);
 }
 
 describe("Futures Liquidity Intelligence", () => {
@@ -42,6 +42,46 @@ describe("Futures Liquidity Intelligence", () => {
   it("rejects negative or non-decimal market values", () => {
     const malformed = { ...snapshot, markPrice: "-1" };
     expect(() => service(malformed).analyzeSnapshot(malformed)).toThrow(FuturesLiquidityValidationError);
+  });
+
+  it("estimates BUY and SELL VWAP from the same visible order-book snapshot", async () => {
+    const result = await service().simulateExecution("BTCUSDT", 450, 100);
+    expect(result.buy.side).toBe("BUY");
+    expect(result.sell.side).toBe("SELL");
+    expect(result.buy.fullyFilled).toBe(true);
+    expect(result.sell.fullyFilled).toBe(true);
+    expect(result.buy.levelsConsumed).toBe(2);
+    expect(result.sell.levelsConsumed).toBe(1);
+    expect(result.buy.averageFillPrice).toBeGreaterThan(Number(snapshot.orderBook.asks[0].price));
+    expect(result.sell.averageFillPrice).toBeLessThan(Number(snapshot.orderBook.bids[0].price));
+    expect(result.buy.totalMidShortfallBps).toBeGreaterThan(0);
+    expect(result.sell.totalMidShortfallBps).toBeGreaterThan(0);
+    expect(result.executionEligible).toBe(false);
+    expect(result.exchangeOrderSent).toBe(false);
+  });
+
+  it("reports insufficient visible depth as a partial fill, never a complete fill", async () => {
+    const result = await service().simulateExecution("BTCUSDT", 2_000, 100);
+    expect(result.buy.fullyFilled).toBe(false);
+    expect(result.sell.fullyFilled).toBe(false);
+    expect(result.buy.fillRatioPct).toBeLessThan(100);
+    expect(result.sell.fillRatioPct).toBeLessThan(100);
+    expect(result.buy.filledQuantity).toBeGreaterThan(0);
+  });
+
+  it("rejects stale, future-dated and mismatched order-book snapshots", async () => {
+    await expect(service(snapshot, snapshot.fetchedAt + 30_001)
+      .simulateExecution("BTCUSDT", 100)).rejects.toThrow(/stale/);
+    await expect(service(snapshot, snapshot.fetchedAt - 5_001)
+      .simulateExecution("BTCUSDT", 100)).rejects.toThrow(/stale/);
+    const wrongSymbol = { ...snapshot, symbol: "ETHUSDT" };
+    await expect(service(wrongSymbol).simulateExecution("BTCUSDT", 100)).rejects.toThrow(/symbol/);
+  });
+
+  it("rejects invalid notional and depth limits", async () => {
+    await expect(service().simulateExecution("BTCUSDT", 0)).rejects.toThrow(FuturesLiquidityValidationError);
+    await expect(service().simulateExecution("BTCUSDT", 10_000_001)).rejects.toThrow(FuturesLiquidityValidationError);
+    await expect(service().simulateExecution("BTCUSDT", 100, 4)).rejects.toThrow(FuturesLiquidityValidationError);
   });
 
   it("rejects invalid symbols before provider access", async () => {
