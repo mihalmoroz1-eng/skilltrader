@@ -29,3 +29,8 @@ The engine reports final equity, net profit, total return, maximum marked-to-mar
 - Maximum 50,000 candles per run.
 - The result includes executionEligible=false. Backtesting is research output, not a signal approval, PAPER order, or LIVE execution.
 - The public backtest, Strategy Benchmark and Walk-Forward workflows support EMA Crossover, RSI Mean Reversion, MACD Momentum and Breakout. Strategy Robustness remains explicitly EMA-only because its neighboring-parameter sensitivity analysis is EMA-specific. Strategy benchmark comparisons reuse the selected strategy against Buy & Hold 1x, risk-matched Buy & Hold and cash controls.
+
+
+## Historical liquidity data boundary
+
+Backtests must not use current public order-book depth to model fills at past candle timestamps. The historical Futures order-book archive is manually populated with timestamped observations and exposes a causal lookup that only selects snapshots observed at or before a decision time. Missing or stale snapshots remain unavailable; no interpolation or synthetic depth is allowed. The existing backtest execution model remains unchanged until a separate integration validates archive coverage, snapshot age, side-aware depth consumption and behavior when a complete virtual fill is not supported.
