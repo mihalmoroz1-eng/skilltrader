@@ -129,8 +129,8 @@ export class FuturesLiquidityService {
         remaining = Math.max(0, requestedQuantity - filledQuantity);
         levelsConsumed += 1;
       }
-      const fillRatioPct = Math.min(100, filledQuantity / requestedQuantity * 100);
       const fullyFilled = remaining <= Math.max(1e-12, requestedQuantity * 1e-10);
+      const fillRatioPct = fullyFilled ? 100 : Math.min(100, filledQuantity / requestedQuantity * 100);
       const averageFillPrice = filledQuantity > 0 ? filledNotionalUsd / filledQuantity : null;
       const direction = side === "BUY" ? 1 : -1;
       const spreadCostBps = Math.max(0, direction * (bestPrice - mid) / mid * 10_000);
