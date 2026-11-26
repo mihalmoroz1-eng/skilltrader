@@ -72,11 +72,13 @@ export default function FuturesResearchPanel() {
   const [symbol, setSymbol] = useState("BTCUSDT");
   const [interval, setInterval] = useState<MarketInterval>("15m");
   const [futuresEnabled, setFuturesEnabled] = useState(false);
+  const [requestedNotionalUsd, setRequestedNotionalUsd] = useState("1000");
   const futures = trpc.futuresIntelligence.analyze.useQuery(
     { symbol: symbol.trim().toUpperCase(), depthLimit: 100 },
     { enabled: !OFFLINE_MODE && !!auth.data && futuresEnabled, retry: false, refetchOnWindowFocus: false, staleTime: 0 },
   );
   const research = trpc.researchAgent.analyze.useMutation();
+  const executionSimulation = trpc.futuresIntelligence.simulateExecution.useMutation();
 
   if (OFFLINE_MODE) {
     return (
@@ -107,6 +109,7 @@ export default function FuturesResearchPanel() {
         <>
           <div className="futures-controls">
             <label>Символ<input value={symbol} onChange={event => setSymbol(event.target.value.toUpperCase())} maxLength={20} /></label>
+            <label>Размер заявки, USDT<input inputMode="decimal" value={requestedNotionalUsd} onChange={event => setRequestedNotionalUsd(event.target.value)} maxLength={12} /></label>
             <label>Spot интервал
               <select value={interval} onChange={event => setInterval(event.target.value as MarketInterval)}>
                 {(["5m", "15m", "30m", "1h", "4h"] as const).map(value => <option key={value} value={value}>{value}</option>)}
@@ -120,8 +123,14 @@ export default function FuturesResearchPanel() {
             <button type="button" className="futures-research-button" onClick={() => research.mutate({ symbol: symbol.trim().toUpperCase(), interval, limit: 96 })} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || research.isPending}>
               <BrainCircuit size={14} /> {research.isPending ? "Исследование…" : "Запустить Research Agent"}
             </button>
+            <button type="button" onClick={() => executionSimulation.mutate({
+              symbol: symbol.trim().toUpperCase(), requestedNotionalUsd: Number(requestedNotionalUsd), depthLimit: 100,
+            })} disabled={!/^[A-Z0-9]{2,20}$/.test(symbol.trim().toUpperCase()) || !Number.isFinite(Number(requestedNotionalUsd)) || Number(requestedNotionalUsd) < 1 || Number(requestedNotionalUsd) > 10_000_000 || executionSimulation.isPending}>
+              <Activity size={14} /> {executionSimulation.isPending ? "Расчёт…" : "Симулировать по стакану"}
+            </button>
           </div>
           {futures.error && <p className="futures-error">{safeError(futures.error)}</p>}
+          {executionSimulation.error && <p className="futures-error">{safeError(executionSimulation.error)}</p>}
           {futuresData && (
             <div className="futures-context">
               <div className="futures-context-heading"><strong>{futuresData.symbol} · Binance USD-M Futures</strong><span>Получено: {time(futuresData.fetchedAt)}</span></div>
@@ -138,6 +147,29 @@ export default function FuturesResearchPanel() {
               <div className="futures-result-foot">Источник: {futuresData.source} · executionEligible=false</div>
             </div>
           )}
+          {executionSimulation.data &&
+            executionSimulation.data.symbol === symbol.trim().toUpperCase() &&
+            executionSimulation.data.requestedNotionalUsd === Number(requestedNotionalUsd) && (
+              <div className="futures-context">
+                <div className="futures-context-heading"><strong>Liquidity-Aware Execution Simulation · {executionSimulation.data.symbol}</strong><span>Снимок: {time(executionSimulation.data.snapshotFetchedAt)} · возраст {number(executionSimulation.data.snapshotAgeMs, 0)} ms</span></div>
+                <p className="futures-note">Текущая оценка по видимым уровням стакана. Это не исторический replay сделок стратегии.</p>
+                <div className="futures-metrics">
+                  {[executionSimulation.data.buy, executionSimulation.data.sell].map(item => (
+                    <div key={item.side}>
+                      <span>{item.side === "BUY" ? "Покупка · проход по ask" : "Продажа · проход по bid"}</span>
+                      <strong>{item.fullyFilled ? "Полный объём доступен" : "Недостаточная глубина"}</strong>
+                      <span>Исполнено: {number(item.fillRatioPct, 2)}%</span>
+                      <span>Средняя цена: {number(item.averageFillPrice, 6)}</span>
+                      <span>Издержка к mid: {number(item.totalMidShortfallBps, 3)} bps</span>
+                      <span>Спред: {number(item.spreadCostBps, 3)} bps · impact: {number(item.depthImpactBps, 3)} bps</span>
+                      <span>Уровней: {item.levelsConsumed} · доступно: {number(item.availableBookNotionalUsd)} USDT</span>
+                    </div>
+                  ))}
+                </div>
+                <ul className="futures-warning-list">{executionSimulation.data.assumptions.map(item => <li key={item}>{item}</li>)}</ul>
+                <div className="futures-result-foot">executionEligible=false · exchangeOrderSent=false</div>
+              </div>
+            )}
           {research.error && <p className="futures-error">{safeError(research.error)}</p>}
           {researchData && (
             <div className="research-result">
