@@ -76,9 +76,12 @@ function validateSnapshot(snapshot: HistoricalOrderBookSnapshot): void {
   if (!snapshot || !/^[A-Z0-9]{2,20}$/.test(snapshot.symbol) ||
       !Number.isSafeInteger(snapshot.observedAt) || snapshot.observedAt < 0 ||
       !Number.isSafeInteger(snapshot.fetchedAt) || snapshot.fetchedAt < 0 || snapshot.fetchedAt > snapshot.observedAt ||
-      !Array.isArray(snapshot.bids) || !Array.isArray(snapshot.asks) ||\n      !Number.isSafeInteger(snapshot.lastUpdateId) || snapshot.lastUpdateId < 0 ||\n      typeof snapshot.source !== "string" || !snapshot.source.trim() || snapshot.source.length > 40 ||
+      !Array.isArray(snapshot.bids) || !Array.isArray(snapshot.asks) ||
+      !Number.isSafeInteger(snapshot.lastUpdateId) || snapshot.lastUpdateId < 0 ||
+      typeof snapshot.source !== "string" || !snapshot.source.trim() || snapshot.source.length > 40 ||
       snapshot.bids.length < 1 || snapshot.asks.length < 1 ||
-      snapshot.bids.length > MAX_LEVELS || snapshot.asks.length > MAX_LEVELS ||\n      snapshot.bidLevels !== snapshot.bids.length || snapshot.askLevels !== snapshot.asks.length ||
+      snapshot.bids.length > MAX_LEVELS || snapshot.asks.length > MAX_LEVELS ||
+      snapshot.bidLevels !== snapshot.bids.length || snapshot.askLevels !== snapshot.asks.length ||
       !/^[a-f0-9]{64}$/.test(snapshot.contentDigest)) {
     throw new Error("Historical order-book snapshot metadata is invalid");
   }
@@ -95,7 +98,8 @@ function validateSnapshot(snapshot: HistoricalOrderBookSnapshot): void {
   };
   validateSide(snapshot.bids, "bid");
   validateSide(snapshot.asks, "ask");
-  if (snapshot.bestBid !== snapshot.bids[0].price || snapshot.bestAsk !== snapshot.asks[0].price ||\n      parseFixed(snapshot.bids[0].price, "best bid") >= parseFixed(snapshot.asks[0].price, "best ask")) {
+  if (snapshot.bestBid !== snapshot.bids[0].price || snapshot.bestAsk !== snapshot.asks[0].price ||
+      parseFixed(snapshot.bids[0].price, "best bid") >= parseFixed(snapshot.asks[0].price, "best ask")) {
     throw new Error("Historical order book is crossed");
   }
 }
