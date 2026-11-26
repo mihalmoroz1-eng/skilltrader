@@ -75,7 +75,7 @@ function ratioBps(numerator: bigint, denominator: bigint): bigint {
 function validateSnapshot(snapshot: HistoricalOrderBookSnapshot): void {
   if (!snapshot || !/^[A-Z0-9]{2,20}$/.test(snapshot.symbol) ||
       !Number.isSafeInteger(snapshot.observedAt) || snapshot.observedAt < 0 ||
-      !Number.isSafeInteger(snapshot.fetchedAt) || snapshot.fetchedAt > snapshot.observedAt ||
+      !Number.isSafeInteger(snapshot.fetchedAt) || snapshot.fetchedAt < 0 || snapshot.fetchedAt > snapshot.observedAt ||
       !Array.isArray(snapshot.bids) || !Array.isArray(snapshot.asks) ||
       snapshot.bids.length < 1 || snapshot.asks.length < 1 ||
       snapshot.bids.length > MAX_LEVELS || snapshot.asks.length > MAX_LEVELS ||
@@ -95,7 +95,7 @@ function validateSnapshot(snapshot: HistoricalOrderBookSnapshot): void {
   };
   validateSide(snapshot.bids, "bid");
   validateSide(snapshot.asks, "ask");
-  if (parseFixed(snapshot.bids[0].price, "best bid") >= parseFixed(snapshot.asks[0].price, "best ask")) {
+  if (snapshot.bestBid !== snapshot.bids[0].price || snapshot.bestAsk !== snapshot.asks[0].price ||\n      parseFixed(snapshot.bids[0].price, "best bid") >= parseFixed(snapshot.asks[0].price, "best ask")) {
     throw new Error("Historical order book is crossed");
   }
 }
