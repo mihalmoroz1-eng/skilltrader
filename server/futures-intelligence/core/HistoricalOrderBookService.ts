@@ -47,7 +47,9 @@ function parseAndVerify(record: HistoricalOrderBookSnapshotRecord): HistoricalOr
   } catch {
     throw new HistoricalOrderBookError("Stored order-book JSON is corrupt");
   }
-  if (!Array.isArray(bids) || !Array.isArray(asks) ||
+  if (!/^[A-Z0-9]{2,20}$/.test(record.symbol) || typeof record.source !== "string" ||
+      !record.source.trim() || record.source.length > 40 ||
+      !Array.isArray(bids) || !Array.isArray(asks) ||
       bids.length !== record.bidLevels || asks.length !== record.askLevels ||
       bids.length < 1 || asks.length < 1 || bids.length > 1000 || asks.length > 1000 ||
       !Number.isSafeInteger(record.observedAt) || !Number.isSafeInteger(record.fetchedAt) ||
@@ -149,8 +151,12 @@ export class HistoricalOrderBookService {
         !Number.isInteger(limit) || limit < 1 || limit > 5000) {
       throw new HistoricalOrderBookError("Invalid historical order-book range or limit");
     }
-    const rows = await this.store.list(symbol, startTime, endTime, limit);
-    const snapshots = rows.map(parseAndVerify);
+    const rows = await this.store.list(symbol, startTime, endTime, limit + 1);
+    const truncated = rows.length > limit;
+    const snapshots = rows.slice(0, limit).map(parseAndVerify);
+    if (snapshots.some(snapshot => snapshot.symbol !== symbol)) {
+      throw new HistoricalOrderBookError("Historical order-book store returned a different symbol");
+    }
     for (let i = 1; i < snapshots.length; i += 1) {
       if (snapshots[i].observedAt <= snapshots[i - 1].observedAt) {
         throw new HistoricalOrderBookError("Historical order-book timestamps are not strictly increasing");
@@ -158,7 +164,7 @@ export class HistoricalOrderBookService {
     }
     return {
       symbol, requested: { startTime, endTime }, returned: snapshots.length,
-      truncated: snapshots.length === limit, snapshots,
+      truncated, snapshots,
       executionEligible: false as const, exchangeOrderSent: false as const,
     };
   }
@@ -181,6 +187,7 @@ export class HistoricalOrderBookService {
       };
     }
     const snapshot = parseAndVerify(row);
+    if (snapshot.symbol !== symbol) throw new HistoricalOrderBookError("Historical order-book store returned a different symbol");
     const ageMs = decisionTime - snapshot.observedAt;
     return {
       symbol, decisionTime, maxAgeMs,
