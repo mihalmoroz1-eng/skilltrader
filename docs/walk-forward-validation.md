@@ -106,6 +106,15 @@ The Strategy Portfolio Intelligence endpoint runs EMA Crossover, RSI Mean Revers
 - Cross-strategy returns are never summed, compounded, weighted or presented as a combined equity curve. This is a side-by-side research comparison, not an investable multi-strategy portfolio.
 - No strategy is ranked or automatically selected. No optimization, switching, signals, PAPER mutation, risk-limit changes or exchange orders are performed. `executionEligible=false` and `exchangeOrderSent=false`.
 
+### Cross-strategy cost stress intelligence
+
+- The four-strategy suite now reruns every strategy and every independent Walk-Forward fold under 1.5x and 2x adverse trading costs, in addition to the configured baseline.
+- Fee and slippage basis points are each multiplied and rounded upward to the next integer basis point. Base fee and slippage inputs are capped at 50 bps so the 2x scenario remains within the Backtest Engine's 100 bps per-side limits.
+- The stress runs use the same candle digest, strategy parameters, training lengths, validation boundaries, starting capital and risk limits as the baseline. Both training and OOS execution use the stressed costs; entries and exits continue to pay fees and adverse slippage.
+- Each stress fold is compared only with the matching strategy's baseline fold. The result reports OOS return delta, drawdown delta and trade-count delta; unavailable/non-finite deltas remain null.
+- The dashboard shows per-scenario summary and fold-level details. Stress runs have independent run IDs; they do not share capital or positions with baseline runs or each other.
+- This is sensitivity analysis, not a prediction of future costs or a ranking of strategies. No parameters are optimized, no strategy is selected or switched, and no PAPER/LIVE orders are created.
+
 ### Cross-strategy market-regime diagnostics
 
 - Strategy Portfolio Intelligence now retains each strategy's five canonical regime buckets inside each independent OOS fold: uptrend, downtrend, ranging, high volatility and transition.
