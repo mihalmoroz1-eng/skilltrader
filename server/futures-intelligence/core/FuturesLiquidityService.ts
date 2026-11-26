@@ -1,4 +1,11 @@
-import type { FuturesLiquidityResult, FuturesMarketProvider, FuturesOrderBookLevel, FuturesRawSnapshot } from "./FuturesLiquidityTypes";
+import type {
+  FuturesExecutionSideEstimate,
+  FuturesExecutionSimulationResult,
+  FuturesLiquidityResult,
+  FuturesMarketProvider,
+  FuturesOrderBookLevel,
+  FuturesRawSnapshot,
+} from "./FuturesLiquidityTypes";
 
 export class FuturesLiquidityValidationError extends Error {
   constructor(message: string) {
@@ -60,6 +67,100 @@ export class FuturesLiquidityService {
     }
     const snapshot = await this.provider.fetchSnapshot(symbol, depthLimit);
     return this.analyzeSnapshot(snapshot, depthLimit);
+  }
+
+  async simulateExecution(
+    symbolInput: string,
+    requestedNotionalUsd: number,
+    depthLimit = 100,
+    maxSnapshotAgeMs = 30_000,
+  ): Promise<FuturesExecutionSimulationResult> {
+    if (typeof symbolInput !== "string") throw new FuturesLiquidityValidationError("Invalid symbol");
+    const symbol = symbolInput.trim().toUpperCase();
+    if (!/^[A-Z0-9]{2,20}$/.test(symbol) ||
+        !Number.isFinite(requestedNotionalUsd) || requestedNotionalUsd < 1 || requestedNotionalUsd > 10_000_000 ||
+        !Number.isInteger(depthLimit) || depthLimit < 5 || depthLimit > 1000 ||
+        !Number.isInteger(maxSnapshotAgeMs) || maxSnapshotAgeMs < 1 || maxSnapshotAgeMs > 30_000) {
+      throw new FuturesLiquidityValidationError("Invalid execution simulation request");
+    }
+    const snapshot = await this.provider.fetchSnapshot(symbol, depthLimit);
+    const market = this.analyzeSnapshot(snapshot, depthLimit);
+    if (snapshot.symbol !== symbol) throw new FuturesLiquidityValidationError("Snapshot symbol does not match request");
+    const snapshotAgeMs = Date.now() - snapshot.fetchedAt;
+    if (!Number.isFinite(snapshotAgeMs) || snapshotAgeMs < -5_000 || snapshotAgeMs > maxSnapshotAgeMs) {
+      throw new FuturesLiquidityValidationError("Order-book snapshot is stale or has an invalid timestamp");
+    }
+    const mid = Number(market.orderBook.midPrice);
+    const estimate = (side: "BUY" | "SELL"): FuturesExecutionSideEstimate => {
+      const levels = side === "BUY" ? snapshot.orderBook.asks : snapshot.orderBook.bids;
+      const bestPrice = Number(levels[0].price);
+      const requestedQuantity = requestedNotionalUsd / mid;
+      if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+        throw new FuturesLiquidityValidationError("Requested order quantity is outside the supported range");
+      }
+      let remaining = requestedQuantity;
+      let filledQuantity = 0;
+      let filledNotionalUsd = 0;
+      let levelsConsumed = 0;
+      let availableBookNotionalUsd = 0;
+      for (const level of levels) {
+        const price = Number(level.price);
+        const quantity = Number(level.quantity);
+        const levelNotional = price * quantity;
+        if (!Number.isFinite(levelNotional) || levelNotional < 0) {
+          throw new FuturesLiquidityValidationError("Order-book notional overflow");
+        }
+        availableBookNotionalUsd += levelNotional;
+        if (!Number.isFinite(availableBookNotionalUsd)) {
+          throw new FuturesLiquidityValidationError("Available order-book depth overflow");
+        }
+        if (remaining <= 0) continue;
+        const take = Math.min(remaining, quantity);
+        if (take <= 0) continue;
+        const notional = take * price;
+        if (!Number.isFinite(notional) || !Number.isFinite(filledNotionalUsd + notional)) {
+          throw new FuturesLiquidityValidationError("Estimated execution notional overflow");
+        }
+        filledQuantity += take;
+        filledNotionalUsd += notional;
+        remaining = Math.max(0, requestedQuantity - filledQuantity);
+        levelsConsumed += 1;
+      }
+      const fillRatioPct = Math.min(100, filledQuantity / requestedQuantity * 100);
+      const fullyFilled = remaining <= Math.max(1e-12, requestedQuantity * 1e-10);
+      const averageFillPrice = filledQuantity > 0 ? filledNotionalUsd / filledQuantity : null;
+      const direction = side === "BUY" ? 1 : -1;
+      const spreadCostBps = Math.max(0, direction * (bestPrice - mid) / mid * 10_000);
+      const depthImpactBps = averageFillPrice === null
+        ? null : Math.max(0, direction * (averageFillPrice - bestPrice) / mid * 10_000);
+      const totalMidShortfallBps = averageFillPrice === null
+        ? null : Math.max(0, direction * (averageFillPrice - mid) / mid * 10_000);
+      for (const value of [fillRatioPct, spreadCostBps, depthImpactBps, totalMidShortfallBps]) {
+        if (value !== null && !Number.isFinite(value)) {
+          throw new FuturesLiquidityValidationError("Execution estimate is non-finite");
+        }
+      }
+      return {
+        side, requestedNotionalUsd, requestedQuantity, filledNotionalUsd, filledQuantity,
+        fillRatioPct, fullyFilled, averageFillPrice, spreadCostBps, depthImpactBps,
+        totalMidShortfallBps, levelsConsumed, availableBookNotionalUsd,
+      };
+    };
+    return {
+      symbol, source: snapshot.source, snapshotFetchedAt: snapshot.fetchedAt, snapshotAgeMs,
+      midPrice: mid, spreadBps: market.orderBook.spreadBps, requestedNotionalUsd,
+      buy: estimate("BUY"), sell: estimate("SELL"),
+      assumptions: [
+        "Both estimates consume the current public REST order-book snapshot: BUY walks asks and SELL walks bids.",
+        "Requested quantity is derived from requested USD notional divided by the snapshot mid price; levels are consumed in published price order.",
+        "Spread cost and additional depth impact are estimated relative to mid and best quote; no fees are included.",
+        "A partial fill is reported as partial and is not represented as a complete execution.",
+        "The snapshot is a current point-in-time observation, not historical liquidity data and not a replay of past strategy trades.",
+        "Latency, queue position, hidden liquidity, cancellations, replenishment, market impact beyond visible depth and price movement during execution are not modeled.",
+      ],
+      executionEligible: false,
+      exchangeOrderSent: false,
+    };
   }
 
   analyzeSnapshot(snapshot: FuturesRawSnapshot, expectedDepth = 100): FuturesLiquidityResult {
