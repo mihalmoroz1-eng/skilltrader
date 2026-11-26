@@ -117,6 +117,21 @@ describe("Historical Order Book Intelligence", () => {
     expect(stale.status).toBe("stale");
   });
 
+  it("measures coverage using only snapshots available at candle-open decision times", async () => {
+    const { service } = fixture({ observedAt: BASE_TIME });
+    await service.capture("BTCUSDT");
+    const candles = [BASE_TIME + 100, BASE_TIME + 60_100].map(openTime => ({
+      openTime, closeTime: openTime + 59_999, open: "100", high: "101", low: "99",
+      close: "100", volume: "1", quoteVolume: "100", tradeCount: 1,
+    }));
+    const result = await service.coverage("BTCUSDT", candles, 30_000);
+    expect(result.decisionCount).toBe(2);
+    expect(result.matchedCount).toBe(1);
+    expect(result.staleCount).toBe(1);
+    expect(result.missingCount).toBe(0);
+    expect(result.status).toBe("partial");
+  });
+
   it("verifies stored content digest before returning history or a matched snapshot", async () => {
     const { service, store } = fixture();
     await service.capture("BTCUSDT");
