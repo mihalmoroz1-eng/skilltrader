@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import type { MarketCandle } from "../../market-data/core/MarketDataTypes";
+import { analyzeHistoricalLiquidityCoverage } from "./HistoricalLiquidityAnalytics";
 import type { FuturesLiquidityService } from "./FuturesLiquidityService";
 import type { FuturesMarketProvider, FuturesOrderBookLevel } from "./FuturesLiquidityTypes";
 import type {
@@ -167,6 +169,38 @@ export class HistoricalOrderBookService {
       truncated, snapshots,
       executionEligible: false as const, exchangeOrderSent: false as const,
     };
+  }
+
+  async coverage(
+    symbolInput: string,
+    candles: readonly MarketCandle[],
+    maxAgeMs = MAX_SNAPSHOT_AGE_MS,
+  ) {
+    const symbol = validateSymbol(symbolInput);
+    if (candles.length < 1 || candles.length > 50_000 ||
+        !Number.isInteger(maxAgeMs) || maxAgeMs < 1 || maxAgeMs > 300_000) {
+      throw new HistoricalOrderBookError("Invalid historical liquidity coverage request");
+    }
+    const firstTime = candles[0].openTime;
+    const lastTime = candles[candles.length - 1].openTime;
+    if (!Number.isSafeInteger(firstTime) || !Number.isSafeInteger(lastTime) ||
+        firstTime < 0 || lastTime < firstTime) {
+      throw new HistoricalOrderBookError("Invalid candle timestamps for liquidity coverage");
+    }
+    const rows = await this.store.list(symbol, firstTime, lastTime, 5_001);
+    if (rows.length > 5_000) {
+      throw new HistoricalOrderBookError("Coverage range contains more than 5,000 archived snapshots; narrow the requested range");
+    }
+    const snapshots = rows.map(parseAndVerify);
+    if (snapshots.some(snapshot => snapshot.symbol !== symbol)) {
+      throw new HistoricalOrderBookError("Historical order-book store returned a different symbol");
+    }
+    for (let i = 1; i < snapshots.length; i += 1) {
+      if (snapshots[i].observedAt <= snapshots[i - 1].observedAt) {
+        throw new HistoricalOrderBookError("Historical order-book timestamps are not strictly increasing");
+      }
+    }
+    return analyzeHistoricalLiquidityCoverage(symbol, candles, snapshots, maxAgeMs);
   }
 
   async matchAtOrBefore(
