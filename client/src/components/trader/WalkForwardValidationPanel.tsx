@@ -94,7 +94,7 @@ export default function WalkForwardValidationPanel() {
   const strategyPortfolio = trpc.backtesting.strategyPortfolio.useMutation();
   const liquidityCoverage = trpc.backtesting.liquidityCoverage.useMutation();
   useEffect(() => { walkForward.reset(); strategyPortfolio.reset(); liquidityCoverage.reset(); }, [
-    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, compareAllStrategies, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, breakoutLookbackPeriod, breakoutBufferBps,
+    symbol, interval, startDate, endDate, trainingCandles, validationCandles, stepCandles, windowCount, allowShort, compareAllStrategies, strategy, rsiPeriod, rsiOversoldLevel, rsiOverboughtLevel, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, breakoutLookbackPeriod, breakoutBufferBps, liquidityCoverage.reset,
   ]);
 
   const checkLiquidityCoverage = () => {
