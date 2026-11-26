@@ -53,6 +53,8 @@ describe("Historical Liquidity Analytics", () => {
     expect(result.filledQuantity).toBe("6");
     expect(result.vwap).toBe("101.333333333333333333");
     expect(result.spreadBps).toBe("99.502487562189054726");
+    expect(Number(result.marketImpactBps)).toBeGreaterThan(0);
+    expect(Number(result.marketImpactBps)).toBeLessThan(Number(result.spreadBps));
     expect(result.executionEligible).toBe(false);
     expect(result.exchangeOrderSent).toBe(false);
   });
