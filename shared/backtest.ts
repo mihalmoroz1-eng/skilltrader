@@ -118,7 +118,22 @@ export type BacktestRequest = z.infer<typeof backtestRequestSchema>;
 export type WalkForwardRequest = z.infer<typeof walkForwardRequestSchema>;
 
 /** Reuses the strict Walk-Forward input contract; the engine evaluates all four strategies. */
-export const strategyPortfolioRequestSchema = walkForwardRequestSchema.transform(value => {
+export const strategyPortfolioRequestSchema = walkForwardRequestSchema.superRefine((value, ctx) => {
+  if (value.feeBps > 50) {
+    ctx.addIssue({
+      code: "custom",
+      message: "feeBps must be at most 50 because Strategy Portfolio includes a 2x cost stress case",
+      path: ["feeBps"],
+    });
+  }
+  if (value.slippageBps > 50) {
+    ctx.addIssue({
+      code: "custom",
+      message: "slippageBps must be at most 50 because Strategy Portfolio includes a 2x cost stress case",
+      path: ["slippageBps"],
+    });
+  }
+}).transform(value => {
   const { strategy: _strategy, ...config } = value;
   return config;
 });
