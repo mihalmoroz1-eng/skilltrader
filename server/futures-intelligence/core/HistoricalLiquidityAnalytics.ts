@@ -219,7 +219,7 @@ export function simulateHistoricalLiquidityFill(input: {
     return { ...common, status: "insufficient_depth", filledQuantity: null, vwap: null, marketImpactBps: null };
   }
   const vwap = divideFixed(notional, requested);
-  const impactNumerator = side === "BUY" ? vwap - midPrice : midPrice - vwap;
+  const impactNumerator = side === "BUY" ? vwap - bestAsk : bestBid - vwap;
   const marketImpactBps = ratioBps(impactNumerator < 0n ? 0n : impactNumerator, midPrice);
   return {
     ...common, status: "filled", filledQuantity: formatFixed(requested),
