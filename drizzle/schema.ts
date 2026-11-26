@@ -1,4 +1,4 @@
-import { bigint, int, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, index } from "drizzle-orm/mysql-core";
+import { bigint, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, varchar, uniqueIndex, index } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -138,8 +138,8 @@ export const futuresOrderBookSnapshots = mysqlTable("futures_order_book_snapshot
   lastUpdateId: bigint("lastUpdateId", { mode: "number", unsigned: true }).notNull(),
   bestBid: varchar("bestBid", { length: 80 }).notNull(),
   bestAsk: varchar("bestAsk", { length: 80 }).notNull(),
-  bidsJson: text("bidsJson").notNull(),
-  asksJson: text("asksJson").notNull(),
+  bidsJson: mediumtext("bidsJson").notNull(),
+  asksJson: mediumtext("asksJson").notNull(),
   bidLevels: int("bidLevels", { unsigned: true }).notNull(),
   askLevels: int("askLevels", { unsigned: true }).notNull(),
   contentDigest: varchar("contentDigest", { length: 64 }).notNull(),
