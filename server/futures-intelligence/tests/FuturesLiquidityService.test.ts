@@ -45,13 +45,13 @@ describe("Futures Liquidity Intelligence", () => {
   });
 
   it("estimates BUY and SELL VWAP from the same visible order-book snapshot", async () => {
-    const result = await service().simulateExecution("BTCUSDT", 450, 100);
+    const result = await service().simulateExecution("BTCUSDT", 600, 100);
     expect(result.buy.side).toBe("BUY");
     expect(result.sell.side).toBe("SELL");
     expect(result.buy.fullyFilled).toBe(true);
     expect(result.sell.fullyFilled).toBe(true);
     expect(result.buy.levelsConsumed).toBe(2);
-    expect(result.sell.levelsConsumed).toBe(1);
+    expect(result.sell.levelsConsumed).toBe(2);
     expect(result.buy.averageFillPrice).toBeGreaterThan(Number(snapshot.orderBook.asks[0].price));
     expect(result.sell.averageFillPrice).toBeLessThan(Number(snapshot.orderBook.bids[0].price));
     expect(result.buy.totalMidShortfallBps).toBeGreaterThan(0);
