@@ -27,7 +27,7 @@ import { WalkForwardInputError, runWalkForwardValidation } from "./backtesting/c
 import { StrategyRobustnessInputError, runStrategyRobustness } from "./backtesting/core/StrategyRobustnessEngine";
 import { StrategyBenchmarkInputError, runStrategyBenchmark } from "./backtesting/core/StrategyBenchmarkEngine";
 import { StrategyPortfolioInputError, runStrategyPortfolioIntelligence } from "./backtesting/core/StrategyPortfolioIntelligenceEngine";
-import { futuresIntelligenceRequestSchema } from "@shared/futuresIntelligence";
+import { futuresExecutionSimulationRequestSchema, futuresIntelligenceRequestSchema } from "@shared/futuresIntelligence";
 import { BinanceUsdMFuturesProvider, FuturesProviderError } from "./futures-intelligence/providers/BinanceUsdMFuturesProvider";
 import { FuturesLiquidityService, FuturesLiquidityValidationError } from "./futures-intelligence/core/FuturesLiquidityService";
 import { researchAgentRequestSchema } from "@shared/researchAgent";
@@ -268,6 +268,34 @@ export const appRouter = router({
           }
           console.error("[Futures Intelligence] Analysis failed", error instanceof Error ? error.name : "unknown");
           throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Анализ ликвидности временно недоступен." });
+        }
+      }),
+    simulateExecution: protectedProcedure
+      .input(futuresExecutionSimulationRequestSchema)
+      .mutation(async ({ ctx, input }) => {
+        const rate = marketDataRateLimiter.consume(ctx.user.openId);
+        if (!rate.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Достигнут лимит запросов. Повторите через ${rate.retryAfterSeconds} сек.` });
+        }
+        try {
+          return await futuresLiquidityService.simulateExecution(
+            input.symbol, input.requestedNotionalUsd, input.depthLimit,
+          );
+        } catch (error) {
+          if (error instanceof FuturesLiquidityValidationError) {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Снимок стакана устарел или не прошёл проверку; оценка исполнения остановлена." });
+          }
+          if (error instanceof FuturesProviderError) {
+            if (error.kind === "rate-limit") {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Binance Futures ограничила частоту запросов." });
+            }
+            if (error.kind === "timeout" || error.kind === "network" || (error.status !== undefined && error.status >= 500)) {
+              throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Источник Futures временно недоступен." });
+            }
+            throw new TRPCError({ code: "BAD_GATEWAY", message: "Источник Futures вернул неподходящий ответ." });
+          }
+          console.error("[Futures Execution Simulation] Failed", error instanceof Error ? error.name : "unknown");
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Симуляция исполнения временно недоступна." });
         }
       }),
   }),
