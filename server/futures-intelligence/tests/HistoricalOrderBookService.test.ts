@@ -120,7 +120,9 @@ describe("Historical Order Book Intelligence", () => {
   it("verifies stored content digest before returning history or a matched snapshot", async () => {
     const { service, store } = fixture();
     await service.capture("BTCUSDT");
-    store.rows[0].asksJson = JSON.stringify([{ price: "100.2", quantity: "99" }]);
+    store.rows[0].asksJson = JSON.stringify([
+      { price: "100.1", quantity: "99" }, { price: "100.2", quantity: "7" },
+    ]);
     await expect(service.history("BTCUSDT", BASE_TIME, BASE_TIME + 1000)).rejects.toThrow(/digest/);
     await expect(service.matchAtOrBefore("BTCUSDT", BASE_TIME)).rejects.toThrow(/digest/);
   });
