@@ -22,6 +22,8 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  email?: string;
+  role?: "admin";
 };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
@@ -191,6 +193,8 @@ class SDKServer {
       openId: payload.openId,
       appId: payload.appId,
       name: payload.name,
+      ...(payload.email ? { email: payload.email } : {}),
+      ...(payload.role ? { role: payload.role } : {}),
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -210,7 +214,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, email, role } = payload as Record<string, unknown>;
 
       if (
         !isNonEmptyString(openId) ||
@@ -221,10 +225,14 @@ class SDKServer {
         return null;
       }
 
+      if (role !== undefined && role !== "admin") return null;
+      if (email !== undefined && typeof email !== "string") return null;
       return {
         openId,
         appId,
         name,
+        ...(typeof email === "string" ? { email } : {}),
+        ...(role === "admin" ? { role } : {}),
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -293,6 +301,12 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    // The single configured administrator uses a signed server-side session;
+    // this path does not depend on Manus OAuth or a users-table row.
+    if (session.role === "admin" && session.email?.trim().toLowerCase() === ENV.adminEmail.trim().toLowerCase()) {
+      return buildSessionUser(session, signedInAt);
+    }
 
     // Database-free projects still need real, project-bound application
     // sessions for protected endpoints such as Skill Trader AI. The signed
@@ -370,9 +384,9 @@ function buildSessionUser(
     id: -1,
     openId: session.openId,
     name: session.name || "Пользователь Skill Trader",
-    email: null,
-    loginMethod: null,
-    role: ENV.ownerOpenId && session.openId === ENV.ownerOpenId ? "admin" : "user",
+    email: session.email ?? null,
+    loginMethod: "email",
+    role: session.role === "admin" || (ENV.ownerOpenId && session.openId === ENV.ownerOpenId) ? "admin" : "user",
     createdAt: now,
     updatedAt: now,
     lastSignedIn: now,
