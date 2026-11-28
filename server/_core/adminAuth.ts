@@ -21,7 +21,7 @@ export async function verifyAdminCredentials(email: string, password: string): P
   const expectedEmail = ENV.adminEmail.trim().toLowerCase();
   const suppliedEmail = email.trim().toLowerCase();
   const encoded = ENV.adminPasswordHash;
-  if (!expectedEmail || !encoded || !ENV.cookieSecret || suppliedEmail !== expectedEmail) return false;
+  if (!expectedEmail || !encoded || ENV.cookieSecret.length < 32 || suppliedEmail !== expectedEmail) return false;
 
   const [scheme, salt, expectedHex] = encoded.split("$");
   if (scheme !== "scrypt" || !salt || !expectedHex || !/^[a-f0-9]{128}$/i.test(expectedHex)) return false;
