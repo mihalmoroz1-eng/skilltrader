@@ -1,6 +1,6 @@
 import type { CookieOptions, Request } from "express";
 
 export function getSessionCookieOptions(_req: Request): CookieOptions {
-  // Preview is public HTTPS in a cross-site frame even when the upstream request is HTTP.
-  return { httpOnly: true, path: "/", sameSite: "none", secure: true };
+  // Same-origin application sessions do not need cross-site cookies.
+  return { httpOnly: true, path: "/", sameSite: "lax", secure: true };
 }
