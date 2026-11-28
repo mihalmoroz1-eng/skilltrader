@@ -154,11 +154,12 @@ function DashboardLayoutContent({
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-destructive transition-colors hover:bg-destructive/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="ml-auto inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-destructive/30 px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Выйти из аккаунта"
                 title="Выйти"
               >
                 <LogOut className="h-4 w-4" />
+                {!isCollapsed && <span>Выйти</span>}
               </button>
             </div>
           </SidebarHeader>
