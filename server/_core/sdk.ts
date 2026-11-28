@@ -1,4 +1,5 @@
 import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS, decodeOAuthState } from "@shared/const";
+import { createHash } from "node:crypto";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -178,6 +179,12 @@ class SDKServer {
       },
       options
     );
+  }
+
+  async createAdminSessionToken(email: string): Promise<string> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const openId = `admin_${createHash("sha256").update(normalizedEmail).digest("hex").slice(0, 48)}`;
+    return this.signSession({ openId, appId: ENV.appId, name: "Administrator", email: normalizedEmail, role: "admin" });
   }
 
   async signSession(
