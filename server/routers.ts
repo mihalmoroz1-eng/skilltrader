@@ -1,4 +1,7 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { z } from "zod";
+import { verifyAdminCredentials, consumeAdminLoginAttempt } from "./_core/adminAuth";
+import { sdk } from "./_core/sdk";
 import { traderAssistantInputSchema } from "@shared/traderAssistant";
 import { marketDataRequestSchema } from "@shared/marketData";
 import { marketIntelligenceRequestSchema } from "@shared/marketIntelligence";
@@ -71,6 +74,28 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    login: publicProcedure
+      .input(z.object({
+        email: z.string().trim().email().max(320),
+        password: z.string().min(1).max(256),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const key = ctx.req.ip || "unknown";
+        if (!consumeAdminLoginAttempt(key)) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много попыток входа. Повторите через 15 минут." });
+        }
+        const valid = await verifyAdminCredentials(input.email, input.password);
+        if (!valid) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Неверный email или пароль." });
+        }
+        const email = input.email.trim().toLowerCase();
+        const token = await sdk.createAdminSessionToken(email);
+        ctx.res.cookie(COOKIE_NAME, token, {
+          ...getSessionCookieOptions(ctx.req),
+          maxAge: ONE_YEAR_MS,
+        });
+        return { success: true };
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
