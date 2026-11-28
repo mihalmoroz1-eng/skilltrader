@@ -176,16 +176,32 @@ describe("current platform integration", () => {
     vi.stubEnv("MANUS_PROJECT_ID", "different-project");
     expect(await sdk.verifySession(token)).toBeNull();
   });
-  it("authenticates a valid signed session without a database", async () => {
+  it("rejects a valid signed non-admin session", async () => {
+    vi.stubEnv("MANUS_PROJECT_ID", "project-test");
+    vi.stubEnv("MANUS_JWT_SECRET", "unit-test-signing-key-never-deployed");
+    vi.stubEnv("SKILL_TRADER_ADMIN_EMAIL", "admin@example.com");
+    const token = await sdk.signSession({ openId: "user-test", appId: "project-test", name: "Demo user" });
+    await expect(sdk.authenticateRequest({
+      headers: { cookie: `${COOKIE_NAME}=${token}` },
+      path: "/api/trpc/traderAssistant.chat",
+    } as never)).rejects.toThrow("Administrator session required");
+  });
+
+  it("authenticates only the configured administrator without a database", async () => {
     vi.stubEnv("MANUS_PROJECT_ID", "project-test");
     vi.stubEnv("MANUS_JWT_SECRET", "unit-test-signing-key-never-deployed");
     vi.stubEnv("DATABASE_URL", "");
-    vi.stubEnv("OWNER_OPEN_ID", "owner-test");
-    const token = await sdk.signSession({ openId: "user-test", appId: "project-test", name: "Demo user" });
+    vi.stubEnv("SKILL_TRADER_ADMIN_EMAIL", "admin@example.com");
+    const token = await sdk.signSession({
+      openId: "admin-test", appId: "project-test", name: "Administrator",
+      email: "admin@example.com", role: "admin",
+    });
     const user = await sdk.authenticateRequest({
       headers: { cookie: `${COOKIE_NAME}=${token}` },
       path: "/api/trpc/traderAssistant.chat",
     } as never);
-    expect(user).toMatchObject({ openId: "user-test", name: "Demo user", role: "user", id: -1 });
+    expect(user).toMatchObject({
+      openId: "admin-test", name: "Administrator", email: "admin@example.com", role: "admin", id: -1,
+    });
   });
 });
