@@ -6,7 +6,6 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
-import * as db from "../db";
 import { ENV } from "./env";
 import type {
   ExchangeTokenRequest,
@@ -272,32 +271,26 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<AuthenticatedUser> {
-    // 1. Prefer the session cookie (regular OAuth login).
     const cookies = this.parseCookies(req.headers.cookie);
     let sessionToken = cookies.get(COOKIE_NAME);
-    if (!sessionToken && req.path.startsWith("/api/scheduled/")) {
+
+    // Scheduled callbacks use their dedicated ticket cookie and remain
+    // isolated from interactive administrator sessions.
+    if (req.path.startsWith("/api/scheduled/") && !sessionToken) {
       const ticket = cookies.get("app_session_id");
       const identity = await this.verifySession(ticket);
       if (identity?.openId.startsWith(CRON_OPEN_ID_PREFIX)) sessionToken = ticket;
     }
 
-    // 2. Fallback to the Authorization header (Preview auto-login via
-    //    sessionStorage), used when the browser blocks iframe cookies such as
-    //    Safari ITP, private browsing, or iOS/Android WebView.
-    if (!sessionToken) {
-      const authHeader = req.headers.authorization;
-      if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
-        sessionToken = authHeader.slice(7);
-      }
-    }
-
     const session = await this.verifySession(sessionToken);
-
     if (!session) {
       throw ForbiddenError("Invalid session cookie");
     }
 
     if (session.openId.startsWith(CRON_OPEN_ID_PREFIX)) {
+      if (!req.path.startsWith("/api/scheduled/")) {
+        throw ForbiddenError("Scheduled session cannot access application routes");
+      }
       const userInfo = await this.getUserInfoWithJwt(sessionToken ?? "");
       const taskUid = userInfo.taskUid ?? null;
       if (!taskUid) {
@@ -306,53 +299,16 @@ class SDKServer {
       return buildCronUser(userInfo);
     }
 
-    const sessionUserId = session.openId;
-    const signedInAt = new Date();
-
-    // The single configured administrator uses a signed server-side session;
-    // this path does not depend on Manus OAuth or a users-table row.
-    if (session.role === "admin" && session.email?.trim().toLowerCase() === ENV.adminEmail.trim().toLowerCase()) {
-      return buildSessionUser(session, signedInAt);
+    const configuredAdminEmail = ENV.adminEmail.trim().toLowerCase();
+    if (
+      session.role !== "admin" ||
+      !configuredAdminEmail ||
+      session.email?.trim().toLowerCase() !== configuredAdminEmail
+    ) {
+      throw ForbiddenError("Administrator session required");
     }
 
-    // Database-free projects still need real, project-bound application
-    // sessions for protected endpoints such as Skill Trader AI. The signed
-    // session is already verified above; use the configured owner identity
-    // only for the owner role and never invent a Preview user.
-    if (!ENV.databaseUrl) {
-      return buildSessionUser(session, signedInAt);
-    }
-
-    let user = await db.getUserByOpenId(sessionUserId);
-
-    // If user not in DB, sync from OAuth server automatically
-    if (!user) {
-      try {
-        const userInfo = await this.getUserInfoWithJwt(sessionToken ?? "");
-        await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-          lastSignedIn: signedInAt,
-        });
-        user = await db.getUserByOpenId(userInfo.openId);
-      } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
-      }
-    }
-
-    if (!user) {
-      throw ForbiddenError("User not found");
-    }
-
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
-
-    return user;
+    return buildSessionUser(session, new Date());
   }
 }
 
