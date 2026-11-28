@@ -151,6 +151,15 @@ function DashboardLayoutContent({
                   </span>
                 </div>
               ) : null}
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-destructive transition-colors hover:bg-destructive/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Выйти из аккаунта"
+                title="Выйти"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           </SidebarHeader>
 
@@ -206,16 +215,6 @@ function DashboardLayoutContent({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="mt-2 flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-destructive transition-colors hover:bg-destructive/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:justify-center"
-              aria-label="Выйти из аккаунта"
-              title="Выйти"
-            >
-              <LogOut className="h-4 w-4 shrink-0" />
-              <span className="group-data-[collapsible=icon]:hidden">Выйти</span>
-            </button>
           </SidebarFooter>
         </Sidebar>
         <div
